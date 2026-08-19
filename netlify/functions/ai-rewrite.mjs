@@ -92,6 +92,23 @@ function createHandler({ fetchFn = fetch, env = process.env, timeoutMs = DEFAULT
 }
 
 const handler = createHandler();
+const defaultHandler = createFetchHandler();
+
+function createFetchHandler(options = {}) {
+  const eventHandler = createHandler(options);
+  return async function fetchHandler(request) {
+    const body = await request.text();
+    const result = await eventHandler({
+      httpMethod: request.method,
+      headers: Object.fromEntries(request.headers),
+      body,
+    });
+    return new Response(result.body, {
+      status: result.statusCode,
+      headers: result.headers,
+    });
+  };
+}
 
 function validatePayload(payload) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
@@ -230,4 +247,5 @@ function json(statusCode, body, extraHeaders = {}) {
   };
 }
 
-export { config, createHandler, handler, validateRewriteFacts };
+export default defaultHandler;
+export { config, createFetchHandler, createHandler, handler, validateRewriteFacts };
