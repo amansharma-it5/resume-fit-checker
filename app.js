@@ -406,13 +406,13 @@ async function aiRewriteBullet() {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      renderAiError(response.status, payload.code);
+      renderAiError(response.status, payload.code || (response.status === 404 ? "FUNCTION_NOT_FOUND" : "GROQ_REJECTED"));
       return;
     }
     renderAiRewrite(original, payload);
     showToast("AI Rewrite complete.");
   } catch {
-    renderAiError(504, "timeout");
+    renderAiError(0, "CSP_BLOCKED");
   } finally {
     elements.aiRewriteButton.textContent = "AI Rewrite";
     updateAiRewriteState();
@@ -422,7 +422,7 @@ async function aiRewriteBullet() {
 function renderAiRewrite(original, payload) {
   const rewritten = String(payload.rewrittenBullet || "").trim();
   if (!rewritten) {
-    renderAiError(502, "provider_error");
+    renderAiError(502, "GROQ_REJECTED");
     return;
   }
   state.lastRewrite = rewritten;
@@ -437,15 +437,32 @@ function renderAiRewrite(original, payload) {
 }
 
 function renderAiError(status, code) {
-  const message = status === 429
+  const safeCode = normalizeAiErrorCode(status, code);
+  const message = safeCode === "GROQ_RATE_LIMITED"
     ? "AI Rewrite is rate limited. Try again in a moment, or use local Smart Rewrite."
-    : code === "missing_key" || status === 503
+    : safeCode === "MISSING_API_KEY"
       ? "AI Rewrite is not configured on this deployment. Use local Smart Rewrite."
-      : code === "timeout" || status === 504
+      : safeCode === "FUNCTION_TIMEOUT"
         ? "AI Rewrite timed out. Use local Smart Rewrite or try again."
-        : "AI Rewrite failed. Use local Smart Rewrite instead.";
-  elements.rewriteMeta.textContent = message;
+        : safeCode === "FUNCTION_NOT_FOUND"
+          ? "AI Rewrite function was not found on this deployment. Use local Smart Rewrite."
+          : safeCode === "CSP_BLOCKED"
+            ? "AI Rewrite request was blocked by browser security policy. Use local Smart Rewrite."
+            : "AI Rewrite was rejected safely. Use local Smart Rewrite instead.";
+  elements.rewriteMeta.textContent = `${message} Code: ${safeCode}.`;
   showToast(message);
+}
+
+function normalizeAiErrorCode(status, code) {
+  const normalized = String(code || "").toUpperCase();
+  if (["CSP_BLOCKED", "FUNCTION_NOT_FOUND", "MISSING_API_KEY", "GROQ_RATE_LIMITED", "GROQ_REJECTED", "FUNCTION_TIMEOUT"].includes(normalized)) {
+    return normalized;
+  }
+  if (status === 404) return "FUNCTION_NOT_FOUND";
+  if (status === 429) return "GROQ_RATE_LIMITED";
+  if (status === 503) return "MISSING_API_KEY";
+  if (status === 504) return "FUNCTION_TIMEOUT";
+  return "GROQ_REJECTED";
 }
 
 async function copyRewrite() {

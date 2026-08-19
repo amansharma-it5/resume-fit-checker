@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { config, createHandler } from "./netlify/functions/ai-rewrite.mjs";
+import { config, createHandler, ERROR_CODES, validateRewriteFacts } from "./netlify/functions/ai-rewrite.mjs";
 
 const validBody = {
   bullet: "Led React migration for onboarding flows.",
@@ -56,7 +56,7 @@ test("returns missing-key state without calling provider", async () => {
   const handler = createHandler({ env: {}, fetchFn: async () => { called = true; } });
   const response = await handler(event());
   assert.equal(response.statusCode, 503);
-  assert.equal(parse(response).code, "missing_key");
+  assert.equal(parse(response).code, ERROR_CODES.MISSING_API_KEY);
   assert.equal(called, false);
 });
 
@@ -105,6 +105,9 @@ test("returns successful structured response", async () => {
   assert.deepEqual(body.missingDetails, ["Verified result"]);
   assert.equal(requestBody.model, "openai/gpt-oss-20b");
   assert.equal(requestBody.temperature, 0.1);
+  assert.equal(requestBody.include_reasoning, false);
+  assert.equal(requestBody.reasoning_effort, "low");
+  assert.equal(requestBody.max_completion_tokens, 1200);
   assert.match(requestBody.messages[0].content, /Never invent metrics, employers, dates, tools, certifications, clients, achievements, or skills/);
 });
 
@@ -115,7 +118,7 @@ test("maps Groq rate limit to safe rate-limit state", async () => {
   });
   const response = await handler(event());
   assert.equal(response.statusCode, 429);
-  assert.equal(parse(response).code, "rate_limited");
+  assert.equal(parse(response).code, ERROR_CODES.GROQ_RATE_LIMITED);
   assert.doesNotMatch(response.body, /raw|hidden/i);
 });
 
@@ -126,18 +129,36 @@ test("returns generic timeout/provider error without raw provider detail", async
   });
   const providerResponse = await providerErrorHandler(event());
   assert.equal(providerResponse.statusCode, 502);
+  assert.equal(parse(providerResponse).code, ERROR_CODES.GROQ_REJECTED);
   assert.doesNotMatch(providerResponse.body, /provider stack trace/i);
 
   const timeoutHandler = createHandler({
     env: { GroqAPIKey: "mock-credential" },
     timeoutMs: 1,
     fetchFn: async (_url, options) => new Promise((_resolve, reject) => {
-      options.signal.addEventListener("abort", () => reject(new Error("aborted")));
+      options.signal.addEventListener("abort", () => {
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        reject(error);
+      });
     }),
   });
   const timeoutResponse = await timeoutHandler(event());
   assert.equal(timeoutResponse.statusCode, 504);
-  assert.equal(parse(timeoutResponse).code, "timeout");
+  assert.equal(parse(timeoutResponse).code, ERROR_CODES.FUNCTION_TIMEOUT);
+});
+
+test("maps provider connection errors to safe Groq rejection code", async () => {
+  const handler = createHandler({
+    env: { GroqAPIKey: "mock-credential" },
+    fetchFn: async () => {
+      throw new Error("network detail that must stay hidden");
+    },
+  });
+  const response = await handler(event());
+  assert.equal(response.statusCode, 502);
+  assert.equal(parse(response).code, ERROR_CODES.GROQ_REJECTED);
+  assert.doesNotMatch(response.body, /network detail/i);
 });
 
 test("does not fabricate information in mocked successful output", async () => {
@@ -170,19 +191,19 @@ test("does not fabricate information in mocked successful output", async () => {
 test("rejects a newly fabricated percentage", async () => {
   const response = await handlerWithRewrite("Led React migration for onboarding flows, improving conversion by 25%.");
   assert.equal(response.statusCode, 502);
-  assert.equal(parse(response).code, "provider_error");
+  assert.equal(parse(response).code, ERROR_CODES.GROQ_REJECTED);
 });
 
 test("rejects a newly fabricated currency amount", async () => {
   const response = await handlerWithRewrite("Led React migration for onboarding flows, saving $50,000.");
   assert.equal(response.statusCode, 502);
-  assert.equal(parse(response).code, "provider_error");
+  assert.equal(parse(response).code, ERROR_CODES.GROQ_REJECTED);
 });
 
 test("rejects a newly fabricated date", async () => {
   const response = await handlerWithRewrite("Led React migration for onboarding flows launched in 2025.");
   assert.equal(response.statusCode, 502);
-  assert.equal(parse(response).code, "provider_error");
+  assert.equal(parse(response).code, ERROR_CODES.GROQ_REJECTED);
 });
 
 test("allows original numbers to remain unchanged", async () => {
@@ -199,4 +220,26 @@ test("accepts clearly marked placeholders", async () => {
   const response = await handlerWithRewrite("Led React migration for onboarding flows with [add verified percentage] and [add verified date].");
   assert.equal(response.statusCode, 200);
   assert.match(parse(response).rewrittenBullet, /\[add verified percentage\]/);
+});
+
+test("allows target role wording without treating it as an employer", () => {
+  assert.equal(
+    validateRewriteFacts(
+      "Led React migration for onboarding flows.",
+      "Role: Frontend Engineer. Required: React.",
+      "Led React migration for onboarding flows as a Frontend Engineer with [add verified result].",
+    ),
+    true,
+  );
+});
+
+test("rejects newly fabricated employer or client names", () => {
+  assert.equal(
+    validateRewriteFacts(
+      "Led React migration for onboarding flows.",
+      "Preferred: experience with enterprise clients including Acme.",
+      "Led React migration for onboarding flows for Acme with [add verified result].",
+    ),
+    false,
+  );
 });

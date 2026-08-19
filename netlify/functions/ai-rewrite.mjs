@@ -4,7 +4,14 @@ const MAX_BULLET_CHARS = 1000;
 const MAX_JD_CHARS = 2000;
 const MAX_ROLE_CHARS = 120;
 const MAX_BODY_BYTES = 7000;
-const DEFAULT_TIMEOUT_MS = 9000;
+const DEFAULT_TIMEOUT_MS = 20000;
+
+const ERROR_CODES = {
+  MISSING_API_KEY: "MISSING_API_KEY",
+  GROQ_RATE_LIMITED: "GROQ_RATE_LIMITED",
+  GROQ_REJECTED: "GROQ_REJECTED",
+  FUNCTION_TIMEOUT: "FUNCTION_TIMEOUT",
+};
 
 const responseHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -38,7 +45,7 @@ function createHandler({ fetchFn = fetch, env = process.env, timeoutMs = DEFAULT
 
     const apiKey = env.GROQ_API_KEY || env.GroqAPIKey;
     if (!apiKey) {
-      return json(503, { error: "AI rewrite is unavailable right now.", code: "missing_key" });
+      return json(503, { error: "AI rewrite is unavailable right now.", code: ERROR_CODES.MISSING_API_KEY });
     }
 
     let payload;
@@ -66,25 +73,28 @@ function createHandler({ fetchFn = fetch, env = process.env, timeoutMs = DEFAULT
       });
 
       if (providerResponse.status === 429) {
-        return json(429, { error: "AI rewrite is rate limited. Try again in a moment.", code: "rate_limited" });
+        return json(429, { error: "AI rewrite is rate limited. Try again in a moment.", code: ERROR_CODES.GROQ_RATE_LIMITED });
       }
       if (!providerResponse.ok) {
-        return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: "provider_error" });
+        return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: ERROR_CODES.GROQ_REJECTED });
       }
 
       const providerJson = await providerResponse.json();
       const content = providerJson?.choices?.[0]?.message?.content;
       const parsed = parseStructuredOutput(content);
       if (!parsed) {
-        return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: "provider_error" });
+        return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: ERROR_CODES.GROQ_REJECTED });
       }
       if (!validateRewriteFacts(validation.value.bullet, validation.value.jdExcerpt, parsed.rewrittenBullet)) {
-        return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: "provider_error" });
+        return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: ERROR_CODES.GROQ_REJECTED });
       }
 
       return json(200, parsed);
-    } catch {
-      return json(504, { error: "AI rewrite timed out. Try the local Smart Rewrite instead.", code: "timeout" });
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        return json(504, { error: "AI rewrite timed out. Try the local Smart Rewrite instead.", code: ERROR_CODES.FUNCTION_TIMEOUT });
+      }
+      return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: ERROR_CODES.GROQ_REJECTED });
     } finally {
       clearTimeout(timeout);
     }
@@ -127,8 +137,10 @@ function buildGroqRequest({ bullet, role, jdExcerpt }) {
   return {
     model: MODEL,
     temperature: 0.1,
-    max_completion_tokens: 500,
+    max_completion_tokens: 1200,
     stream: false,
+    include_reasoning: false,
+    reasoning_effort: "low",
     response_format: { type: "json_object" },
     messages: [
       {
@@ -201,10 +213,13 @@ function collectMatches(text, pattern, facts) {
 }
 
 function collectNameFacts(text, facts) {
-  const namePattern = /\b(?:[A-Z][a-zA-Z&.-]{1,}|[A-Z]{2,})(?:\s+(?:[A-Z][a-zA-Z&.-]{1,}|[A-Z]{2,})){0,3}\b/g;
-  for (const match of text.matchAll(namePattern)) {
-    const value = match[0].trim();
-    if (!isIgnoredNameFact(value)) facts.add(normalizeFact(value));
+  const suffixPattern = /\b(?:[A-Z][a-zA-Z&.-]{1,}|[A-Z]{2,})(?:\s+(?:[A-Z][a-zA-Z&.-]{1,}|[A-Z]{2,})){0,3}\s+(?:inc|llc|ltd|corp(?:oration)?|company|co|group|bank|university|hospital|systems|technologies|labs|partners|consulting|agency)\b/gi;
+  collectMatches(text, suffixPattern, facts);
+
+  const contextualNamePattern = /\b(?:at|for|with|client|customer|employer|account)\s+((?:[A-Z][a-zA-Z&.-]{1,}|[A-Z]{2,})(?:\s+(?:[A-Z][a-zA-Z&.-]{1,}|[A-Z]{2,})){0,3})\b/g;
+  for (const match of text.matchAll(contextualNamePattern)) {
+    const value = match[1].trim();
+    if (!isIgnoredNameFact(value) && !isLikelyRoleTitle(value)) facts.add(normalizeFact(value));
   }
 }
 
@@ -215,6 +230,17 @@ function isIgnoredNameFact(value) {
     "streamlined", "supported", "partnered", "collaborated", "analyzed",
   ]);
   return ignored.has(normalizeFact(value));
+}
+
+function isLikelyRoleTitle(value) {
+  const titleWords = new Set([
+    "engineer", "developer", "manager", "director", "lead", "specialist", "analyst", "designer", "architect",
+    "administrator", "consultant", "coordinator", "associate", "principal", "senior", "staff", "frontend",
+    "front-end", "backend", "back-end", "full-stack", "software", "product", "project", "program", "data",
+    "security", "cloud", "devops", "marketing", "sales", "operations", "support", "resume", "role",
+  ]);
+  const tokens = normalizeFact(value).split(" ");
+  return tokens.some((token) => titleWords.has(token));
 }
 
 function stripPlaceholders(text) {
@@ -247,4 +273,4 @@ function json(statusCode, body, extraHeaders = {}) {
 }
 
 export default defaultHandler;
-export { createFetchHandler, createHandler, validateRewriteFacts };
+export { createFetchHandler, createHandler, ERROR_CODES, validateRewriteFacts };
