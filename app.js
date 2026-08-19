@@ -1,34 +1,23 @@
+import { analyzeResumeFit, cleanText, rewriteBullet as smartRewriteBullet } from "./analysis-engine.js";
+
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+const STORAGE_KEY = "resumeLabAnalysesV1";
 
 const state = {
   fileName: "",
   resumeText: "",
   analysis: null,
   dragDepth: 0,
+  rewriteHistory: [],
+  lastRewrite: "",
 };
-
-const stopWords = new Set(
-  "the and for with that this from your you are our will have has into using use used role team work working their they them but not all can who what when where how job years year experience including across within about responsibilities qualifications preferred required plus must should ability able strong excellent good great candidate candidates company looking need needs".split(" "),
-);
-
-const actionVerbs = [
-  "achieved", "built", "created", "delivered", "designed", "developed", "drove", "improved", "increased", "launched",
-  "led", "managed", "optimized", "reduced", "shipped", "streamlined", "implemented", "owned", "scaled", "saved",
-  "accelerated", "automated", "coordinated", "transformed", "modernized", "orchestrated", "partnered", "ran", "conducted", "collaborated", "evolved",
-];
-
-const knownSignals = [
-  "product strategy", "design system", "user research", "project management", "machine learning", "data analysis", "stakeholder management",
-  "cross-functional", "accessibility", "analytics", "figma", "prototyping", "react", "typescript", "python", "sql", "leadership",
-  "customer success", "salesforce", "marketing", "operations", "process improvement", "agile", "scrum", "kpi", "roadmap", "b2b", "engineering", "wcag", "communication",
-];
 
 const sampleResume = `Alex Morgan
 Senior Product Designer
 
 EXPERIENCE
-Senior Product Designer, Northstar Labs — B2B SaaS
+Senior Product Designer, Northstar Labs - B2B SaaS
 - Led end-to-end redesign of B2B analytics onboarding, increasing activation by 24%.
 - Built and maintained a Figma design system used by 8 product squads.
 - Partnered with engineering and research to ship accessible workflows meeting WCAG 2.2.
@@ -41,7 +30,7 @@ Product strategy, Figma, prototyping, design systems, user research, accessibili
 EDUCATION
 BFA Interaction Design`;
 
-const sampleJob = "Lead end-to-end product design for a B2B SaaS platform. Partner with product and engineering, conduct user research, build prototypes in Figma, evolve our design system, use analytics, and ensure accessible WCAG-compliant experiences. Strong stakeholder communication and product strategy required.";
+const sampleJob = "Required: 5+ years leading end-to-end product design for a B2B SaaS platform. Must partner with product and engineering, conduct user research, build prototypes in Figma, use analytics, and ensure accessible WCAG-compliant experiences. Preferred: design system ownership, stakeholder communication, and product strategy.";
 
 const elements = {
   fileInput: $("#fileInput"),
@@ -60,11 +49,17 @@ const elements = {
   signals: $("#signals"),
   facts: $("#facts"),
   matchedKeywords: $("#matchedKeywords"),
+  partialKeywords: $("#partialKeywords"),
   missingKeywords: $("#missingKeywords"),
+  savedAnalyses: $("#savedAnalyses"),
+  clearDataButton: $("#clearDataButton"),
   originalBullet: $("#originalBullet"),
   wordFragments: $("#wordFragments"),
   rewriteButton: $("#rewriteButton"),
+  copyRewriteButton: $("#copyRewriteButton"),
+  undoRewriteButton: $("#undoRewriteButton"),
   rewriteOutput: $("#rewriteOutput"),
+  rewriteMeta: $("#rewriteMeta"),
   rewriteFlash: $("#rewriteFlash"),
   toast: $("#toast"),
   labStage: $("#labStage"),
@@ -76,6 +71,7 @@ function init() {
   initCanvas();
   bindInteractions();
   renderFragments();
+  renderSavedAnalyses();
 }
 
 function bindInteractions() {
@@ -94,7 +90,7 @@ function bindInteractions() {
     event.preventDefault();
     state.dragDepth += 1;
     document.body.classList.add("is-dragging");
-    elements.fileLabel.textContent = "Drop it — the lab bot is ready!";
+    elements.fileLabel.textContent = "Drop it - the lab bot is ready!";
   });
   window.addEventListener("dragover", (event) => {
     if (!hasFiles(event)) return;
@@ -122,21 +118,32 @@ function bindInteractions() {
     elements.originalBullet.value = firstResumeBullet(sampleResume);
     elements.analyzeButton.disabled = false;
     renderFragments();
-    showStatus("Sample resume loaded. Running the lab test…");
+    showStatus("Sample resume loaded. Running the lab test...");
     playClick();
     setScanning(true);
     window.setTimeout(() => {
       analyze();
       setScanning(false);
-    }, 850);
+    }, 650);
   });
 
   elements.analyzeButton.addEventListener("click", analyze);
   elements.rewriteButton.addEventListener("click", rewriteBullet);
+  elements.copyRewriteButton.addEventListener("click", copyRewrite);
+  elements.undoRewriteButton.addEventListener("click", undoRewrite);
+  elements.clearDataButton.addEventListener("click", clearAllData);
   elements.originalBullet.addEventListener("input", renderFragments);
   $$("[data-export]").forEach((button) => button.addEventListener("click", () => exportResult(button.dataset.export)));
 
+  elements.savedAnalyses.addEventListener("click", (event) => {
+    const openButton = event.target.closest("[data-open-analysis]");
+    const deleteButton = event.target.closest("[data-delete-analysis]");
+    if (openButton) openSavedAnalysis(openButton.dataset.openAnalysis);
+    if (deleteButton) deleteSavedAnalysis(deleteButton.dataset.deleteAnalysis);
+  });
+
   window.addEventListener("pointermove", (event) => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const x = (event.clientX / Math.max(window.innerWidth, 1) - 0.5) * 22;
     const y = (event.clientY / Math.max(window.innerHeight, 1) - 0.5) * 18;
     elements.labStage.style.setProperty("--mx", `${x}px`);
@@ -157,18 +164,18 @@ async function processFile(file) {
 
   setScanning(true);
   elements.fileLabel.textContent = file.name;
-  showStatus(`Reading ${file.name}…`);
+  showStatus(`Reading ${file.name} locally...`);
   try {
-    const [rawText] = await Promise.all([extractText(file), wait(1100)]);
+    const [rawText] = await Promise.all([extractText(file), wait(750)]);
     const text = cleanText(rawText);
-    if (text.length < 80) throw new Error("Very little readable text was found. Try exporting the resume as a text-based PDF, DOCX, or TXT.");
+    if (text.length < 80) throw new Error("Very little readable text was found. Try exporting the resume as TXT, DOCX, or a text-based PDF.");
     state.fileName = file.name;
     state.resumeText = text;
     elements.originalBullet.value = firstResumeBullet(text);
     elements.analyzeButton.disabled = false;
     renderFragments();
-    showStatus(`${file.name} ready · ${wordCount(text)} words. Running the lab test…`);
-    await wait(450);
+    showStatus(`${file.name} ready - ${wordCount(text)} words. Running the lab test...`);
+    await wait(250);
     analyze();
   } catch (error) {
     showStatus(error.message || "The file could not be read.", true);
@@ -181,31 +188,61 @@ async function extractText(file) {
   const ext = extension(file.name);
   if (["txt", "md"].includes(ext)) return file.text();
   if (ext === "rtf") return stripRtf(await file.text());
-  if (ext === "pdf") {
-    try {
-      const pdfjs = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs");
-      pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
-      const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-      const pages = [];
-      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-        const page = await pdf.getPage(pageNumber);
-        const content = await page.getTextContent();
-        pages.push(content.items.map((item) => item.str).join(" "));
-      }
-      return pages.join("\n");
-    } catch {
-      throw new Error("PDF parsing failed in this browser. TXT or DOCX export will work best.");
-    }
-  }
-  if (ext === "docx") {
-    try {
-      const mammoth = await import("https://cdn.jsdelivr.net/npm/mammoth@1.8.0/+esm");
-      return (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value;
-    } catch {
-      throw new Error("DOCX parsing failed in this browser. Try PDF or TXT.");
-    }
-  }
+  if (ext === "pdf") return extractPdfText(await file.arrayBuffer());
+  if (ext === "docx") return extractDocxText(await file.arrayBuffer());
   throw new Error("Unsupported file type. Use PDF, DOCX, TXT, MD, or RTF.");
+}
+
+async function extractPdfText(buffer) {
+  const raw = new TextDecoder("latin1").decode(buffer);
+  const literalStrings = [...raw.matchAll(/\(([^()]{2,300})\)\s*Tj/g)].map((match) => match[1]);
+  const arrayStrings = [...raw.matchAll(/\[((?:\([^()]{1,200}\)\s*)+)\]\s*TJ/g)].flatMap((match) => [...match[1].matchAll(/\(([^()]+)\)/g)].map((part) => part[1]));
+  const text = [...literalStrings, ...arrayStrings].join(" ").replace(/\\([()\\])/g, "$1").replace(/\\n/g, " ");
+  if (text.trim().length < 40) {
+    throw new Error("This PDF appears compressed or scanned. For fully local parsing, export it as TXT or DOCX.");
+  }
+  return text;
+}
+
+async function extractDocxText(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const entries = [];
+  let offset = 0;
+  while (offset < bytes.length - 30) {
+    if (readU32(bytes, offset) !== 0x04034b50) {
+      offset += 1;
+      continue;
+    }
+    const method = readU16(bytes, offset + 8);
+    const compressedSize = readU32(bytes, offset + 18);
+    const nameLength = readU16(bytes, offset + 26);
+    const extraLength = readU16(bytes, offset + 28);
+    const name = new TextDecoder().decode(bytes.slice(offset + 30, offset + 30 + nameLength));
+    const dataStart = offset + 30 + nameLength + extraLength;
+    const dataEnd = dataStart + compressedSize;
+    entries.push({ name, method, data: bytes.slice(dataStart, dataEnd) });
+    offset = dataEnd;
+  }
+  const document = entries.find((entry) => entry.name === "word/document.xml");
+  if (!document) throw new Error("DOCX text could not be found.");
+  const xmlBytes = document.method === 0 ? document.data : await inflateRaw(document.data);
+  const xml = new TextDecoder().decode(xmlBytes);
+  return xml
+    .replace(/<\/w:p>/g, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+async function inflateRaw(data) {
+  if (!("DecompressionStream" in window)) {
+    throw new Error("This browser cannot decompress DOCX files locally. TXT or PDF export will work best.");
+  }
+  const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 function analyze() {
@@ -218,49 +255,21 @@ function analyze() {
   playClick();
 
   window.setTimeout(() => {
-    const resume = state.resumeText;
     const role = elements.jobTitle.value.trim() || "Target role";
     const description = cleanText(elements.jobDescription.value);
-    const resumeLower = resume.toLowerCase();
-    const keywords = topKeywords(description, 18);
-    const matched = keywords.filter((word) => resumeLower.includes(word));
-    const missing = keywords.filter((word) => !resumeLower.includes(word));
-    const bullets = resume.split(/\n|(?=\s[•▪◦-])/).map((value) => value.trim()).filter((value) => /^[-•▪◦]/.test(value));
-    const quantified = (resume.match(/(?:\$\s?\d[\d,.]*|\d+(?:\.\d+)?%|\d+\+|\b\d{2,}\b)/g) || []).length;
-    const actionHits = actionVerbs.filter((verb) => new RegExp(`\\b${verb}\\b`, "i").test(resume)).length;
-    const sections = ["experience", "education", "skills"].filter((section) => resumeLower.includes(section)).length;
-    const contact = /[\w.+-]+@[\w.-]+\.\w{2,}/.test(resume) || /(?:\+?\d[\d ()-]{7,}\d)/.test(resume);
-    const words = wordCount(resume);
-    const keywordScore = description ? Math.round((matched.length / Math.max(keywords.length, 1)) * 100) : 68;
-    const ats = clamp(44 + sections * 11 + (contact ? 7 : 0) + Math.min(quantified * 2, 14) + (words >= 250 ? 8 : 0));
-    const impact = clamp(30 + Math.min(quantified * 6, 38) + Math.min(actionHits * 4, 28));
-    const readability = clamp(92 - Math.max(0, averageSentenceLength(resume) - 18) * 2 - Math.max(0, words - 900) / 20);
-    const fit = clamp(Math.round(keywordScore * 0.46 + ats * 0.24 + impact * 0.2 + readability * 0.1));
-
-    const signals = [
-      [fit >= 75, fit >= 75 ? "Strong alignment with the target role." : "The resume needs clearer alignment with the target role."],
-      [quantified >= 3, quantified >= 3 ? `${quantified} measurable outcomes make impact credible.` : "Too few measurable outcomes; add scope, speed, revenue, quality, or adoption metrics."],
-      [actionHits >= 5, actionHits >= 5 ? "Bullets use decisive ownership language." : "Several bullets read like responsibilities instead of achievements."],
-      [!description || missing.length < 7, !description ? "Paste a job description for sharper keyword matching." : missing.length < 7 ? "Most high-value role language is represented." : `${missing.length} important job-description terms are absent.`],
-      [sections === 3, sections === 3 ? "Core ATS sections are easy to identify." : "Use explicit Experience, Skills, and Education headings."],
-    ];
-
-    state.analysis = {
-      generatedAt: new Date().toISOString(),
-      fileName: state.fileName,
+    state.analysis = analyzeResumeFit({
+      resumeText: state.resumeText,
+      jobDescription: description,
       role,
-      scores: { fit, ats, impact, readability, keywordMatch: keywordScore },
-      matched,
-      missing,
-      facts: { words, bullets: bullets.length, quantifiedResults: quantified, actionVerbs: actionHits },
-      signals: signals.map(([good, text]) => ({ good, text })),
-    };
-
+      fileName: state.fileName,
+    });
+    saveAnalysis(state.analysis);
     renderAnalysis();
+    renderSavedAnalyses();
     setScanning(false);
-    showStatus(`Lab test complete for ${role}.`);
-    $("#dashboard").scrollIntoView({ behavior: "smooth" });
-  }, 850);
+    showStatus(`Lab test complete for ${role}. Saved locally on this device.`);
+    $("#dashboard").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }, 650);
 }
 
 function renderAnalysis() {
@@ -270,30 +279,44 @@ function renderAnalysis() {
   document.body.classList.add("has-results");
   elements.emptyState.hidden = true;
   elements.results.hidden = false;
-  elements.dashboardTitle.textContent = "The lab has opinions.";
-  elements.dashboardText.textContent = `Test results for ${analysis.role}. Hover each 3D instrument to bring it closer.`;
+  elements.dashboardTitle.textContent = "The lab has evidence.";
+  elements.dashboardText.textContent = `Deterministic local ATS analysis for ${analysis.role}. Scores are rule-based and never leave this device.`;
 
-  updateScore("#fitScore", analysis.scores.fit);
-  updateScore("#atsScore", analysis.scores.ats);
-  updateScore("#impactScore", analysis.scores.impact);
-  updateScore("#readabilityScore", analysis.scores.readability);
+  updateScore("#fitScore", analysis.scores.overall);
+  updateScore("#atsScore", analysis.scores.atsStructure);
+  updateScore("#impactScore", analysis.scores.impactAchievement);
+  updateScore("#readabilityScore", analysis.scores.clarityReadability);
 
-  elements.signals.innerHTML = analysis.signals
-    .map((signal) => `<li class="${signal.good ? "good" : "warn"}">${escapeHtml(signal.text)}</li>`)
-    .join("");
+  const requiredMissing = analysis.requirements.filter((item) => item.priority === "required" && item.status === "missing").length;
+  const signals = [
+    [analysis.scores.overall >= 75, analysis.scores.overall >= 75 ? "Strong overall fit signal for the target role." : "The resume needs clearer target-role evidence."],
+    [analysis.scores.keywordMatch >= 70, analysis.job.hasJobDescription ? `${analysis.scores.keywordMatch}% requirement and keyword coverage.` : "Paste a job description for requirement-level scoring."],
+    [requiredMissing === 0, requiredMissing ? `${requiredMissing} required qualification gap${requiredMissing === 1 ? "" : "s"} need truthful evidence.` : "No required qualifications are completely missing."],
+    [analysis.resume.metricCount >= 3, analysis.resume.metricCount >= 3 ? `${analysis.resume.metricCount} measurable signals support impact.` : "Too few measurable accomplishments are visible."],
+    [analysis.resume.stuffing.length === 0, analysis.resume.stuffing.length ? `Possible keyword stuffing: ${analysis.resume.stuffing.slice(0, 3).join(", ")}.` : "No obvious keyword stuffing detected."],
+  ];
+
+  elements.signals.innerHTML = [
+    ...signals.map(([good, text]) => `<li class="${good ? "good" : "warn"}">${escapeHtml(text)}</li>`),
+    ...analysis.recommendations.map((text) => `<li class="warn">${escapeHtml(text)}</li>`),
+  ].join("");
 
   elements.facts.innerHTML = Object.entries({
-    "Resume words": analysis.facts.words,
-    "Achievement bullets": analysis.facts.bullets,
-    "Quantified results": analysis.facts.quantifiedResults,
-    "Strong action verbs": analysis.facts.actionVerbs,
+    "Resume words": analysis.resume.words,
+    "Bullets scanned": analysis.resume.bullets.length,
+    "Demonstrated years": analysis.resume.demonstratedYears || "Not explicit",
+    "Requested years": analysis.job.requestedYears || "Not explicit",
+    "Required terms": analysis.job.required.length,
+    "Preferred terms": analysis.job.preferred.length,
+    "Experience fit": `${analysis.scores.experienceFit}%`,
     "Keyword match": `${analysis.scores.keywordMatch}%`,
   })
     .map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value))}</dd>`)
     .join("");
 
-  renderPills(elements.matchedKeywords, analysis.matched, "No clear matches yet.");
-  renderPills(elements.missingKeywords, analysis.missing, "No major keyword gaps found.");
+  renderEvidencePills(elements.matchedKeywords, analysis.requirements.filter((item) => item.status === "matched"), "No exact evidence-backed matches yet.");
+  renderEvidencePills(elements.partialKeywords, analysis.requirements.filter((item) => item.status === "partial"), "No partial matches yet.");
+  renderEvidencePills(elements.missingKeywords, analysis.requirements.filter((item) => item.status === "missing"), "No major requirement gaps found.");
   $$("[data-export]").forEach((button) => { button.disabled = false; });
 }
 
@@ -304,6 +327,10 @@ function updateScore(selector, value) {
 }
 
 function animateNumber(node, value) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    node.textContent = String(value);
+    return;
+  }
   const start = Number(node.textContent) || 0;
   const duration = 700;
   const startedAt = performance.now();
@@ -317,23 +344,21 @@ function animateNumber(node, value) {
 
 function rewriteBullet() {
   const original = elements.originalBullet.value.trim();
-  if (!original) {
-    showToast("Paste a bullet first.");
+  const result = smartRewriteBullet(original);
+  if (!result.after) {
+    showToast(result.warnings[0] || "Paste a bullet first.");
     return;
   }
-  const cleaned = original.replace(/^[-•▪◦]\s*/, "").replace(/\.$/, "");
-  const weakStart = /^(worked on|helped|assisted|responsible for|supported|participated in|handled)\b/i;
-  let rewrite = cleaned.replace(weakStart, () => chooseVerb(cleaned));
-  rewrite = rewrite.replace(/^./, (letter) => letter.toUpperCase());
-  if (!/[\d%$]/.test(rewrite)) rewrite += ", improving [business or user outcome] by [X%]";
-  if (!/\b(by|through|using|via|with)\b/i.test(rewrite)) rewrite += " through cross-functional execution";
-  rewrite = `${rewrite}.`.replace(/\.\.$/, ".");
-
-  elements.wordFragments.classList.add("is-breaking");
-  elements.rewriteOutput.innerHTML = rewrite
+  state.rewriteHistory.push({ input: original, output: elements.rewriteOutput.textContent });
+  elements.rewriteOutput.innerHTML = `<span class="rewrite-label">Before</span>${escapeHtml(result.before)}<br><span class="rewrite-label">After</span>${result.after
     .split(/\s+/)
-    .map((word, index) => `<span style="animation-delay:${index * 30}ms">${escapeHtml(word)}&nbsp;</span>`)
-    .join("");
+    .map((word, index) => `<span style="animation-delay:${index * 24}ms">${escapeHtml(word)}&nbsp;</span>`)
+    .join("")}`;
+  elements.rewriteMeta.textContent = result.warnings.join(" ") || "Smart rewrite preserved the original facts.";
+  state.lastRewrite = result.after;
+  elements.copyRewriteButton.disabled = false;
+  elements.undoRewriteButton.disabled = false;
+  elements.wordFragments.classList.add("is-breaking");
   elements.rewriteFlash.hidden = false;
   elements.rewriteFlash.style.animation = "none";
   void elements.rewriteFlash.offsetWidth;
@@ -343,6 +368,24 @@ function rewriteBullet() {
     elements.wordFragments.classList.remove("is-breaking");
   }, 800);
   playClick();
+}
+
+async function copyRewrite() {
+  const text = state.lastRewrite.trim();
+  if (!text || text === "The smart rewrite will materialize here.") return;
+  await navigator.clipboard.writeText(text);
+  showToast("Smart rewrite copied.");
+}
+
+function undoRewrite() {
+  const previous = state.rewriteHistory.pop();
+  if (!previous) return;
+  elements.originalBullet.value = previous.input;
+  elements.rewriteOutput.textContent = previous.output || "The smart rewrite will materialize here.";
+  state.lastRewrite = "";
+  elements.rewriteMeta.textContent = "Undo restored the previous bullet.";
+  elements.undoRewriteButton.disabled = state.rewriteHistory.length === 0;
+  renderFragments();
 }
 
 function renderFragments() {
@@ -368,21 +411,98 @@ function exportResult(type) {
   if (type === "csv") {
     const rows = [
       ["Metric", "Score"],
-      ["Fit signal", state.analysis.scores.fit],
-      ["ATS course", state.analysis.scores.ats],
-      ["Impact muscle", state.analysis.scores.impact],
-      ["Readability", state.analysis.scores.readability],
+      ["Overall weighted score", state.analysis.scores.overall],
+      ["ATS structure", state.analysis.scores.atsStructure],
       ["Keyword match", state.analysis.scores.keywordMatch],
-      ["Matched keywords", state.analysis.matched.join("; ")],
-      ["Missing keywords", state.analysis.missing.join("; ")],
+      ["Experience fit", state.analysis.scores.experienceFit],
+      ["Impact achievement", state.analysis.scores.impactAchievement],
+      ["Clarity readability", state.analysis.scores.clarityReadability],
+      ["Matched", state.analysis.matched.join("; ")],
+      ["Partial", state.analysis.partial.join("; ")],
+      ["Missing", state.analysis.missing.join("; ")],
     ];
     download("resume-lab-analysis.csv", rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n"), "text/csv");
   }
 }
 
+function saveAnalysis(analysis) {
+  const safeAnalysis = { ...analysis, resumeTextStored: false };
+  const current = getSavedAnalyses().filter((item) => item.id !== safeAnalysis.id);
+  const record = { id: crypto.randomUUID(), ...safeAnalysis };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([record, ...current].slice(0, 5)));
+}
+
+function getSavedAnalyses() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function renderSavedAnalyses() {
+  const saved = getSavedAnalyses();
+  if (!saved.length) {
+    elements.savedAnalyses.innerHTML = "<em>No saved analyses on this device yet.</em>";
+    return;
+  }
+  elements.savedAnalyses.innerHTML = saved.map((item) => `
+    <article class="saved-card">
+      <div>
+        <strong>${escapeHtml(item.role)}</strong>
+        <span>${escapeHtml(item.fileName || "Untitled resume")} - ${new Date(item.generatedAt).toLocaleString()}</span>
+      </div>
+      <b>${item.scores.overall}</b>
+      <button class="ghost compact" type="button" data-open-analysis="${item.id}">Open</button>
+      <button class="ghost compact danger" type="button" data-delete-analysis="${item.id}" aria-label="Delete saved analysis for ${escapeHtml(item.role)}">Delete</button>
+    </article>
+  `).join("");
+}
+
+function openSavedAnalysis(id) {
+  const saved = getSavedAnalyses().find((item) => item.id === id);
+  if (!saved) return;
+  state.analysis = saved;
+  renderAnalysis();
+  showToast("Saved analysis reopened.");
+}
+
+function deleteSavedAnalysis(id) {
+  const saved = getSavedAnalyses().filter((item) => item.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+  renderSavedAnalyses();
+  showToast("Saved analysis deleted.");
+}
+
+function clearAllData() {
+  localStorage.removeItem(STORAGE_KEY);
+  state.analysis = null;
+  state.resumeText = "";
+  state.fileName = "";
+  state.lastRewrite = "";
+  elements.fileInput.value = "";
+  elements.jobTitle.value = "";
+  elements.jobDescription.value = "";
+  elements.originalBullet.value = "";
+  elements.rewriteOutput.textContent = "The smart rewrite will materialize here.";
+  elements.rewriteMeta.textContent = "No employers, dates, tools, metrics, or achievements will be invented.";
+  elements.copyRewriteButton.disabled = true;
+  elements.undoRewriteButton.disabled = true;
+  elements.fileLabel.textContent = "Feed your resume to the lab";
+  elements.analyzeButton.disabled = true;
+  elements.emptyState.hidden = false;
+  elements.results.hidden = true;
+  elements.dashboardTitle.textContent = "The instruments are waiting.";
+  elements.dashboardText.textContent = "Feed the scanner and your ATS, impact, readability, and keyword instruments will wake up.";
+  renderSavedAnalyses();
+  $$("[data-export]").forEach((button) => { button.disabled = true; });
+  showStatus("Local resume text and saved analyses cleared.");
+}
+
 function initCanvas() {
   const canvas = $("#labCanvas");
   const context = canvas.getContext("2d");
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const pointer = { x: 0, y: 0 };
   let width = 0;
   let height = 0;
@@ -458,25 +578,9 @@ function initCanvas() {
     context.stroke();
     context.restore();
 
-    requestAnimationFrame(frame);
+    if (!reduceMotion.matches) requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-}
-
-function topKeywords(text, limit) {
-  if (!text.trim()) return [];
-  const normalized = text.toLowerCase().replace(/[^a-z0-9+#.\s-]/g, " ");
-  const chosen = knownSignals.filter((signal) => normalized.includes(signal));
-  const counts = new Map();
-  normalized
-    .split(/\s+/)
-    .map((word) => word.trim())
-    .filter((word) => word.length > 2 && !stopWords.has(word) && !/^\d+$/.test(word))
-    .forEach((word) => counts.set(word, (counts.get(word) || 0) + 1));
-  const singleWords = [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([word]) => word);
-  return unique([...chosen, ...singleWords]).slice(0, limit);
 }
 
 function firstResumeBullet(text) {
@@ -486,18 +590,9 @@ function firstResumeBullet(text) {
     .find((line) => /^[-•▪◦]/.test(line)) || "Led a cross-functional project that improved customer onboarding.";
 }
 
-function chooseVerb(text) {
-  const lower = text.toLowerCase();
-  if (lower.includes("design")) return "Designed";
-  if (lower.includes("data") || lower.includes("analytics")) return "Analyzed";
-  if (lower.includes("team") || lower.includes("stakeholder")) return "Led";
-  if (lower.includes("process") || lower.includes("workflow")) return "Streamlined";
-  return "Delivered";
-}
-
-function renderPills(container, values, emptyText) {
+function renderEvidencePills(container, values, emptyText) {
   container.innerHTML = values.length
-    ? values.map((value) => `<span>${escapeHtml(value)}</span>`).join("")
+    ? values.map((value) => `<span title="${escapeHtml(value.evidence || "No evidence")}">${escapeHtml(value.term)} <b>${escapeHtml(value.priority)}</b></span>`).join("")
     : `<em>${escapeHtml(emptyText)}</em>`;
 }
 
@@ -532,16 +627,6 @@ function extension(name) {
   return String(name).split(".").pop().toLowerCase();
 }
 
-function cleanText(text) {
-  return String(text)
-    .replace(/\u0000/g, " ")
-    .replace(/[•▪◦]/g, "\n-")
-    .replace(/\r/g, "\n")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
 function stripRtf(text) {
   return text
     .replace(/\\'[0-9a-f]{2}/gi, " ")
@@ -551,21 +636,15 @@ function stripRtf(text) {
 }
 
 function wordCount(text) {
-  return (text.match(/\b[\w+#.-]+\b/g) || []).length;
+  return (String(text).match(/\b[\w+#.-]+\b/g) || []).length;
 }
 
-function averageSentenceLength(text) {
-  const sentences = text.split(/[.!?]+/).map((sentence) => sentence.trim()).filter(Boolean);
-  if (!sentences.length) return 22;
-  return wordCount(text) / sentences.length;
+function readU16(bytes, offset) {
+  return bytes[offset] | (bytes[offset + 1] << 8);
 }
 
-function clamp(value) {
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-function unique(values) {
-  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+function readU32(bytes, offset) {
+  return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
 }
 
 function escapeHtml(value) {

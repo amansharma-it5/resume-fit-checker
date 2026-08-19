@@ -10,7 +10,7 @@
     />
     <title>Resume Lab | 3D Resume Checker</title>
     <link rel="stylesheet" href="./styles.css" />
-    <script src="./app.js" defer></script>
+    <script type="module" src="./app.js"></script>
   </head>
   <body>
     <canvas id="labCanvas" aria-hidden="true"></canvas>
@@ -115,19 +115,19 @@
         <div id="results" class="results" hidden>
           <div class="instrument-grid">
             <article class="instrument mint" style="--score: 0%">
-              <span>Fit Signal</span>
+              <span>Overall Fit</span>
               <strong id="fitScore">0</strong>
               <small>/100</small>
               <i></i>
             </article>
             <article class="instrument coral" style="--score: 0%">
-              <span>ATS Course</span>
+              <span>ATS Structure</span>
               <strong id="atsScore">0</strong>
               <small>/100</small>
               <i></i>
             </article>
             <article class="instrument lemon" style="--score: 0%">
-              <span>Impact Muscle</span>
+              <span>Impact</span>
               <strong id="impactScore">0</strong>
               <small>/100</small>
               <i></i>
@@ -150,7 +150,14 @@
               <dl id="facts" class="facts"></dl>
             </article>
           </div>
+
         </div>
+
+        <article class="panel saved-panel">
+          <div class="pane-head"><span>Saved locally / latest five</span><b>Device only</b></div>
+          <div id="savedAnalyses" class="saved-list"><em>No saved analyses on this device yet.</em></div>
+          <button id="clearDataButton" class="ghost compact danger" type="button">Reset / clear data</button>
+        </article>
       </section>
 
       <section class="section keywords" id="keywords">
@@ -160,11 +167,15 @@
         </div>
         <div class="keyword-grid">
           <article class="panel">
-            <h3>Matched signals</h3>
+            <h3>Matched requirements</h3>
             <div id="matchedKeywords" class="pills"><em>Run a test to populate this map.</em></div>
           </article>
+          <article class="panel">
+            <h3>Partial evidence</h3>
+            <div id="partialKeywords" class="pills"><em>Conservative fuzzy and partial matches appear here.</em></div>
+          </article>
           <article class="panel risk">
-            <h3>Missing signals</h3>
+            <h3>Missing requirements</h3>
             <div id="missingKeywords" class="pills"><em>Paste a job description for gap detection.</em></div>
           </article>
         </div>
@@ -172,8 +183,8 @@
 
       <section class="section rewrite" id="rewrite">
         <div class="section-heading">
-          <span class="micro">04 / KINETIC REWRITE</span>
-          <h2>Weak language, dismantled. <em>Impact, reconstructed.</em></h2>
+          <span class="micro">04 / SMART REWRITE</span>
+          <h2>Weak language, clarified. <em>Facts preserved.</em></h2>
         </div>
         <div class="rewrite-grid">
           <article class="panel source">
@@ -182,12 +193,17 @@
             <div id="wordFragments" class="word-fragments" aria-hidden="true"></div>
           </article>
           <article class="panel output">
-            <div class="pane-head"><span>Output / high impact</span><b>+18</b></div>
-            <p id="rewriteOutput" class="rewrite-output">The optimized statement will materialize here.</p>
+            <div class="pane-head"><span>Output / Smart rewrite</span><b>Local</b></div>
+            <p id="rewriteOutput" class="rewrite-output">The smart rewrite will materialize here.</p>
+            <small id="rewriteMeta" class="rewrite-meta">No employers, dates, tools, metrics, or achievements will be invented.</small>
             <div id="rewriteFlash" class="rewrite-flash" hidden></div>
           </article>
         </div>
-        <button id="rewriteButton" class="primary rewrite-button" type="button">Optimize statement ⚡</button>
+        <div class="rewrite-actions">
+          <button id="rewriteButton" class="primary rewrite-button" type="button">Smart rewrite</button>
+          <button id="copyRewriteButton" class="ghost compact" type="button" disabled>Copy</button>
+          <button id="undoRewriteButton" class="ghost compact" type="button" disabled>Undo</button>
+        </div>
       </section>
 
       <section class="section export" id="export">
