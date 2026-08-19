@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHandler } from "./ai-rewrite.mjs";
+import { createHandler } from "./netlify/functions/ai-rewrite.mjs";
 
 const validBody = {
   bullet: "Led React migration for onboarding flows.",
@@ -135,4 +135,3 @@ test("does not fabricate information in mocked successful output", async () => {
   assert.doesNotMatch(body.rewrittenBullet, /\d+%|\$|Acme|2026|AWS/);
   assert.match(body.rewrittenBullet, /\[add verified metric\]/);
 });
-
