@@ -56,6 +56,14 @@ test("safe verified version removes unsupported and unclear claims", () => {
   assert.match(safe, /Improved onboarding/);
 });
 
+test("safe verified version cleans dangling conjunctions", () => {
+  const safe = createSafeVerifiedVersion("Migrated 12 flows, improving quality and reducing defects.", [
+    { text: "improving quality", status: "UNSUPPORTED" },
+    { text: "reducing defects", status: "UNSUPPORTED" },
+  ]);
+  assert.doesNotMatch(safe, /and\./i);
+});
+
 test("user confirmation unblocks copy/apply for current verification object", () => {
   const result = buildVerificationResult({
     originalBullet: "Improved onboarding flows.",

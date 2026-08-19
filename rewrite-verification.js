@@ -139,7 +139,13 @@ function createSafeVerifiedVersion(rewrittenBullet = "", claims = []) {
     if (!target) continue;
     safe = safe.replace(new RegExp(escapeRegExp(target), "gi"), "").replace(/\s+([,.;:])/g, "$1");
   }
-  return clean(safe.replace(/\s{2,}/g, " ").replace(/\s*,\s*(?:\.|$)/g, "."));
+  return clean(safe
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s*,\s*(?:and|or)\s*([.;]|$)/gi, "$1")
+    .replace(/\s+(?:and|or)\s*([.;])$/gi, "$1")
+    .replace(/,\s*([.;])/g, "$1")
+    .replace(/\s*,\s*$/g, ".")
+    .replace(/\s+\./g, "."));
 }
 
 function canCopyOrApply(verification) {
