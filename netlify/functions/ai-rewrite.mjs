@@ -11,7 +11,7 @@ const responseHeaders = {
   "Cache-Control": "no-store",
 };
 
-const config = {
+export const config = {
   path: "/.netlify/functions/ai-rewrite",
   rateLimit: {
     windowLimit: 5,
@@ -91,7 +91,6 @@ function createHandler({ fetchFn = fetch, env = process.env, timeoutMs = DEFAULT
   };
 }
 
-const handler = createHandler();
 const defaultHandler = createFetchHandler();
 
 function createFetchHandler(options = {}) {
@@ -248,4 +247,4 @@ function json(statusCode, body, extraHeaders = {}) {
 }
 
 export default defaultHandler;
-export { config, createFetchHandler, createHandler, handler, validateRewriteFacts };
+export { createFetchHandler, createHandler, validateRewriteFacts };
