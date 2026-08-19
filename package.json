@@ -1,0 +1,10 @@
+{
+  "name": "resume-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check app.js && node --check analysis-engine.js && node --check rewrite-verification.js && node --check netlify/functions/ai-rewrite.mjs"
+  }
+}
