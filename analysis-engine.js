@@ -8,8 +8,10 @@ const SCORE_WEIGHTS = Object.freeze({
 
 const SECTION_NAMES = Object.freeze(["summary", "experience", "skills", "education", "projects", "certifications"]);
 
-const REQUIRED_CUES = /\b(required|requirement|must|required qualifications|minimum qualifications|you have|you will need|need to have|minimum|at least)\b/i;
-const PREFERRED_CUES = /\b(preferred|nice to have|bonus|plus|ideally|desired|would be great|preferred qualifications)\b/i;
+const REQUIRED_CUES = /\b(required|requirement|must|required qualifications|minimum qualifications|minimum requirements|you have|you will need|need to have|minimum|at least)\b/i;
+const PREFERRED_CUES = /\b(preferred|nice to have|nice-to-have|bonus|plus|ideally|desired|would be great|preferred qualifications)\b/i;
+const REQUIRED_HEADINGS = new Set(["required", "requirements", "required qualifications", "minimum requirements", "minimum qualifications", "basic qualifications"]);
+const PREFERRED_HEADINGS = new Set(["preferred", "preferred qualifications", "nice to have", "nice-to-have", "bonus", "desired qualifications"]);
 
 const STOP_WORDS = new Set(
   "a an the and or of for to in on at by with from into as is are be been being this that those these our your you we they them their candidate candidates role roles job jobs work works working responsible responsibility responsibilities qualification qualifications required preferred plus must should ability able strong excellent good great company looking need needs including across within about least years year experience experienced team teams cross functional fast paced environment proven track record highly".split(" "),
@@ -30,6 +32,10 @@ const KNOWN_SKILLS = Object.freeze([
   "react", "react.js", "roadmap", "salesforce", "scrum", "sql", "stakeholder management", "tableau", "typescript",
   "user experience", "user interface", "user research", "ux", "ui", "wcag",
 ]);
+
+const PHRASE_SIGNAL_WORDS = new Set(
+  "accessibility agile analytics analysis aws azure b2b business ci/cd customer data design docker engineering figma graphql java javascript jira kpi kubernetes leadership learning machine management node.js product project prototyping python react roadmap salesforce scrum sql stakeholder strategy tableau typescript user ux ui wcag workflow".split(" "),
+);
 
 const SYNONYMS = Object.freeze({
   "amazon web services": ["aws"],
@@ -85,13 +91,12 @@ function analyzeJobDescription(text = "", role = "") {
       preferred: [],
       skills: [],
       requirements: [],
+      hasUsableRequirements: false,
       requestedYears: estimateYears(text),
     };
   }
 
-  const chunks = splitRequirementChunks(text);
-  const requiredChunks = chunks.filter((chunk) => REQUIRED_CUES.test(chunk) || (!PREFERRED_CUES.test(chunk) && /must|require|need|experience|proficient/i.test(chunk)));
-  const preferredChunks = chunks.filter((chunk) => PREFERRED_CUES.test(chunk));
+  const { requiredChunks, preferredChunks } = splitRequirementChunks(text);
   const required = uniqueTerms(extractTerms(requiredChunks.join("\n")));
   const preferred = uniqueTerms(extractTerms(preferredChunks.join("\n"))).filter((term) => !required.includes(term));
   const allTerms = uniqueTerms([...required, ...preferred, ...extractTerms(text)]);
@@ -102,6 +107,7 @@ function analyzeJobDescription(text = "", role = "") {
     required,
     preferred,
     skills: allTerms.filter((term) => isSkillLike(term)),
+    hasUsableRequirements: required.length + preferred.length > 0,
     requirements: [
       ...required.map((term) => ({ term, priority: "required" })),
       ...preferred.map((term) => ({ term, priority: "preferred" })),
@@ -179,9 +185,22 @@ function scoreAnalysis(resume, job, requirements) {
       resume.missingSections.length * 5,
   );
 
-  const keywordMatch = job.hasJobDescription
-    ? clamp(((matchedRequired + partialRequired * 0.45) / Math.max(required.length, 1)) * 72 + ((matchedPreferred + partialPreferred * 0.35) / Math.max(preferred.length, 1)) * 28)
-    : 0;
+  const requiredCoverage = (matchedRequired + partialRequired * 0.45) / Math.max(required.length, 1);
+  const preferredCoverage = (matchedPreferred + partialPreferred * 0.35) / Math.max(preferred.length, 1);
+  let keywordMatch = 0;
+  let keywordStatus = job.hasJobDescription ? "insufficient_jd_detail" : "missing_jd";
+  if (required.length && preferred.length) {
+    keywordMatch = clamp(requiredCoverage * 72 + preferredCoverage * 28);
+    keywordStatus = "scored";
+  } else if (required.length) {
+    keywordMatch = clamp(requiredCoverage * 100);
+    keywordStatus = "scored";
+  } else if (preferred.length) {
+    keywordMatch = clamp(preferredCoverage * 100);
+    keywordStatus = "scored";
+  } else if (!job.hasJobDescription) {
+    keywordStatus = "missing_jd";
+  }
 
   const yearsScore = job.requestedYears ? clamp((resume.demonstratedYears / Math.max(job.requestedYears, 1)) * 70 + 20) : 70;
   const seniorityScore = resume.seniority.aligned ? 100 : resume.seniority.level === "unknown" ? 65 : 45;
@@ -192,13 +211,57 @@ function scoreAnalysis(resume, job, requirements) {
 
   const overall = clamp(
     atsStructure * SCORE_WEIGHTS.atsStructure +
-      keywordMatch * SCORE_WEIGHTS.keywordMatch +
+      (keywordStatus === "scored" ? keywordMatch : 0) * SCORE_WEIGHTS.keywordMatch +
       experienceFit * SCORE_WEIGHTS.experienceFit +
       impactAchievement * SCORE_WEIGHTS.impactAchievement +
       clarityReadability * SCORE_WEIGHTS.clarityReadability,
   );
 
-  return { overall, atsStructure, keywordMatch, experienceFit, impactAchievement, clarityReadability };
+  return { overall, atsStructure, keywordMatch, keywordStatus, experienceFit, impactAchievement, clarityReadability };
+}
+
+function sanitizeAnalysisForStorage(analysis) {
+  return {
+    generatedAt: analysis.generatedAt,
+    fileName: analysis.fileName,
+    role: analysis.role,
+    scoringWeights: analysis.scoringWeights,
+    scores: analysis.scores,
+    job: {
+      hasJobDescription: Boolean(analysis.job?.hasJobDescription),
+      hasUsableRequirements: Boolean(analysis.job?.hasUsableRequirements),
+      requiredCount: analysis.job?.required?.length || 0,
+      preferredCount: analysis.job?.preferred?.length || 0,
+      requestedYears: analysis.job?.requestedYears || 0,
+    },
+    resume: {
+      words: analysis.resume?.words || 0,
+      bulletCount: analysis.resume?.bullets?.length || analysis.resume?.bulletCount || 0,
+      sections: [...(analysis.resume?.sections || [])],
+      missingSections: [...(analysis.resume?.missingSections || [])],
+      hasContact: Boolean(analysis.resume?.hasContact),
+      metricCount: analysis.resume?.metricCount || 0,
+      demonstratedYears: analysis.resume?.demonstratedYears || 0,
+      actionVerbHits: analysis.resume?.actionVerbHits || 0,
+      weakVerbHits: analysis.resume?.weakVerbHits || 0,
+      responsibilityBulletCount: analysis.resume?.responsibilityBullets?.length || analysis.resume?.responsibilityBulletCount || 0,
+      longBulletCount: analysis.resume?.longBullets?.length || analysis.resume?.longBulletCount || 0,
+      shortBulletCount: analysis.resume?.shortBullets?.length || analysis.resume?.shortBulletCount || 0,
+      stuffing: [...(analysis.resume?.stuffing || [])],
+      averageSentenceWords: analysis.resume?.averageSentenceWords || 0,
+    },
+    requirements: (analysis.requirements || []).map((item) => ({
+      term: item.term,
+      priority: item.priority,
+      status: item.status,
+      matchType: item.matchType,
+    })),
+    matched: [...(analysis.matched || [])],
+    partial: [...(analysis.partial || [])],
+    missing: [...(analysis.missing || [])],
+    recommendations: [...(analysis.recommendations || [])],
+    privacy: "Saved history stores only summary scores, counts, section names, requirement terms, and recommendations.",
+  };
 }
 
 function rewriteBullet(original = "") {
@@ -262,16 +325,38 @@ function extractTerms(text = "") {
   const phraseMatches = normalized.match(/\b[a-z][a-z0-9+#.]+(?:\s+[a-z][a-z0-9+#.]+){1,3}\b/g) || [];
   for (const phrase of phraseMatches) {
     const tokens = tokenize(phrase).filter((token) => !STOP_WORDS.has(token));
-    if (tokens.length >= 2 && tokens.length <= 4 && tokens.some((token) => token.length > 4)) terms.push(tokens.join(" "));
+    const knownTokenCount = tokens.filter((token) => KNOWN_SKILLS.includes(canonicalTerm(token))).length;
+    if (knownTokenCount >= 2) continue;
+    if (tokens.length >= 2 && tokens.length <= 4 && tokens.some((token) => PHRASE_SIGNAL_WORDS.has(token))) terms.push(tokens.join(" "));
   }
   return uniqueTerms(terms).slice(0, 32);
 }
 
 function splitRequirementChunks(text) {
-  return cleanText(text)
-    .split(/\n|[.;]\s+|(?=\s*[-•▪◦]\s*)/)
-    .map((chunk) => chunk.replace(/^[-•▪◦]\s*/, "").trim())
-    .filter((chunk) => wordCount(chunk) >= 2);
+  const chunks = { requiredChunks: [], preferredChunks: [] };
+  let context = "";
+  for (const rawLine of cleanText(text).split(/\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const heading = normalizeHeading(line);
+    if (REQUIRED_HEADINGS.has(heading)) {
+      context = "required";
+      continue;
+    }
+    if (PREFERRED_HEADINGS.has(heading)) {
+      context = "preferred";
+      continue;
+    }
+    for (const part of line.split(/[.;]\s+|(?=\s*[-•▪◦]\s*)/)) {
+      const chunk = part.replace(/^[-•▪◦]\s*/, "").trim();
+      if (!chunk || !hasExtractableTerm(chunk)) continue;
+      if (PREFERRED_CUES.test(chunk)) chunks.preferredChunks.push(chunk);
+      else if (REQUIRED_CUES.test(chunk) || context === "required") chunks.requiredChunks.push(chunk);
+      else if (context === "preferred") chunks.preferredChunks.push(chunk);
+      else if (/must|require|need|experience|proficient/i.test(chunk)) chunks.requiredChunks.push(chunk);
+    }
+  }
+  return chunks;
 }
 
 function extractBullets(text) {
@@ -380,6 +465,15 @@ function normalizeText(text) {
   return String(text).toLowerCase().replace(/[^\w+#./%-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function normalizeHeading(text) {
+  return normalizeText(text).replace(/:$/, "").replace(/\s+/g, " ").trim();
+}
+
+function hasExtractableTerm(text) {
+  const terms = extractTerms(text);
+  return terms.length > 0 || wordCount(text) >= 2;
+}
+
 function tokenize(text) {
   return normalizeText(text).match(/\b[a-z0-9+#.]+\b/g) || [];
 }
@@ -432,5 +526,6 @@ export {
   findEvidence,
   matchRequirements,
   rewriteBullet,
+  sanitizeAnalysisForStorage,
   scoreAnalysis,
 };

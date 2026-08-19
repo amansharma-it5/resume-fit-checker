@@ -16,7 +16,7 @@ The engine separates required and preferred qualifications, extracts conservativ
 
 ## Privacy
 
-Resume and job-description text stay on the user's device. The latest five analysis summaries are saved in `localStorage`; original resume text is not stored in saved history. The Reset / clear data control removes saved local analysis data and clears the active resume text from the page state.
+Resume and job-description text stay on the user's device and are not sent over the network. The latest five analysis summaries are saved in `localStorage`, but saved history intentionally excludes original resume text, job-description text, resume bullets, evidence sentences, role-title lines, and metric text. Saved entries keep only the summary data needed to reopen the result: scores, counts, section names, matched/partial/missing terms, recommendations, role, filename, and timestamp. The Reset / clear data control removes saved local analysis summaries and clears the active resume and job-description text from the page state.
 
 PDF, DOCX, TXT, MD, and RTF uploads are handled locally. TXT, MD, and RTF are most reliable. DOCX support uses browser-native ZIP decompression when available. PDF support extracts text from simple text-based PDFs and will ask for TXT or DOCX when a PDF is scanned or compressed.
 

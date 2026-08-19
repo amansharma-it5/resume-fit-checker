@@ -1,4 +1,4 @@
-import { analyzeResumeFit, cleanText, rewriteBullet as smartRewriteBullet } from "./analysis-engine.js";
+import { analyzeResumeFit, cleanText, rewriteBullet as smartRewriteBullet, sanitizeAnalysisForStorage } from "./analysis-engine.js";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -267,7 +267,7 @@ function analyze() {
     renderAnalysis();
     renderSavedAnalyses();
     setScanning(false);
-    showStatus(`Lab test complete for ${role}. Saved locally on this device.`);
+    showStatus(`Lab test complete for ${role}. Privacy-safe summary saved locally on this device.`);
     $("#dashboard").scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }, 650);
 }
@@ -288,9 +288,13 @@ function renderAnalysis() {
   updateScore("#readabilityScore", analysis.scores.clarityReadability);
 
   const requiredMissing = analysis.requirements.filter((item) => item.priority === "required" && item.status === "missing").length;
+  const bulletCount = analysis.resume.bullets?.length ?? analysis.resume.bulletCount ?? 0;
+  const requiredCount = analysis.job.required?.length ?? analysis.job.requiredCount ?? 0;
+  const preferredCount = analysis.job.preferred?.length ?? analysis.job.preferredCount ?? 0;
+  const keywordLabel = analysis.scores.keywordStatus === "scored" ? `${analysis.scores.keywordMatch}%` : "Insufficient JD detail";
   const signals = [
     [analysis.scores.overall >= 75, analysis.scores.overall >= 75 ? "Strong overall fit signal for the target role." : "The resume needs clearer target-role evidence."],
-    [analysis.scores.keywordMatch >= 70, analysis.job.hasJobDescription ? `${analysis.scores.keywordMatch}% requirement and keyword coverage.` : "Paste a job description for requirement-level scoring."],
+    [analysis.scores.keywordMatch >= 70 && analysis.scores.keywordStatus === "scored", keywordSignalText(analysis)],
     [requiredMissing === 0, requiredMissing ? `${requiredMissing} required qualification gap${requiredMissing === 1 ? "" : "s"} need truthful evidence.` : "No required qualifications are completely missing."],
     [analysis.resume.metricCount >= 3, analysis.resume.metricCount >= 3 ? `${analysis.resume.metricCount} measurable signals support impact.` : "Too few measurable accomplishments are visible."],
     [analysis.resume.stuffing.length === 0, analysis.resume.stuffing.length ? `Possible keyword stuffing: ${analysis.resume.stuffing.slice(0, 3).join(", ")}.` : "No obvious keyword stuffing detected."],
@@ -303,13 +307,13 @@ function renderAnalysis() {
 
   elements.facts.innerHTML = Object.entries({
     "Resume words": analysis.resume.words,
-    "Bullets scanned": analysis.resume.bullets.length,
+    "Bullets scanned": bulletCount,
     "Demonstrated years": analysis.resume.demonstratedYears || "Not explicit",
     "Requested years": analysis.job.requestedYears || "Not explicit",
-    "Required terms": analysis.job.required.length,
-    "Preferred terms": analysis.job.preferred.length,
+    "Required terms": requiredCount,
+    "Preferred terms": preferredCount,
     "Experience fit": `${analysis.scores.experienceFit}%`,
-    "Keyword match": `${analysis.scores.keywordMatch}%`,
+    "Keyword match": keywordLabel,
   })
     .map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value))}</dd>`)
     .join("");
@@ -426,7 +430,7 @@ function exportResult(type) {
 }
 
 function saveAnalysis(analysis) {
-  const safeAnalysis = { ...analysis, resumeTextStored: false };
+  const safeAnalysis = sanitizeAnalysisForStorage(analysis);
   const current = getSavedAnalyses().filter((item) => item.id !== safeAnalysis.id);
   const record = { id: crypto.randomUUID(), ...safeAnalysis };
   localStorage.setItem(STORAGE_KEY, JSON.stringify([record, ...current].slice(0, 5)));
@@ -450,7 +454,7 @@ function renderSavedAnalyses() {
     <article class="saved-card">
       <div>
         <strong>${escapeHtml(item.role)}</strong>
-        <span>${escapeHtml(item.fileName || "Untitled resume")} - ${new Date(item.generatedAt).toLocaleString()}</span>
+        <span>${escapeHtml(item.fileName || "Untitled resume")} - summary only - ${new Date(item.generatedAt).toLocaleString()}</span>
       </div>
       <b>${item.scores.overall}</b>
       <button class="ghost compact" type="button" data-open-analysis="${item.id}">Open</button>
@@ -594,6 +598,12 @@ function renderEvidencePills(container, values, emptyText) {
   container.innerHTML = values.length
     ? values.map((value) => `<span title="${escapeHtml(value.evidence || "No evidence")}">${escapeHtml(value.term)} <b>${escapeHtml(value.priority)}</b></span>`).join("")
     : `<em>${escapeHtml(emptyText)}</em>`;
+}
+
+function keywordSignalText(analysis) {
+  if (!analysis.job.hasJobDescription) return "Paste a job description for requirement-level scoring.";
+  if (analysis.scores.keywordStatus !== "scored") return "Insufficient JD detail: add concrete skills, tools, or qualifications.";
+  return `${analysis.scores.keywordMatch}% requirement and keyword coverage.`;
 }
 
 function showStatus(message, isError = false) {
