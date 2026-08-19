@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 
-export function AppShell() {
+export function AppShell({ authEnabled }: { authEnabled: boolean }) {
   const { user, signOut } = useAuth();
   return (
     <>
@@ -22,12 +22,14 @@ export function AppShell() {
           <NavLink to="/checker">Checker</NavLink>
           <NavLink to="/dashboard">Dashboard</NavLink>
           <NavLink to="/settings">Settings</NavLink>
-          {user ? (
+          {authEnabled && user ? (
             <button className="text-button" onClick={() => void signOut()}>
               Log out
             </button>
-          ) : (
+          ) : authEnabled ? (
             <NavLink to="/login">Log in</NavLink>
+          ) : (
+            <span className="availability-label">Accounts coming soon</span>
           )}
         </nav>
       </header>

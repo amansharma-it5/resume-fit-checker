@@ -43,3 +43,16 @@ test("rename dialog supports validation, keyboard cancellation, save, and focus 
   await expect(page.getByRole("status")).toContainText("Resume renamed.");
   await expect(rename).toBeFocused();
 });
+
+test("production-default build keeps accounts disabled and guest mode available", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText("Accounts coming soon")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Log in" })).toHaveCount(0);
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "Continue privately in guest mode" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Log in" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Email magic link" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Open guest workspace" }).click();
+  await expect(page.getByRole("heading", { name: "Your resumes" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Create resume" })).toBeEnabled();
+});

@@ -420,6 +420,15 @@ button small {
   color: var(--danger);
   font-size: 0.9rem;
 }
+.availability-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
 .empty-state,
 .not-found {
   min-height: 300px;

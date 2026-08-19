@@ -1,5 +1,8 @@
 # Environment variables
 
+`VITE_AUTH_ENABLED`: public build-time feature flag. Use `true` for staging Deploy Previews and branch deploys. Production
+defaults to `false` until custom SMTP and production authentication are explicitly approved.
+
 ## Browser-safe
 
 `VITE_SUPABASE_URL`: Supabase Project Settings > API > Project URL. Public, but restricted to the intended project origin by CSP.

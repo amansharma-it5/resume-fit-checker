@@ -21,7 +21,7 @@ const defaults: Preferences = {
   reducedMotion: false,
   pageSize: "letter",
 };
-export function SettingsPage() {
+export function SettingsPage({ authEnabled }: { authEnabled: boolean }) {
   const { user } = useAuth();
   const [prefs, setPrefs] = useState(defaults);
   const [name, setName] = useState("");
@@ -66,9 +66,13 @@ export function SettingsPage() {
             </label>
             <button onClick={() => void saveProfile()}>Save profile</button>
           </>
-        ) : (
+        ) : authEnabled ? (
           <p>
             Guest mode. <Link to="/login">Log in</Link> to manage an account.
+          </p>
+        ) : (
+          <p>
+            Guest mode. <span className="availability-label">Accounts coming soon</span>
           </p>
         )}
       </section>

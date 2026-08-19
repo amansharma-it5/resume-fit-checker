@@ -16,7 +16,7 @@ import {
 import { listGuestResumes } from "../lib/guest-db";
 import type { ResumeDocument, ResumeStatus } from "../types";
 
-export function DashboardPage() {
+export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
   const { user } = useAuth();
   const account = Boolean(user);
   const [resumes, setResumes] = useState<ResumeDocument[]>([]);
@@ -84,11 +84,12 @@ export function DashboardPage() {
         <button className="primary" onClick={() => void action(() => createResume(account), "Resume created.")}>
           Create resume
         </button>
-        {!account && (
+        {!account && authEnabled && (
           <Link className="button-link" to="/signup">
             Create an account
           </Link>
         )}
+        {!account && !authEnabled && <span className="availability-label">Accounts coming soon</span>}
         {account && guestResumes.some((item) => !item.importedAt) && (
           <button
             onClick={() =>

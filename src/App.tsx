@@ -8,28 +8,39 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { AccountsComingSoonPage } from "./pages/AccountsComingSoonPage";
+import { authEnabled as configuredAuthEnabled } from "./lib/features";
 
 export function App() {
+  return <AppRoutes authEnabled={configuredAuthEnabled} />;
+}
+
+export function AppRoutes({ authEnabled }: { authEnabled: boolean }) {
+  const authPage = (page: React.ReactNode) => (authEnabled ? page : <AccountsComingSoonPage />);
   return (
     <Routes>
-      <Route element={<AppShell />}>
+      <Route element={<AppShell authEnabled={authEnabled} />}>
         <Route index element={<CheckerPage />} />
         <Route path="checker" element={<CheckerPage />} />
-        <Route path="login" element={<LoginPage />} />
-        <Route path="signup" element={<SignupPage />} />
-        <Route path="forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="reset-password" element={<ResetPasswordPage />} />
-        <Route path="auth/callback" element={<AuthCallbackPage />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="settings" element={<SettingsPage />} />
+        <Route path="login" element={authPage(<LoginPage />)} />
+        <Route path="signup" element={authPage(<SignupPage />)} />
+        <Route path="forgot-password" element={authPage(<ForgotPasswordPage />)} />
+        <Route path="reset-password" element={authPage(<ResetPasswordPage />)} />
+        <Route path="auth/callback" element={authPage(<AuthCallbackPage />)} />
+        <Route path="dashboard" element={<DashboardPage authEnabled={authEnabled} />} />
+        <Route path="settings" element={<SettingsPage authEnabled={authEnabled} />} />
         <Route path="privacy" element={<PrivacyPage />} />
         <Route path="account" element={<Navigate to="/account/data" replace />} />
         <Route
           path="account/data"
           element={
-            <ProtectedRoute>
-              <AccountDataPage />
-            </ProtectedRoute>
+            authEnabled ? (
+              <ProtectedRoute>
+                <AccountDataPage />
+              </ProtectedRoute>
+            ) : (
+              <AccountsComingSoonPage />
+            )
           }
         />
         <Route path="*" element={<NotFoundPage />} />
