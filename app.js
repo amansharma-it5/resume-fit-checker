@@ -56,6 +56,8 @@ const elements = {
   originalBullet: $("#originalBullet"),
   wordFragments: $("#wordFragments"),
   rewriteButton: $("#rewriteButton"),
+  aiRewriteButton: $("#aiRewriteButton"),
+  aiConsent: $("#aiConsent"),
   copyRewriteButton: $("#copyRewriteButton"),
   undoRewriteButton: $("#undoRewriteButton"),
   rewriteOutput: $("#rewriteOutput"),
@@ -129,6 +131,8 @@ function bindInteractions() {
 
   elements.analyzeButton.addEventListener("click", analyze);
   elements.rewriteButton.addEventListener("click", rewriteBullet);
+  elements.aiConsent.addEventListener("change", updateAiRewriteState);
+  elements.aiRewriteButton.addEventListener("click", aiRewriteBullet);
   elements.copyRewriteButton.addEventListener("click", copyRewrite);
   elements.undoRewriteButton.addEventListener("click", undoRewrite);
   elements.clearDataButton.addEventListener("click", clearAllData);
@@ -354,7 +358,7 @@ function rewriteBullet() {
     return;
   }
   state.rewriteHistory.push({ input: original, output: elements.rewriteOutput.textContent });
-  elements.rewriteOutput.innerHTML = `<span class="rewrite-label">Before</span>${escapeHtml(result.before)}<br><span class="rewrite-label">After</span>${result.after
+  elements.rewriteOutput.innerHTML = `<span class="rewrite-label">Smart Rewrite</span>Local and private<br><span class="rewrite-label">Before</span>${escapeHtml(result.before)}<br><span class="rewrite-label">After</span>${result.after
     .split(/\s+/)
     .map((word, index) => `<span style="animation-delay:${index * 24}ms">${escapeHtml(word)}&nbsp;</span>`)
     .join("")}`;
@@ -372,6 +376,76 @@ function rewriteBullet() {
     elements.wordFragments.classList.remove("is-breaking");
   }, 800);
   playClick();
+}
+
+async function aiRewriteBullet() {
+  const original = elements.originalBullet.value.trim().slice(0, 1000);
+  if (!original) {
+    showToast("Paste a bullet first.");
+    return;
+  }
+  if (!elements.aiConsent.checked) {
+    showToast("Check consent before using AI Rewrite.");
+    return;
+  }
+
+  state.rewriteHistory.push({ input: elements.originalBullet.value, output: elements.rewriteOutput.textContent });
+  elements.aiRewriteButton.disabled = true;
+  elements.aiRewriteButton.textContent = "AI Rewrite...";
+  elements.rewriteMeta.textContent = "Sending only the selected bullet, target role, and limited JD excerpt to Groq AI.";
+
+  try {
+    const response = await fetch("/.netlify/functions/ai-rewrite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bullet: original,
+        role: elements.jobTitle.value.trim().slice(0, 120),
+        jdExcerpt: buildRelevantJdExcerpt(elements.jobDescription.value, original, elements.jobTitle.value),
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      renderAiError(response.status, payload.code);
+      return;
+    }
+    renderAiRewrite(original, payload);
+    showToast("AI Rewrite complete.");
+  } catch {
+    renderAiError(504, "timeout");
+  } finally {
+    elements.aiRewriteButton.textContent = "AI Rewrite";
+    updateAiRewriteState();
+  }
+}
+
+function renderAiRewrite(original, payload) {
+  const rewritten = String(payload.rewrittenBullet || "").trim();
+  if (!rewritten) {
+    renderAiError(502, "provider_error");
+    return;
+  }
+  state.lastRewrite = rewritten;
+  elements.rewriteOutput.innerHTML = `<span class="rewrite-label">AI Rewrite</span>External Groq request<br><span class="rewrite-label">Before</span>${escapeHtml(original)}<br><span class="rewrite-label">After</span>${escapeHtml(rewritten)}`;
+  elements.rewriteMeta.textContent = [
+    listSummary("Improvements", payload.improvements),
+    listSummary("Missing details", payload.missingDetails),
+    listSummary("Warnings", payload.warnings),
+  ].filter(Boolean).join(" ");
+  elements.copyRewriteButton.disabled = false;
+  elements.undoRewriteButton.disabled = false;
+}
+
+function renderAiError(status, code) {
+  const message = status === 429
+    ? "AI Rewrite is rate limited. Try again in a moment, or use local Smart Rewrite."
+    : code === "missing_key" || status === 503
+      ? "AI Rewrite is not configured on this deployment. Use local Smart Rewrite."
+      : code === "timeout" || status === 504
+        ? "AI Rewrite timed out. Use local Smart Rewrite or try again."
+        : "AI Rewrite failed. Use local Smart Rewrite instead.";
+  elements.rewriteMeta.textContent = message;
+  showToast(message);
 }
 
 async function copyRewrite() {
@@ -397,6 +471,11 @@ function renderFragments() {
   elements.wordFragments.innerHTML = words
     .map((word, index) => `<span style="--break:${index % 2 ? 6 : -6}px">${escapeHtml(word)}</span>`)
     .join("");
+  updateAiRewriteState();
+}
+
+function updateAiRewriteState() {
+  elements.aiRewriteButton.disabled = !elements.aiConsent.checked || !elements.originalBullet.value.trim();
 }
 
 function exportResult(type) {
@@ -490,6 +569,8 @@ function clearAllData() {
   elements.originalBullet.value = "";
   elements.rewriteOutput.textContent = "The smart rewrite will materialize here.";
   elements.rewriteMeta.textContent = "No employers, dates, tools, metrics, or achievements will be invented.";
+  elements.aiConsent.checked = false;
+  elements.aiRewriteButton.disabled = true;
   elements.copyRewriteButton.disabled = true;
   elements.undoRewriteButton.disabled = true;
   elements.fileLabel.textContent = "Feed your resume to the lab";
@@ -598,6 +679,31 @@ function renderEvidencePills(container, values, emptyText) {
   container.innerHTML = values.length
     ? values.map((value) => `<span title="${escapeHtml(value.evidence || "No evidence")}">${escapeHtml(value.term)} <b>${escapeHtml(value.priority)}</b></span>`).join("")
     : `<em>${escapeHtml(emptyText)}</em>`;
+}
+
+function buildRelevantJdExcerpt(text, bullet, role) {
+  const normalizedNeedles = new Set(`${bullet} ${role}`.toLowerCase().match(/\b[a-z][a-z0-9+#.]{2,}\b/g) || []);
+  const lines = cleanText(text).split(/\n|[.;]/).map((line) => line.trim()).filter(Boolean);
+  const scored = lines.map((line, index) => {
+    const tokens = line.toLowerCase().match(/\b[a-z][a-z0-9+#.]{2,}\b/g) || [];
+    const score = tokens.filter((token) => normalizedNeedles.has(token)).length + (/required|preferred|qualification|requirement|nice to have/i.test(line) ? 2 : 0);
+    return { line, index, score };
+  });
+  const chosen = scored.filter((item) => item.score > 0).sort((a, b) => b.score - a.score || a.index - b.index);
+  const source = chosen.length ? chosen : scored;
+  let excerpt = "";
+  for (const item of source) {
+    const next = excerpt ? `${excerpt}\n${item.line}` : item.line;
+    if (next.length > 2000) continue;
+    excerpt = next;
+    if (excerpt.length > 1700) break;
+  }
+  return excerpt.slice(0, 2000);
+}
+
+function listSummary(label, values) {
+  if (!Array.isArray(values) || !values.length) return "";
+  return `${label}: ${values.map((value) => String(value).trim()).filter(Boolean).slice(0, 4).join("; ")}.`;
 }
 
 function keywordSignalText(analysis) {

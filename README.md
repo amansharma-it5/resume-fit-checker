@@ -16,7 +16,9 @@ The engine separates required and preferred qualifications, extracts conservativ
 
 ## Privacy
 
-Resume and job-description text stay on the user's device and are not sent over the network. The latest five analysis summaries are saved in `localStorage`, but saved history intentionally excludes original resume text, job-description text, resume bullets, evidence sentences, role-title lines, and metric text. Saved entries keep only the summary data needed to reopen the result: scores, counts, section names, matched/partial/missing terms, recommendations, role, filename, and timestamp. The Reset / clear data control removes saved local analysis summaries and clears the active resume and job-description text from the page state.
+Default resume analysis runs on the user's device and does not send resume or job-description text over the network. The latest five analysis summaries are saved in `localStorage`, but saved history intentionally excludes original resume text, job-description text, resume bullets, evidence sentences, role-title lines, and metric text. Saved entries keep only the summary data needed to reopen the result: scores, counts, section names, matched/partial/missing terms, recommendations, role, filename, and timestamp. The Reset / clear data control removes saved local analysis summaries and clears the active resume and job-description text from the page state.
+
+Smart Rewrite is local and private. AI Rewrite is optional, disabled until the user checks consent, and sends only the selected bullet, target role, and a limited relevant job-description excerpt to Groq, an external AI provider with Zero Data Retention enabled by the site owner. AI Rewrite inputs and outputs are not saved in `localStorage`.
 
 PDF, DOCX, TXT, MD, and RTF uploads are handled locally. TXT, MD, and RTF are most reliable. DOCX support uses browser-native ZIP decompression when available. PDF support extracts text from simple text-based PDFs and will ask for TXT or DOCX when a PDF is scanned or compressed.
 
@@ -36,4 +38,4 @@ npm run check
 
 ## Deployment
 
-The site is deployable as static files from the repository root. No build step is required. Host `index.html`, `styles.css`, `app.js`, `analysis-engine.js`, `_headers`, `404.html`, and the thumbnail image together.
+The site is deployable as static files from the repository root with Netlify Functions served from `netlify/functions`. No frontend build step is required. Host `index.html`, `styles.css`, `app.js`, `analysis-engine.js`, `_headers`, `404.html`, `netlify.toml`, `netlify/functions/ai-rewrite.mjs`, and the thumbnail image together.

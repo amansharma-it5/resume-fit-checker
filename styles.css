@@ -656,6 +656,19 @@ body.has-results .token { animation-duration: 2.2s; }
 .word-fragments { display: flex; flex-wrap: wrap; gap: 7px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
 .word-fragments span { color: #8792a7; font: 800 0.53rem/1 var(--mono); transition: 0.32s; }
 .word-fragments.is-breaking span { opacity: 0.18; filter: blur(1px); transform: translateY(var(--break)); }
+.ai-consent {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  color: #dbe3ef;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+.ai-consent input { width: 17px; min-height: 17px; accent-color: var(--mint); }
+.ai-consent span { color: #dbe3ef; font: inherit; letter-spacing: 0; text-transform: none; }
+.ai-note { margin: 8px 0 0; color: #8d98ad; font-size: 0.66rem; line-height: 1.5; }
 .output { display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; }
 .rewrite-output { align-self: center; margin: 0; color: #f4f8ff; font-size: 1rem; line-height: 1.82; }
 .rewrite-output span { display: inline-block; opacity: 0; color: var(--mint); text-shadow: 0 0 18px var(--mint); animation: wordIn 0.5s forwards; }
