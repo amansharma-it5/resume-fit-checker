@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHandler } from "./netlify/functions/ai-rewrite.mjs";
+import { config, createHandler } from "./netlify/functions/ai-rewrite.mjs";
 
 const validBody = {
   bullet: "Led React migration for onboarding flows.",
@@ -19,6 +19,37 @@ function event(body = validBody, headers = { "content-type": "application/json" 
 function parse(response) {
   return JSON.parse(response.body);
 }
+
+function handlerWithRewrite(rewrittenBullet, body = validBody) {
+  return createHandler({
+    env: { GroqAPIKey: "mock-credential" },
+    fetchFn: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              rewrittenBullet,
+              improvements: ["Clearer structure"],
+              missingDetails: [],
+              warnings: [],
+            }),
+          },
+        }],
+      }),
+    }),
+  })(event(body));
+}
+
+test("exports Netlify code-based rate-limit configuration", () => {
+  assert.equal(config.path, "/.netlify/functions/ai-rewrite");
+  assert.deepEqual(config.rateLimit, {
+    windowLimit: 5,
+    windowSize: 60,
+    aggregateBy: ["ip", "domain"],
+  });
+});
 
 test("returns missing-key state without calling provider", async () => {
   let called = false;
@@ -134,4 +165,38 @@ test("does not fabricate information in mocked successful output", async () => {
   const body = parse(response);
   assert.doesNotMatch(body.rewrittenBullet, /\d+%|\$|Acme|2026|AWS/);
   assert.match(body.rewrittenBullet, /\[add verified metric\]/);
+});
+
+test("rejects a newly fabricated percentage", async () => {
+  const response = await handlerWithRewrite("Led React migration for onboarding flows, improving conversion by 25%.");
+  assert.equal(response.statusCode, 502);
+  assert.equal(parse(response).code, "provider_error");
+});
+
+test("rejects a newly fabricated currency amount", async () => {
+  const response = await handlerWithRewrite("Led React migration for onboarding flows, saving $50,000.");
+  assert.equal(response.statusCode, 502);
+  assert.equal(parse(response).code, "provider_error");
+});
+
+test("rejects a newly fabricated date", async () => {
+  const response = await handlerWithRewrite("Led React migration for onboarding flows launched in 2025.");
+  assert.equal(response.statusCode, 502);
+  assert.equal(parse(response).code, "provider_error");
+});
+
+test("allows original numbers to remain unchanged", async () => {
+  const body = {
+    ...validBody,
+    bullet: "Led React migration for 12 onboarding flows in 2024.",
+  };
+  const response = await handlerWithRewrite("Led React migration across 12 onboarding flows in 2024 with [add verified result].", body);
+  assert.equal(response.statusCode, 200);
+  assert.match(parse(response).rewrittenBullet, /12 onboarding flows/);
+});
+
+test("accepts clearly marked placeholders", async () => {
+  const response = await handlerWithRewrite("Led React migration for onboarding flows with [add verified percentage] and [add verified date].");
+  assert.equal(response.statusCode, 200);
+  assert.match(parse(response).rewrittenBullet, /\[add verified percentage\]/);
 });

@@ -11,6 +11,15 @@ const responseHeaders = {
   "Cache-Control": "no-store",
 };
 
+const config = {
+  path: "/.netlify/functions/ai-rewrite",
+  rateLimit: {
+    windowLimit: 5,
+    windowSize: 60,
+    aggregateBy: ["ip", "domain"],
+  },
+};
+
 function createHandler({ fetchFn = fetch, env = process.env, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   return async function handler(event = {}) {
     if (event.httpMethod !== "POST") {
@@ -67,6 +76,9 @@ function createHandler({ fetchFn = fetch, env = process.env, timeoutMs = DEFAULT
       const content = providerJson?.choices?.[0]?.message?.content;
       const parsed = parseStructuredOutput(content);
       if (!parsed) {
+        return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: "provider_error" });
+      }
+      if (!validateRewriteFacts(validation.value.bullet, validation.value.jdExcerpt, parsed.rewrittenBullet)) {
         return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: "provider_error" });
       }
 
@@ -143,6 +155,60 @@ function parseStructuredOutput(content) {
   }
 }
 
+function validateRewriteFacts(originalBullet, jdExcerpt, rewrittenBullet) {
+  const originalFacts = extractFactualTokens(originalBullet);
+  const outputFacts = extractFactualTokens(rewrittenBullet);
+  for (const fact of outputFacts) {
+    if (!originalFacts.has(fact)) return false;
+  }
+
+  const jdOnlyFacts = [...extractFactualTokens(jdExcerpt)].filter((fact) => !originalFacts.has(fact));
+  return jdOnlyFacts.every((fact) => !outputFacts.has(fact));
+}
+
+function extractFactualTokens(text) {
+  const facts = new Set();
+  const safeText = stripPlaceholders(text);
+  collectMatches(safeText, /[$€£]\s?\d[\d,.]*(?:\s?[kmb])?|\b(?:usd|eur|gbp)\s?\d[\d,.]*(?:\s?[kmb])?/gi, facts);
+  collectMatches(safeText, /\b\d+(?:\.\d+)?\s?%/g, facts);
+  collectMatches(safeText, /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+\d{1,2},?\s+(?:19|20)\d{2}\b/gi, facts);
+  collectMatches(safeText, /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(?:19|20)\d{2}\b/gi, facts);
+  collectMatches(safeText, /\b(?:19|20)\d{2}\b/g, facts);
+  collectMatches(safeText, /\bq[1-4]\s+(?:19|20)\d{2}\b/gi, facts);
+  collectMatches(safeText, /\b\d[\d,]*(?:\.\d+)?\+?\b/g, facts);
+  collectNameFacts(safeText, facts);
+  return facts;
+}
+
+function collectMatches(text, pattern, facts) {
+  for (const match of text.matchAll(pattern)) facts.add(normalizeFact(match[0]));
+}
+
+function collectNameFacts(text, facts) {
+  const namePattern = /\b(?:[A-Z][a-zA-Z&.-]{1,}|[A-Z]{2,})(?:\s+(?:[A-Z][a-zA-Z&.-]{1,}|[A-Z]{2,})){0,3}\b/g;
+  for (const match of text.matchAll(namePattern)) {
+    const value = match[0].trim();
+    if (!isIgnoredNameFact(value)) facts.add(normalizeFact(value));
+  }
+}
+
+function isIgnoredNameFact(value) {
+  const ignored = new Set([
+    "action", "task", "scope", "result", "led", "built", "created", "delivered", "designed", "developed", "drove",
+    "implemented", "improved", "increased", "launched", "managed", "optimized", "owned", "reduced", "shipped",
+    "streamlined", "supported", "partnered", "collaborated", "analyzed",
+  ]);
+  return ignored.has(normalizeFact(value));
+}
+
+function stripPlaceholders(text) {
+  return String(text).replace(/\[[^\]]+\]/g, " ");
+}
+
+function normalizeFact(value) {
+  return String(value).toLowerCase().replace(/[,.;:()]/g, "").replace(/\s+/g, " ").trim();
+}
+
 function normalizeStringList(value) {
   if (!Array.isArray(value)) return [];
   return value.map((item) => cleanInput(item)).filter(Boolean);
@@ -164,4 +230,4 @@ function json(statusCode, body, extraHeaders = {}) {
   };
 }
 
-export { createHandler, handler };
+export { config, createHandler, handler, validateRewriteFacts };
