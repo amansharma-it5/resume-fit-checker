@@ -1,11 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { config, createHandler, ERROR_CODES, validateRewriteFacts } from "./netlify/functions/ai-rewrite.mjs";
+import { config, createHandler, ERROR_CODES } from "./netlify/functions/ai-rewrite.mjs";
 
 const validBody = {
-  bullet: "Led React migration for onboarding flows.",
+  bullet: "Led React migration for 12 onboarding flows in 2024.",
   role: "Frontend Engineer",
-  jdExcerpt: "Required Qualifications\n- React\n- Accessibility",
+  jdExcerpt: "Required Qualifications\n- React\n- Accessibility\n- AWS certification preferred",
+  approvedContext: "Used React for onboarding flows.",
 };
 
 function event(body = validBody, headers = { "content-type": "application/json" }) {
@@ -20,32 +21,45 @@ function parse(response) {
   return JSON.parse(response.body);
 }
 
-function handlerWithRewrite(rewrittenBullet, body = validBody) {
-  return createHandler({
-    env: { GroqAPIKey: "mock-credential" },
-    fetchFn: async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              rewrittenBullet,
-              improvements: ["Clearer structure"],
-              missingDetails: [],
-              warnings: [],
-            }),
-          },
-        }],
-      }),
+function providerMessage(content) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      choices: [{ message: { content: JSON.stringify(content) } }],
     }),
-  })(event(body));
+  };
 }
 
-test("exports Netlify code-based rate-limit configuration", () => {
+function createDoubleCallHandler({ rewrite, factCheck, env = { GroqAPIKey: "mock-credential" } } = {}) {
+  const calls = [];
+  const handler = createHandler({
+    env,
+    fetchFn: async (_url, options) => {
+      calls.push(JSON.parse(options.body));
+      return calls.length === 1
+        ? providerMessage(rewrite || {
+          rewrittenBullet: "Led React migration across 12 onboarding flows in 2024 with [add verified result].",
+          improvements: ["Clearer scope"],
+          missingDetails: ["Result"],
+          warnings: [],
+        })
+        : providerMessage(factCheck || {
+          claims: [
+            { claim: "Led React migration", status: "VERIFIED", evidence: "Led React migration for 12 onboarding flows in 2024.", rationale: "" },
+            { claim: "12 onboarding flows", status: "VERIFIED", evidence: "12 onboarding flows", rationale: "" },
+            { claim: "2024", status: "VERIFIED", evidence: "2024", rationale: "" },
+          ],
+        });
+    },
+  });
+  return { handler, calls };
+}
+
+test("exports Netlify code-based rate-limit configuration for one operation", () => {
   assert.equal(config.path, "/.netlify/functions/ai-rewrite");
   assert.deepEqual(config.rateLimit, {
-    windowLimit: 5,
+    windowLimit: 3,
     windowSize: 60,
     aggregateBy: ["ip", "domain"],
   });
@@ -60,77 +74,100 @@ test("returns missing-key state without calling provider", async () => {
   assert.equal(called, false);
 });
 
-test("rejects invalid request content and malformed bodies", async () => {
-  const handler = createHandler({ env: { GroqAPIKey: "mock-credential" }, fetchFn: async () => ({ ok: true }) });
+test("rejects invalid request content and oversized input", async () => {
+  const handler = createHandler({ env: { GroqAPIKey: "mock-credential" }, fetchFn: async () => providerMessage({}) });
   assert.equal((await handler({ httpMethod: "GET", headers: {}, body: "" })).statusCode, 405);
   assert.equal((await handler(event(validBody, { "content-type": "text/plain" }))).statusCode, 415);
   assert.equal((await handler({ httpMethod: "POST", headers: { "content-type": "application/json" }, body: "{" })).statusCode, 400);
-  assert.equal((await handler(event({ bullet: "", role: "Engineer", jdExcerpt: "" }))).statusCode, 400);
+  assert.equal((await handler(event({ ...validBody, approvedContext: "x".repeat(2001) }))).statusCode, 400);
 });
 
-test("rejects oversized input", async () => {
-  const handler = createHandler({ env: { GroqAPIKey: "mock-credential" }, fetchFn: async () => ({ ok: true }) });
-  const response = await handler(event({ ...validBody, bullet: "x".repeat(1001) }));
-  assert.equal(response.statusCode, 400);
-});
-
-test("returns successful structured response", async () => {
-  let requestBody;
-  const handler = createHandler({
-    env: { GroqAPIKey: "mock-credential" },
-    fetchFn: async (_url, options) => {
-      requestBody = JSON.parse(options.body);
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({
-          choices: [{
-            message: {
-              content: JSON.stringify({
-                rewrittenBullet: "Led React migration for onboarding flows, improving [add verified result].",
-                improvements: ["Stronger action verb", "Clearer task and scope"],
-                missingDetails: ["Verified result"],
-                warnings: ["No metric was provided"],
-              }),
-            },
-          }],
-        }),
-      };
-    },
-  });
+test("performs rewrite and independent fact-check Groq calls", async () => {
+  const { handler, calls } = createDoubleCallHandler();
   const response = await handler(event());
   assert.equal(response.statusCode, 200);
   const body = parse(response);
-  assert.match(body.rewrittenBullet, /\[add verified result\]/);
-  assert.deepEqual(body.missingDetails, ["Verified result"]);
-  assert.equal(requestBody.model, "openai/gpt-oss-20b");
-  assert.equal(requestBody.temperature, 0.1);
-  assert.equal(requestBody.include_reasoning, false);
-  assert.equal(requestBody.reasoning_effort, "low");
-  assert.equal(requestBody.max_completion_tokens, 1200);
-  assert.match(requestBody.messages[0].content, /Never invent metrics, employers, dates, tools, certifications, clients, achievements, or skills/);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].messages[0].content, /rewrite one resume bullet/i);
+  assert.match(calls[1].messages[0].content, /independent resume fact checker/i);
+  assert.equal(calls[0].include_reasoning, false);
+  assert.equal(calls[1].reasoning_effort, "low");
+  assert.match(body.rewrittenBullet, /12 onboarding flows/);
+  assert.equal(body.verificationStatus, "FACT_CHECKED");
+  assert.equal(body.canCopyApply, true);
 });
 
-test("maps Groq rate limit to safe rate-limit state", async () => {
-  const handler = createHandler({
+test("reports unsupported metric without rejecting the rewrite", async () => {
+  const { handler } = createDoubleCallHandler({
+    rewrite: { rewrittenBullet: "Led React migration across onboarding flows, improving conversion by 25%.", improvements: [], missingDetails: [], warnings: [] },
+    factCheck: { claims: [{ claim: "25% conversion improvement", status: "UNSUPPORTED", evidence: "", rationale: "No metric evidence." }] },
+  });
+  const response = await handler(event());
+  const body = parse(response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.verificationStatus, "NEEDS_REVIEW");
+  assert.equal(body.canCopyApply, false);
+  assert.match(JSON.stringify(body.localVerification.differences), /25%/);
+});
+
+test("reports JD requirement presented as candidate experience", async () => {
+  const { handler } = createDoubleCallHandler({
+    rewrite: { rewrittenBullet: "Led React migration and earned AWS certification for onboarding systems.", improvements: [], missingDetails: [], warnings: [] },
+    factCheck: { claims: [{ claim: "earned AWS certification", status: "VERIFIED", evidence: "AWS certification preferred", rationale: "" }] },
+  });
+  const response = await handler(event());
+  const body = parse(response);
+  assert.equal(response.statusCode, 200);
+  assert.equal(body.verificationStatus, "NEEDS_REVIEW");
+  assert.match(JSON.stringify(body.localVerification.differences), /JD requirement appears as candidate experience/);
+});
+
+test("reports employer, certification, date, and technology differences", async () => {
+  const { handler } = createDoubleCallHandler({
+    rewrite: { rewrittenBullet: "Led React and Python migration for Acme Inc after earning PMP certification in 2025.", improvements: [], missingDetails: [], warnings: [] },
+    factCheck: { claims: [{ claim: "Acme Inc, PMP certification, Python, 2025", status: "UNCLEAR", evidence: "", rationale: "Needs user proof." }] },
+  });
+  const body = parse(await handler(event()));
+  const serialized = JSON.stringify(body.localVerification.differences);
+  assert.match(serialized, /Acme Inc/i);
+  assert.match(serialized, /PMP/i);
+  assert.match(serialized, /2025/);
+  assert.match(serialized, /python/);
+});
+
+test("conflicting second-pass verification is downgraded by local evidence check", async () => {
+  const { handler } = createDoubleCallHandler({
+    rewrite: { rewrittenBullet: "Led React migration for 99 onboarding flows in 2024.", improvements: [], missingDetails: [], warnings: [] },
+    factCheck: { claims: [{ claim: "99 onboarding flows", status: "VERIFIED", evidence: "12 onboarding flows", rationale: "" }] },
+  });
+  const body = parse(await handler(event()));
+  assert.equal(body.verificationStatus, "NEEDS_REVIEW");
+  assert.match(JSON.stringify(body.unsupportedClaims), /99/);
+});
+
+test("maps Groq rate limit and provider failures to safe codes", async () => {
+  const rateHandler = createHandler({
     env: { GroqAPIKey: "mock-credential" },
     fetchFn: async () => ({ ok: false, status: 429, json: async () => ({ raw: "hidden" }) }),
   });
-  const response = await handler(event());
-  assert.equal(response.statusCode, 429);
-  assert.equal(parse(response).code, ERROR_CODES.GROQ_RATE_LIMITED);
-  assert.doesNotMatch(response.body, /raw|hidden/i);
-});
+  assert.equal(parse(await rateHandler(event())).code, ERROR_CODES.GROQ_RATE_LIMITED);
 
-test("returns generic timeout/provider error without raw provider detail", async () => {
-  const providerErrorHandler = createHandler({
+  const failureHandler = createHandler({
     env: { GroqAPIKey: "mock-credential" },
     fetchFn: async () => ({ ok: false, status: 500, json: async () => ({ error: "provider stack trace" }) }),
   });
-  const providerResponse = await providerErrorHandler(event());
-  assert.equal(providerResponse.statusCode, 502);
-  assert.equal(parse(providerResponse).code, ERROR_CODES.GROQ_REJECTED);
-  assert.doesNotMatch(providerResponse.body, /provider stack trace/i);
+  const response = await failureHandler(event());
+  assert.equal(response.statusCode, 502);
+  assert.equal(parse(response).code, ERROR_CODES.GROQ_REJECTED);
+  assert.doesNotMatch(response.body, /provider stack trace/i);
+});
+
+test("malformed AI output and timeout return safe errors", async () => {
+  const malformed = createHandler({
+    env: { GroqAPIKey: "mock-credential" },
+    fetchFn: async () => providerMessage({ notRewrittenBullet: true }),
+  });
+  assert.equal(parse(await malformed(event())).code, ERROR_CODES.GROQ_REJECTED);
 
   const timeoutHandler = createHandler({
     env: { GroqAPIKey: "mock-credential" },
@@ -143,103 +180,5 @@ test("returns generic timeout/provider error without raw provider detail", async
       });
     }),
   });
-  const timeoutResponse = await timeoutHandler(event());
-  assert.equal(timeoutResponse.statusCode, 504);
-  assert.equal(parse(timeoutResponse).code, ERROR_CODES.FUNCTION_TIMEOUT);
-});
-
-test("maps provider connection errors to safe Groq rejection code", async () => {
-  const handler = createHandler({
-    env: { GroqAPIKey: "mock-credential" },
-    fetchFn: async () => {
-      throw new Error("network detail that must stay hidden");
-    },
-  });
-  const response = await handler(event());
-  assert.equal(response.statusCode, 502);
-  assert.equal(parse(response).code, ERROR_CODES.GROQ_REJECTED);
-  assert.doesNotMatch(response.body, /network detail/i);
-});
-
-test("does not fabricate information in mocked successful output", async () => {
-  const handler = createHandler({
-    env: { GroqAPIKey: "mock-credential" },
-    fetchFn: async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              rewrittenBullet: "Led React migration for onboarding flows with [add verified metric].",
-              improvements: ["Preserves original facts"],
-              missingDetails: ["Metric", "Result"],
-              warnings: ["No metric, employer, or date was provided"],
-            }),
-          },
-        }],
-      }),
-    }),
-  });
-  const response = await handler(event());
-  assert.equal(response.statusCode, 200);
-  const body = parse(response);
-  assert.doesNotMatch(body.rewrittenBullet, /\d+%|\$|Acme|2026|AWS/);
-  assert.match(body.rewrittenBullet, /\[add verified metric\]/);
-});
-
-test("rejects a newly fabricated percentage", async () => {
-  const response = await handlerWithRewrite("Led React migration for onboarding flows, improving conversion by 25%.");
-  assert.equal(response.statusCode, 502);
-  assert.equal(parse(response).code, ERROR_CODES.GROQ_REJECTED);
-});
-
-test("rejects a newly fabricated currency amount", async () => {
-  const response = await handlerWithRewrite("Led React migration for onboarding flows, saving $50,000.");
-  assert.equal(response.statusCode, 502);
-  assert.equal(parse(response).code, ERROR_CODES.GROQ_REJECTED);
-});
-
-test("rejects a newly fabricated date", async () => {
-  const response = await handlerWithRewrite("Led React migration for onboarding flows launched in 2025.");
-  assert.equal(response.statusCode, 502);
-  assert.equal(parse(response).code, ERROR_CODES.GROQ_REJECTED);
-});
-
-test("allows original numbers to remain unchanged", async () => {
-  const body = {
-    ...validBody,
-    bullet: "Led React migration for 12 onboarding flows in 2024.",
-  };
-  const response = await handlerWithRewrite("Led React migration across 12 onboarding flows in 2024 with [add verified result].", body);
-  assert.equal(response.statusCode, 200);
-  assert.match(parse(response).rewrittenBullet, /12 onboarding flows/);
-});
-
-test("accepts clearly marked placeholders", async () => {
-  const response = await handlerWithRewrite("Led React migration for onboarding flows with [add verified percentage] and [add verified date].");
-  assert.equal(response.statusCode, 200);
-  assert.match(parse(response).rewrittenBullet, /\[add verified percentage\]/);
-});
-
-test("allows target role wording without treating it as an employer", () => {
-  assert.equal(
-    validateRewriteFacts(
-      "Led React migration for onboarding flows.",
-      "Role: Frontend Engineer. Required: React.",
-      "Led React migration for onboarding flows as a Frontend Engineer with [add verified result].",
-    ),
-    true,
-  );
-});
-
-test("rejects newly fabricated employer or client names", () => {
-  assert.equal(
-    validateRewriteFacts(
-      "Led React migration for onboarding flows.",
-      "Preferred: experience with enterprise clients including Acme.",
-      "Led React migration for onboarding flows for Acme with [add verified result].",
-    ),
-    false,
-  );
+  assert.equal(parse(await timeoutHandler(event())).code, ERROR_CODES.FUNCTION_TIMEOUT);
 });

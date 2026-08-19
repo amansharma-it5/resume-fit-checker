@@ -190,23 +190,29 @@
           <article class="panel source">
             <div class="pane-head"><span>Input / weak signal</span><b>01</b></div>
             <textarea id="originalBullet" rows="7" placeholder="Paste a resume bullet here…"></textarea>
+            <label class="ai-context-label" for="aiApprovedContext">Approved resume context for AI fact-checking</label>
+            <textarea id="aiApprovedContext" rows="4" placeholder="Optional: paste only extra resume facts you approve sending for verification. Do not paste the full resume unless you explicitly intend to send it."></textarea>
             <label class="ai-consent">
               <input id="aiConsent" type="checkbox" />
               <span>Send this selected text to Groq AI for rewriting.</span>
             </label>
             <p class="ai-note">Groq is an external AI provider. Zero Data Retention has been enabled by the site owner.</p>
+            <p class="ai-note">AI verification can make mistakes. Final accuracy depends on the information you provide and confirm.</p>
             <div id="wordFragments" class="word-fragments" aria-hidden="true"></div>
           </article>
           <article class="panel output">
-            <div class="pane-head"><span>Output / Smart rewrite</span><b>Local</b></div>
+            <div class="pane-head"><span>Output / Verified rewrite</span><b>Review</b></div>
             <p id="rewriteOutput" class="rewrite-output">The smart rewrite will materialize here.</p>
             <small id="rewriteMeta" class="rewrite-meta">No employers, dates, tools, metrics, or achievements will be invented.</small>
+            <div id="verificationPanel" class="verification-panel" hidden></div>
             <div id="rewriteFlash" class="rewrite-flash" hidden></div>
           </article>
         </div>
         <div class="rewrite-actions">
           <button id="rewriteButton" class="primary rewrite-button" type="button">Smart Rewrite</button>
           <button id="aiRewriteButton" class="ghost compact" type="button" disabled>AI Rewrite</button>
+          <button id="safeVersionButton" class="ghost compact" type="button" disabled>Safe verified version</button>
+          <button id="applyRewriteButton" class="ghost compact" type="button" disabled>Apply</button>
           <button id="copyRewriteButton" class="ghost compact" type="button" disabled>Copy</button>
           <button id="undoRewriteButton" class="ghost compact" type="button" disabled>Undo</button>
         </div>

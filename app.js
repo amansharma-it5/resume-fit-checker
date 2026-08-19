@@ -1,4 +1,10 @@
 import { analyzeResumeFit, cleanText, rewriteBullet as smartRewriteBullet, sanitizeAnalysisForStorage } from "./analysis-engine.js";
+import {
+  applyUserConfirmation,
+  canCopyOrApply,
+  createSafeVerifiedVersion,
+  removeClaimFromVerification,
+} from "./rewrite-verification.js";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -11,6 +17,8 @@ const state = {
   dragDepth: 0,
   rewriteHistory: [],
   lastRewrite: "",
+  currentVerification: null,
+  rewriteMode: "idle",
 };
 
 const sampleResume = `Alex Morgan
@@ -58,10 +66,14 @@ const elements = {
   rewriteButton: $("#rewriteButton"),
   aiRewriteButton: $("#aiRewriteButton"),
   aiConsent: $("#aiConsent"),
+  aiApprovedContext: $("#aiApprovedContext"),
+  safeVersionButton: $("#safeVersionButton"),
+  applyRewriteButton: $("#applyRewriteButton"),
   copyRewriteButton: $("#copyRewriteButton"),
   undoRewriteButton: $("#undoRewriteButton"),
   rewriteOutput: $("#rewriteOutput"),
   rewriteMeta: $("#rewriteMeta"),
+  verificationPanel: $("#verificationPanel"),
   rewriteFlash: $("#rewriteFlash"),
   toast: $("#toast"),
   labStage: $("#labStage"),
@@ -133,10 +145,16 @@ function bindInteractions() {
   elements.rewriteButton.addEventListener("click", rewriteBullet);
   elements.aiConsent.addEventListener("change", updateAiRewriteState);
   elements.aiRewriteButton.addEventListener("click", aiRewriteBullet);
+  elements.safeVersionButton.addEventListener("click", useSafeVerifiedVersion);
+  elements.applyRewriteButton.addEventListener("click", applyRewrite);
   elements.copyRewriteButton.addEventListener("click", copyRewrite);
   elements.undoRewriteButton.addEventListener("click", undoRewrite);
   elements.clearDataButton.addEventListener("click", clearAllData);
-  elements.originalBullet.addEventListener("input", renderFragments);
+  elements.originalBullet.addEventListener("input", () => {
+    clearVerificationState();
+    renderFragments();
+  });
+  elements.verificationPanel.addEventListener("click", handleVerificationAction);
   $$("[data-export]").forEach((button) => button.addEventListener("click", () => exportResult(button.dataset.export)));
 
   elements.savedAnalyses.addEventListener("click", (event) => {
@@ -357,6 +375,7 @@ function rewriteBullet() {
     showToast(result.warnings[0] || "Paste a bullet first.");
     return;
   }
+  clearVerificationState();
   state.rewriteHistory.push({ input: original, output: elements.rewriteOutput.textContent });
   elements.rewriteOutput.innerHTML = `<span class="rewrite-label">Smart Rewrite</span>Local and private<br><span class="rewrite-label">Before</span>${escapeHtml(result.before)}<br><span class="rewrite-label">After</span>${result.after
     .split(/\s+/)
@@ -364,7 +383,10 @@ function rewriteBullet() {
     .join("")}`;
   elements.rewriteMeta.textContent = result.warnings.join(" ") || "Smart rewrite preserved the original facts.";
   state.lastRewrite = result.after;
+  state.rewriteMode = "smart";
   elements.copyRewriteButton.disabled = false;
+  elements.applyRewriteButton.disabled = true;
+  elements.safeVersionButton.disabled = true;
   elements.undoRewriteButton.disabled = false;
   elements.wordFragments.classList.add("is-breaking");
   elements.rewriteFlash.hidden = false;
@@ -392,7 +414,7 @@ async function aiRewriteBullet() {
   state.rewriteHistory.push({ input: elements.originalBullet.value, output: elements.rewriteOutput.textContent });
   elements.aiRewriteButton.disabled = true;
   elements.aiRewriteButton.textContent = "AI Rewrite...";
-  elements.rewriteMeta.textContent = "Sending only the selected bullet, target role, and limited JD excerpt to Groq AI.";
+  elements.rewriteMeta.textContent = "Sending only the selected bullet, target role, limited JD excerpt, and approved context to Groq AI.";
 
   try {
     const response = await fetch("/.netlify/functions/ai-rewrite", {
@@ -402,6 +424,7 @@ async function aiRewriteBullet() {
         bullet: original,
         role: elements.jobTitle.value.trim().slice(0, 120),
         jdExcerpt: buildRelevantJdExcerpt(elements.jobDescription.value, original, elements.jobTitle.value),
+        approvedContext: elements.aiApprovedContext.value.trim().slice(0, 2000),
       }),
     });
     const payload = await response.json().catch(() => ({}));
@@ -425,14 +448,18 @@ function renderAiRewrite(original, payload) {
     renderAiError(502, "GROQ_REJECTED");
     return;
   }
+  state.currentVerification = payload;
+  state.rewriteMode = "ai";
   state.lastRewrite = rewritten;
-  elements.rewriteOutput.innerHTML = `<span class="rewrite-label">AI Rewrite</span>External Groq request<br><span class="rewrite-label">Before</span>${escapeHtml(original)}<br><span class="rewrite-label">After</span>${escapeHtml(rewritten)}`;
+  elements.rewriteOutput.innerHTML = `<span class="rewrite-label">AI Rewrite</span>External Groq request<br><span class="rewrite-label">Before</span>${escapeHtml(original)}<br><span class="rewrite-label">After</span>${highlightClaims(rewritten, payload.claims || [])}`;
   elements.rewriteMeta.textContent = [
+    `Verification: ${payload.verificationStatus === "FACT_CHECKED" ? "Fact-checked" : "Needs review"}.`,
     listSummary("Improvements", payload.improvements),
     listSummary("Missing details", payload.missingDetails),
     listSummary("Warnings", payload.warnings),
   ].filter(Boolean).join(" ");
-  elements.copyRewriteButton.disabled = false;
+  renderVerificationPanel(payload);
+  updateRewriteActionState();
   elements.undoRewriteButton.disabled = false;
 }
 
@@ -468,8 +495,50 @@ function normalizeAiErrorCode(status, code) {
 async function copyRewrite() {
   const text = state.lastRewrite.trim();
   if (!text || text === "The smart rewrite will materialize here.") return;
+  if (state.rewriteMode === "ai" && !canCopyOrApply(state.currentVerification)) {
+    showToast("Resolve unsupported or unclear claims before copying.");
+    return;
+  }
   await navigator.clipboard.writeText(text);
-  showToast("Smart rewrite copied.");
+  showToast(state.rewriteMode === "ai" ? "Verified rewrite copied." : "Smart rewrite copied.");
+}
+
+function applyRewrite() {
+  if (state.rewriteMode === "ai" && !canCopyOrApply(state.currentVerification)) {
+    showToast("Resolve unsupported or unclear claims before applying.");
+    return;
+  }
+  if (!state.lastRewrite.trim()) return;
+  state.rewriteHistory.push({ input: elements.originalBullet.value, output: elements.rewriteOutput.textContent });
+  elements.originalBullet.value = state.lastRewrite.trim();
+  clearVerificationState();
+  renderFragments();
+  showToast("Rewrite applied to the input bullet.");
+}
+
+function useSafeVerifiedVersion() {
+  if (!state.currentVerification) return;
+  const safe = createSafeVerifiedVersion(state.currentVerification.rewrittenBullet, state.currentVerification.claims || []);
+  if (!safe) {
+    showToast("No safe verified text could be created from the current rewrite.");
+    return;
+  }
+  state.rewriteHistory.push({ input: elements.originalBullet.value, output: elements.rewriteOutput.textContent });
+  state.lastRewrite = safe;
+  state.currentVerification = {
+    ...state.currentVerification,
+    rewrittenBullet: safe,
+    verificationStatus: "FACT_CHECKED",
+    claims: (state.currentVerification.claims || []).filter((claim) => claim.status === "VERIFIED" || claim.status === "USER CONFIRMED"),
+    unsupportedClaims: [],
+    unclearClaims: [],
+    canCopyApply: true,
+    safeVerifiedBullet: safe,
+  };
+  elements.rewriteOutput.innerHTML = `<span class="rewrite-label">Safe version</span>Verified or user-confirmed claims only<br><span class="rewrite-label">After</span>${escapeHtml(safe)}`;
+  elements.rewriteMeta.textContent = "Safe verified version removed unsupported or unclear claims without inventing replacements.";
+  renderVerificationPanel(state.currentVerification);
+  updateRewriteActionState();
 }
 
 function undoRewrite() {
@@ -478,6 +547,7 @@ function undoRewrite() {
   elements.originalBullet.value = previous.input;
   elements.rewriteOutput.textContent = previous.output || "The smart rewrite will materialize here.";
   state.lastRewrite = "";
+  clearVerificationState();
   elements.rewriteMeta.textContent = "Undo restored the previous bullet.";
   elements.undoRewriteButton.disabled = state.rewriteHistory.length === 0;
   renderFragments();
@@ -489,6 +559,80 @@ function renderFragments() {
     .map((word, index) => `<span style="--break:${index % 2 ? 6 : -6}px">${escapeHtml(word)}</span>`)
     .join("");
   updateAiRewriteState();
+}
+
+function renderVerificationPanel(verification) {
+  const claims = verification?.claims || [];
+  elements.verificationPanel.hidden = false;
+  elements.verificationPanel.innerHTML = `
+    <div class="verification-status">${verification.verificationStatus === "FACT_CHECKED" ? "Fact-checked" : "Needs user review"}</div>
+    <div class="verification-notice">${escapeHtml(verification.notice || "AI verification can make mistakes. Final accuracy depends on the information you provide and confirm.")}</div>
+    ${renderClaimSection("Verified claims", claims.filter((claim) => claim.status === "VERIFIED" || claim.status === "USER CONFIRMED"))}
+    ${renderClaimSection("Unsupported claims", claims.filter((claim) => claim.status === "UNSUPPORTED"), true)}
+    ${renderClaimSection("Unclear claims", claims.filter((claim) => claim.status === "UNCLEAR"), true)}
+    ${renderLocalDifferences(verification.localVerification?.differences || [])}
+  `;
+}
+
+function renderClaimSection(title, claims, actionable = false) {
+  if (!claims.length) return `<div class="verification-notice">${escapeHtml(title)}: none.</div>`;
+  return `<div><div class="verification-status">${escapeHtml(title)}</div><ul class="claim-list">${claims.map((claim) => `
+    <li class="claim-item">
+      <span class="claim-status ${claim.status === "UNSUPPORTED" ? "unsupported" : claim.status === "UNCLEAR" ? "unclear" : claim.status === "USER CONFIRMED" ? "confirmed" : ""}">${escapeHtml(claim.status)}</span>
+      <strong>${escapeHtml(claim.text)}</strong>
+      ${claim.evidence ? `<span class="claim-evidence">Evidence: ${escapeHtml(claim.evidence)}</span>` : ""}
+      ${claim.rationale ? `<span class="claim-evidence">${escapeHtml(claim.rationale)}</span>` : ""}
+      ${actionable ? `<span class="claim-actions"><button class="ghost compact" type="button" data-confirm-claim="${escapeHtml(claim.id)}">Confirm</button><button class="ghost compact" type="button" data-remove-claim="${escapeHtml(claim.id)}">Remove</button></span>` : ""}
+    </li>`).join("")}</ul></div>`;
+}
+
+function renderLocalDifferences(differences) {
+  if (!differences.length) return "";
+  return `<div><div class="verification-status">Local verification differences</div><ul class="claim-list">${differences.map((item) => `
+    <li class="claim-item"><span class="claim-status unsupported">${escapeHtml(item.type)}</span><strong>${escapeHtml(item.value)}</strong><span class="claim-evidence">${escapeHtml(item.reason)}</span></li>`).join("")}</ul></div>`;
+}
+
+function handleVerificationAction(event) {
+  const confirmButton = event.target.closest("[data-confirm-claim]");
+  const removeButton = event.target.closest("[data-remove-claim]");
+  if (!state.currentVerification || (!confirmButton && !removeButton)) return;
+  const id = confirmButton?.dataset.confirmClaim || removeButton?.dataset.removeClaim;
+  state.currentVerification = confirmButton
+    ? applyUserConfirmation(state.currentVerification, id)
+    : removeClaimFromVerification(state.currentVerification, id);
+  state.lastRewrite = state.currentVerification.rewrittenBullet || state.lastRewrite;
+  renderVerificationPanel(state.currentVerification);
+  elements.rewriteOutput.innerHTML = `<span class="rewrite-label">AI Rewrite</span>External Groq request<br><span class="rewrite-label">After</span>${highlightClaims(state.currentVerification.rewrittenBullet, state.currentVerification.claims || [])}`;
+  updateRewriteActionState();
+}
+
+function highlightClaims(text, claims) {
+  let html = escapeHtml(text);
+  claims
+    .filter((claim) => claim.status === "UNSUPPORTED" || claim.status === "UNCLEAR")
+    .forEach((claim) => {
+      const escaped = escapeHtml(claim.text);
+      if (!escaped) return;
+      const className = claim.status === "UNCLEAR" ? "claim-mark unclear" : "claim-mark";
+      html = html.replace(new RegExp(escapeRegExp(escaped), "gi"), `<mark class="${className}">$&</mark>`);
+    });
+  return html;
+}
+
+function updateRewriteActionState() {
+  const canUse = state.rewriteMode !== "ai" || canCopyOrApply(state.currentVerification);
+  elements.copyRewriteButton.disabled = !state.lastRewrite.trim() || !canUse;
+  elements.applyRewriteButton.disabled = !state.lastRewrite.trim() || !canUse || state.rewriteMode !== "ai";
+  elements.safeVersionButton.disabled = state.rewriteMode !== "ai" || !(state.currentVerification?.unsupportedClaims?.length || state.currentVerification?.unclearClaims?.length);
+}
+
+function clearVerificationState() {
+  state.currentVerification = null;
+  state.rewriteMode = "idle";
+  elements.verificationPanel.hidden = true;
+  elements.verificationPanel.innerHTML = "";
+  elements.safeVersionButton.disabled = true;
+  elements.applyRewriteButton.disabled = true;
 }
 
 function updateAiRewriteState() {
@@ -584,9 +728,11 @@ function clearAllData() {
   elements.jobTitle.value = "";
   elements.jobDescription.value = "";
   elements.originalBullet.value = "";
+  elements.aiApprovedContext.value = "";
   elements.rewriteOutput.textContent = "The smart rewrite will materialize here.";
   elements.rewriteMeta.textContent = "No employers, dates, tools, metrics, or achievements will be invented.";
   elements.aiConsent.checked = false;
+  clearVerificationState();
   elements.aiRewriteButton.disabled = true;
   elements.copyRewriteButton.disabled = true;
   elements.undoRewriteButton.disabled = true;
@@ -787,6 +933,10 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function wait(milliseconds) {
