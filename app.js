@@ -1,675 +1,606 @@
 const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
-const resumeInput = $("#resumeInput");
-const jdInput = $("#jdInput");
-const resumeFile = $("#resumeFile");
-const jdFile = $("#jdFile");
-const analyzeBtn = $("#analyzeBtn");
-const tailorBtn = $("#tailorBtn");
-const roastBtn = $("#roastBtn");
-const sampleBtn = $("#sampleBtn");
-const demoBtn = $("#demoBtn");
-const exportBtn = $("#exportBtn");
-const clearBtn = $("#clearBtn");
-const themeToggle = $("#themeToggle");
-const loadingState = $("#loadingState");
-const loadingText = $("#loadingText");
-
-const scoreEls = {
-  score: $("#scoreValue"),
-  percent: $("#scorePercent"),
-  label: $("#scoreLabel"),
-  ring: $("#scoreRing"),
-  callback: $("#callbackValue"),
-  callbackBar: $("#callbackBar"),
-  skills: $("#skillsScore"),
-  experience: $("#experienceScore"),
-  format: $("#formatScore"),
-  achievement: $("#achievementScore"),
-  verbs: $("#verbScore"),
-  seniority: $("#seniorityScore")
+const state = {
+  fileName: "",
+  resumeText: "",
+  analysis: null,
+  dragDepth: 0,
 };
 
-const lists = {
-  missing: $("#missingList"),
-  formatting: $("#formatList"),
-  heatmap: $("#keywordHeatmap"),
-  recruiter: $("#recruiterGrid"),
-  bullets: $("#bulletList"),
-  roast: $("#roastBox"),
-  keywordCount: $("#keywordCount")
-};
-
-const loadingMessages = [
-  "Parsing ATS structure...",
-  "Analyzing recruiter signals...",
-  "Matching technical skills...",
-  "Checking formatting risk...",
-  "Optimizing bullet impact..."
-];
-
-const adminWords = new Set([
-  "location", "duration", "contract", "onsite", "remote", "hybrid", "months",
-  "month", "required", "preferred", "role", "job", "description", "mossville",
-  "illinois", "candidate", "hiring", "responsibilities", "requirements", "plus",
-  "strong", "skills", "software", "engineer", "experience", "development"
-]);
-
-const skillCatalog = [
-  { name: "Embedded C", aliases: ["embedded c", "c development", "c programming"], weight: 3 },
-  { name: "Embedded C++", aliases: ["embedded c++", "c++", "cpp"], weight: 2 },
-  { name: "MATLAB", aliases: ["matlab"], weight: 3 },
-  { name: "Simulink", aliases: ["simulink"], weight: 3 },
-  { name: "AUTOSAR", aliases: ["autosar"], weight: 3 },
-  { name: "CAN", aliases: ["can bus", " can ", "can /", "/ can", "can-like"], weight: 3 },
-  { name: "Ethernet", aliases: ["ethernet"], weight: 3 },
-  { name: "Datalink", aliases: ["datalink", "data-link", "data link", "protocol diagnostics"], weight: 3 },
-  { name: "RTOS", aliases: ["rtos", "qnx", "freertos", "real-time operating"], weight: 3 },
-  { name: "Robotics", aliases: ["robotics", "robotic"], weight: 2 },
-  { name: "Autonomous systems", aliases: ["autonomous systems", "autonomous", "sensor-driven control"], weight: 2 },
-  { name: "Heavy machinery", aliases: ["heavy machinery", "off-highway", "industrial machinery"], weight: 2 },
-  { name: "CANape", aliases: ["canape"], weight: 2 },
-  { name: "Wireshark", aliases: ["wireshark", "packet inspection"], weight: 2 },
-  { name: "Git", aliases: ["git", "version control"], weight: 2 },
-  { name: "Debugging & troubleshooting", aliases: ["debugging", "troubleshooting", "root cause analysis", "low-level debugging"], weight: 3 },
-  { name: "Firmware validation", aliases: ["validation", "verification", "v&v", "testbench", "requirement-based testing"], weight: 3 },
-  { name: "Communication protocols", aliases: ["uart", "spi", "i2c", "tcp", "udp", "websocket", "coap", "ipc"], weight: 1 },
-  { name: "ARM embedded targets", aliases: ["arm", "arm cortex", "embedded targets"], weight: 1 },
-  { name: "Model-based development", aliases: ["model-based", "model based", "algorithm modeling"], weight: 2 },
-  { name: "REST APIs", aliases: ["rest api", "rest apis", "restful services", "restful api"], weight: 3 },
-  { name: "Node.js", aliases: ["node.js", "nodejs", "node"], weight: 2 },
-  { name: "React", aliases: ["react", "react.js", "reactjs"], weight: 2 },
-  { name: "TypeScript", aliases: ["typescript", "ts"], weight: 2 },
-  { name: "Python", aliases: ["python"], weight: 2 },
-  { name: "SQL", aliases: ["sql", "postgres", "mysql"], weight: 2 },
-  { name: "Cloud", aliases: ["aws", "azure", "gcp", "cloud"], weight: 2 },
-  { name: "Agile", aliases: ["agile", "scrum", "jira"], weight: 1 }
-];
+const stopWords = new Set(
+  "the and for with that this from your you are our will have has into using use used role team work working their they them but not all can who what when where how job years year experience including across within about responsibilities qualifications preferred required plus must should ability able strong excellent good great candidate candidates company looking need needs".split(" "),
+);
 
 const actionVerbs = [
-  "built", "developed", "implemented", "optimized", "validated", "designed", "debugged",
-  "tested", "integrated", "maintained", "ported", "reduced", "increased", "launched",
-  "automated", "improved", "led", "architected", "delivered", "created"
+  "achieved", "built", "created", "delivered", "designed", "developed", "drove", "improved", "increased", "launched",
+  "led", "managed", "optimized", "reduced", "shipped", "streamlined", "implemented", "owned", "scaled", "saved",
+  "accelerated", "automated", "coordinated", "transformed", "modernized", "orchestrated", "partnered", "ran", "conducted", "collaborated", "evolved",
 ];
 
-const sampleResume = `Sai Anusha Prathipati
-Embedded DSP & Firmware Engineer
+const knownSignals = [
+  "product strategy", "design system", "user research", "project management", "machine learning", "data analysis", "stakeholder management",
+  "cross-functional", "accessibility", "analytics", "figma", "prototyping", "react", "typescript", "python", "sql", "leadership",
+  "customer success", "salesforce", "marketing", "operations", "process improvement", "agile", "scrum", "kpi", "roadmap", "b2b", "engineering", "wcag", "communication",
+];
 
-SUMMARY
-Embedded DSP & Firmware Engineer with 3+ years of experience designing, optimizing, and validating real-time signal processing pipelines and embedded control systems. Strong foundation in Embedded C/C++, RTOS, CAN/Ethernet protocols, fixed-point porting, and model-based development workflows (MATLAB/Simulink). Experienced in requirement-based testing, root cause analysis, and embedded validation testbenches across ARM and x86 platforms.
+const sampleResume = `Alex Morgan
+Senior Product Designer
+
+EXPERIENCE
+Senior Product Designer, Northstar Labs — B2B SaaS
+- Led end-to-end redesign of B2B analytics onboarding, increasing activation by 24%.
+- Built and maintained a Figma design system used by 8 product squads.
+- Partnered with engineering and research to ship accessible workflows meeting WCAG 2.2.
+- Conducted 18 user interviews and reduced task completion time by 31%.
+- Improved stakeholder communication rituals, cutting design review cycles by 19%.
 
 SKILLS
-Embedded C, C++, RTOS (QNX, FreeRTOS), ARM Cortex, AUTOSAR concepts, MATLAB, Simulink, CAN bus, Ethernet, TCP/UDP, UART, SPI, I2C, Git, Wireshark, CANape exposure, root cause analysis.
-
-PROFESSIONAL EXPERIENCE
-Developed firmware for real-time embedded control systems using C++ and QNX RTOS.
-Implemented TCP/UDP and Ethernet communication stacks for networked embedded devices.
-Designed CAN-like IPC mechanisms for real-time inter-process communication.
-Optimized interrupt handling and DMA operations for deterministic embedded performance.
-Designed x86-based DSP validation testbenches for requirement-based verification.
-Performed root cause analysis and debugging of DSP components and communication issues.
+Product strategy, Figma, prototyping, design systems, user research, accessibility, analytics, stakeholder management, SaaS, end-to-end product design
 
 EDUCATION
-Master of Science - Embedded Systems & IC Design`;
+BFA Interaction Design`;
 
-const sampleJD = `Role: Embedded Software Engineer
-Location: Mossville, Illinois-(Onsite)
-Duration: 12+ Months Contract
+const sampleJob = "Lead end-to-end product design for a B2B SaaS platform. Partner with product and engineering, conduct user research, build prototypes in Figma, evolve our design system, use analytics, and ensure accessible WCAG-compliant experiences. Strong stakeholder communication and product strategy required.";
 
-Required Skills:
-Embedded C Development
-MATLAB / Simulink
-AUTOSAR
-CAN / Ethernet / Datalink
-RTOS experience
+const elements = {
+  fileInput: $("#fileInput"),
+  pickButton: $("#pickButton"),
+  dropzone: $("#dropzone"),
+  fileLabel: $("#fileLabel"),
+  sampleButton: $("#sampleButton"),
+  analyzeButton: $("#analyzeButton"),
+  status: $("#status"),
+  jobTitle: $("#jobTitle"),
+  jobDescription: $("#jobDescription"),
+  dashboardTitle: $("#dashboardTitle"),
+  dashboardText: $("#dashboardText"),
+  emptyState: $("#emptyState"),
+  results: $("#results"),
+  signals: $("#signals"),
+  facts: $("#facts"),
+  matchedKeywords: $("#matchedKeywords"),
+  missingKeywords: $("#missingKeywords"),
+  originalBullet: $("#originalBullet"),
+  wordFragments: $("#wordFragments"),
+  rewriteButton: $("#rewriteButton"),
+  rewriteOutput: $("#rewriteOutput"),
+  rewriteFlash: $("#rewriteFlash"),
+  toast: $("#toast"),
+  labStage: $("#labStage"),
+};
 
-Preferred:
-Robotics / Autonomous systems / Heavy machinery experience
-CANape, Wireshark, Git
-Strong debugging & troubleshooting skills`;
+init();
 
-function normalize(text) {
-  return ` ${text.toLowerCase().replace(/[^a-z0-9+#/.\s-]/g, " ").replace(/\s+/g, " ")} `;
+function init() {
+  initCanvas();
+  bindInteractions();
+  renderFragments();
 }
 
-function escapeRegExp(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+function bindInteractions() {
+  elements.pickButton.addEventListener("click", () => elements.fileInput.click());
+  elements.dropzone.addEventListener("click", (event) => {
+    if (event.target.closest("button")) return;
+    elements.fileInput.click();
+  });
+  elements.fileInput.addEventListener("change", (event) => {
+    const file = event.target.files?.[0];
+    if (file) void processFile(file);
+  });
 
-function hasPhrase(text, aliases) {
-  const clean = normalize(text);
-  return aliases.some((alias) => {
-    const phrase = normalize(alias).trim();
-    if (!phrase) return false;
-    if (/^[a-z0-9]+$/.test(phrase)) {
-      return new RegExp(`(^|\\s|/)${escapeRegExp(phrase)}(\\s|/|$)`).test(clean);
-    }
-    return clean.includes(phrase);
+  window.addEventListener("dragenter", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    state.dragDepth += 1;
+    document.body.classList.add("is-dragging");
+    elements.fileLabel.textContent = "Drop it — the lab bot is ready!";
+  });
+  window.addEventListener("dragover", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+  });
+  window.addEventListener("dragleave", (event) => {
+    if (!hasFiles(event)) return;
+    state.dragDepth = Math.max(0, state.dragDepth - 1);
+    if (state.dragDepth === 0) endDrag();
+  });
+  window.addEventListener("drop", (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    const file = event.dataTransfer?.files?.[0];
+    endDrag();
+    if (file) void processFile(file);
+  });
+
+  elements.sampleButton.addEventListener("click", () => {
+    state.fileName = "sample-product-designer.txt";
+    state.resumeText = sampleResume;
+    elements.jobTitle.value = "Senior Product Designer";
+    elements.jobDescription.value = sampleJob;
+    elements.fileLabel.textContent = "sample-product-designer.txt";
+    elements.originalBullet.value = firstResumeBullet(sampleResume);
+    elements.analyzeButton.disabled = false;
+    renderFragments();
+    showStatus("Sample resume loaded. Running the lab test…");
+    playClick();
+    setScanning(true);
+    window.setTimeout(() => {
+      analyze();
+      setScanning(false);
+    }, 850);
+  });
+
+  elements.analyzeButton.addEventListener("click", analyze);
+  elements.rewriteButton.addEventListener("click", rewriteBullet);
+  elements.originalBullet.addEventListener("input", renderFragments);
+  $$("[data-export]").forEach((button) => button.addEventListener("click", () => exportResult(button.dataset.export)));
+
+  window.addEventListener("pointermove", (event) => {
+    const x = (event.clientX / Math.max(window.innerWidth, 1) - 0.5) * 22;
+    const y = (event.clientY / Math.max(window.innerHeight, 1) - 0.5) * 18;
+    elements.labStage.style.setProperty("--mx", `${x}px`);
+    elements.labStage.style.setProperty("--my", `${y}px`);
   });
 }
 
-function words(text) {
-  return normalize(text)
-    .split(/\s+/)
-    .map((word) => word.trim())
-    .filter((word) => word.length > 2 && !adminWords.has(word));
-}
-
-function cosineLikeSimilarity(a, b) {
-  const aWords = new Set(words(a));
-  const bWords = new Set(words(b));
-  const overlap = [...aWords].filter((word) => bWords.has(word)).length;
-  return overlap / Math.sqrt(Math.max(aWords.size, 1) * Math.max(bWords.size, 1));
-}
-
-function extractRoleSkills(jd) {
-  const catalogMatches = skillCatalog.filter((skill) => hasPhrase(jd, skill.aliases));
-  return [...new Map(catalogMatches.map((skill) => [skill.name, skill])).values()];
-}
-
-function detectSections(resume) {
-  const clean = normalize(resume);
-  return {
-    summary: clean.includes(" summary "),
-    skills: clean.includes(" skills ") || clean.includes(" technical skills "),
-    experience: clean.includes(" experience ") || clean.includes(" professional experience "),
-    education: clean.includes(" education "),
-    projects: clean.includes(" project "),
-    bullets: /[•*-]\s|\n[a-z].{35,}/i.test(resume),
-    metrics: /\d+%|\$\d+|\d+\s?(years|users|clients|projects|tickets|members|ms|seconds|devices|pipelines|hours|days)/i.test(resume)
-  };
-}
-
-function detectFormatting(resume) {
-  const risks = [];
-  if (/[|]{2,}/.test(resume)) risks.push(["Possible table layout", "ATS parsers may read table content in the wrong order. Use single-column text when possible."]);
-  if (/photo|headshot|image|icon|graphic/i.test(resume)) risks.push(["Graphics or icons mentioned", "Images and icons can disappear in ATS parsing. Keep important information as text."]);
-  if (/header|footer/i.test(resume)) risks.push(["Header/footer risk", "Contact details in headers or footers may be skipped by some ATS systems."]);
-  if (resume.length < 900) risks.push(["Resume seems short", "A very short resume may lack enough evidence for recruiter screening."]);
-  if (!detectSections(resume).skills) risks.push(["Skills section missing", "Add a dedicated skills section for ATS readability."]);
-  if (!detectSections(resume).education) risks.push(["Education section not detected", "Add education if relevant to the role or required by the employer."]);
-  if (!risks.length) risks.push(["ATS readable", "No major table, graphics, or section readability issues detected from pasted text."]);
-  return risks;
-}
-
-function scoreSkills(skills, resume) {
-  let earned = 0;
-  let possible = 0;
-  const matched = [];
-  const missing = [];
-
-  skills.forEach((skill) => {
-    possible += skill.weight;
-    if (hasPhrase(resume, skill.aliases)) {
-      earned += skill.weight;
-      matched.push({ ...skill, strength: Math.min(1, 0.55 + skill.weight * 0.13) });
-    } else {
-      const semanticGuess = cosineLikeSimilarity(skill.aliases.join(" "), resume);
-      if (semanticGuess > 0.08) {
-        earned += skill.weight * 0.45;
-        matched.push({ ...skill, strength: 0.45 });
-      } else {
-        missing.push(skill);
-      }
-    }
-  });
-
-  return {
-    score: possible ? Math.round((earned / possible) * 100) : 0,
-    matched,
-    missing
-  };
-}
-
-function scoreExperience(resume, matchedCount) {
-  const actionHits = actionVerbs.filter((verb) => normalize(resume).includes(` ${verb} `)).length;
-  const sections = detectSections(resume);
-  let score = Math.min(38, matchedCount * 4);
-  score += Math.min(28, actionHits * 4);
-  if (sections.experience) score += 14;
-  if (sections.metrics) score += 20;
-  return Math.min(score, 100);
-}
-
-function scoreFormatting(resume) {
-  const risks = detectFormatting(resume);
-  let score = 100;
-  risks.forEach(([title]) => {
-    if (title !== "ATS readable") score -= 12;
-  });
-  return Math.max(45, score);
-}
-
-function scoreAchievements(resume) {
-  const metricCount = (resume.match(/\d+%|\$\d+|\d+\s?(years|users|clients|projects|tickets|members|ms|seconds|devices|pipelines|hours|days)/gi) || []).length;
-  return Math.min(100, 32 + metricCount * 14);
-}
-
-function scoreVerbs(resume) {
-  const hits = actionVerbs.filter((verb) => normalize(resume).includes(` ${verb} `)).length;
-  return Math.min(100, 25 + hits * 7);
-}
-
-function scoreSeniority(resume, jd) {
-  const resumeYears = Number((resume.match(/(\d+)\+?\s?years/i) || [0, 0])[1]);
-  const jdYears = Number((jd.match(/(\d+)\+?\s?years/i) || [0, 0])[1]);
-  if (!jdYears) return resumeYears ? 85 : 72;
-  if (!resumeYears) return 58;
-  const diff = Math.abs(resumeYears - jdYears);
-  return Math.max(55, 100 - diff * 12);
-}
-
-function scoreRecruiter(resume, skillScore, achievementScore) {
-  const sections = detectSections(resume);
-  const lineCount = resume.split(/\n/).filter(Boolean).length;
-  const buzzwords = ["hardworking", "dynamic", "self motivated", "go getter", "team player"].filter((term) => normalize(resume).includes(term));
-  return {
-    firstImpression: Math.round(skillScore * 0.55 + achievementScore * 0.25 + (sections.summary ? 20 : 8)),
-    skimmability: Math.min(100, 46 + (sections.skills ? 14 : 0) + (sections.experience ? 18 : 0) + (lineCount > 12 ? 12 : 0)),
-    buzzwordOverload: Math.max(8, buzzwords.length * 22),
-    impactLevel: achievementScore,
-    leadershipSignals: hasPhrase(resume, ["led", "managed", "mentored", "owned", "architected"]) ? 78 : 48,
-    technicalDepth: Math.min(100, skillScore + 8)
-  };
-}
-
-function calculateReport() {
-  const resume = resumeInput.value.trim();
-  const jd = jdInput.value.trim();
-  if (!resume || !jd) return null;
-
-  const roleSkills = extractRoleSkills(jd);
-  const skills = scoreSkills(roleSkills, resume);
-  const experience = scoreExperience(resume, skills.matched.length);
-  const formatting = scoreFormatting(resume);
-  const achievements = scoreAchievements(resume);
-  const verbs = scoreVerbs(resume);
-  const seniority = scoreSeniority(resume, jd);
-  const final = Math.round(
-    skills.score * 0.35 +
-    experience * 0.25 +
-    formatting * 0.15 +
-    achievements * 0.10 +
-    verbs * 0.10 +
-    seniority * 0.05
-  );
-  const callback = Math.max(8, Math.min(96, Math.round(final * 0.72 + scoreRecruiter(resume, skills.score, achievements).skimmability * 0.18)));
-
-  return {
-    final,
-    callback,
-    skills,
-    experience,
-    formatting,
-    achievements,
-    verbs,
-    seniority,
-    recruiter: scoreRecruiter(resume, skills.score, achievements),
-    formattingRisks: detectFormatting(resume),
-    sections: detectSections(resume),
-    resume,
-    jd
-  };
-}
-
-function scoreLabel(score) {
-  if (score >= 88) return "Elite match. This resume should pass most ATS screens and looks recruiter-ready.";
-  if (score >= 76) return "Strong match. A few targeted proof points can improve interview odds.";
-  if (score >= 62) return "Competitive base. Add missing role evidence and stronger measurable outcomes.";
-  return "High risk. The resume needs clearer role alignment, ATS readability, and achievement proof.";
-}
-
-function animateNumber(el, target, suffix = "") {
-  const start = Number(el.textContent.replace(/\D/g, "")) || 0;
-  const duration = 700;
-  const startTime = performance.now();
-  function tick(now) {
-    const progress = Math.min(1, (now - startTime) / duration);
-    const value = Math.round(start + (target - start) * progress);
-    el.textContent = `${value}${suffix}`;
-    if (progress < 1) requestAnimationFrame(tick);
-  }
-  requestAnimationFrame(tick);
-}
-
-function updateMetricCard(id, value) {
-  const el = scoreEls[id];
-  animateNumber(el, value, "%");
-  const bar = el.closest(".metric-card").querySelector("i");
-  bar.style.width = `${value}%`;
-}
-
-function updateScores(report) {
-  animateNumber(scoreEls.score, report.final);
-  animateNumber(scoreEls.percent, report.final, "%");
-  scoreEls.label.textContent = scoreLabel(report.final);
-  scoreEls.ring.style.background = `conic-gradient(var(--brand) ${report.final * 3.6}deg, rgba(148, 163, 184, 0.22) 0deg)`;
-  animateNumber(scoreEls.callback, report.callback, "%");
-  scoreEls.callbackBar.style.width = `${report.callback}%`;
-  updateMetricCard("skills", report.skills.score);
-  updateMetricCard("experience", report.experience);
-  updateMetricCard("format", report.formatting);
-  updateMetricCard("achievement", report.achievements);
-  updateMetricCard("verbs", report.verbs);
-  updateMetricCard("seniority", report.seniority);
-}
-
-function renderTags(target, items, emptyText) {
-  target.innerHTML = "";
-  const data = items.length ? items : [{ name: emptyText }];
-  data.forEach((item) => {
-    const li = document.createElement("li");
-    li.textContent = item.name || item;
-    target.appendChild(li);
-  });
-}
-
-function renderHeatmap(matched) {
-  lists.heatmap.innerHTML = "";
-  lists.keywordCount.textContent = `${matched.length} matched`;
-  const data = matched.length ? matched : [{ name: "No matches yet", strength: 0.18 }];
-  data.forEach((skill) => {
-    const item = document.createElement("div");
-    item.className = "heat-key";
-    item.style.setProperty("--heat", String(skill.strength || 0.25));
-    item.textContent = skill.name;
-    lists.heatmap.appendChild(item);
-  });
-}
-
-function renderRisks(risks) {
-  lists.formatting.innerHTML = "";
-  risks.forEach(([title, body]) => {
-    const li = document.createElement("li");
-    li.innerHTML = `<strong>${title}</strong><span>${body}</span>`;
-    lists.formatting.appendChild(li);
-  });
-}
-
-function bulletForGap(gap) {
-  const name = gap.name.toLowerCase();
-  if (name.includes("robotics")) return ["Professional Experience", "Extended embedded validation testbenches toward robotics-style motion/control workflows, debugging real-time firmware behavior across sensor and communication interfaces."];
-  if (name.includes("autonomous")) return ["Summary + latest role", "Validated real-time embedded software for autonomous or sensor-driven control use cases, focusing on deterministic RTOS behavior, diagnostics, and fault recovery."];
-  if (name.includes("heavy machinery")) return ["Summary or tailored project", "Applied embedded controls, CAN/Ethernet diagnostics, and firmware validation practices relevant to heavy machinery or industrial equipment environments."];
-  if (name.includes("datalink")) return ["Communication protocols section", "Validated CAN/Ethernet data-link behavior using packet-level debugging, protocol diagnostics, and signal-integrity checks across embedded interfaces."];
-  if (name.includes("rest")) return ["Recent backend/API role", "Built and optimized RESTful services with clear error handling, request validation, and performance monitoring for production workflows."];
-  return ["Most relevant experience section", `Add a truthful bullet proving hands-on experience with ${gap.name}, tied to a project, tool, business result, or measurable outcome.`];
-}
-
-function renderBullets(report, tailored = false) {
-  lists.bullets.innerHTML = "";
-  const missing = report.skills.missing.slice(0, 5);
-  const suggestions = missing.map((gap) => {
-    const [where, bullet] = bulletForGap(gap);
-    return { title: `Add proof for ${gap.name}`, where, bullet };
-  });
-
-  if (!report.sections.metrics) {
-    suggestions.push({
-      title: "Quantify your strongest work",
-      where: "Top bullets under recent roles",
-      bullet: "Improved embedded validation coverage by [actual %] by adding randomized test cases, protocol diagnostics, and automated firmware health checks."
-    });
-  }
-
-  if (tailored) {
-    suggestions.unshift({
-      title: "Tailored summary rewrite",
-      where: "First 3 lines of Summary",
-      bullet: "Embedded Software Engineer with hands-on Embedded C/C++, RTOS, MATLAB/Simulink, AUTOSAR concepts, CAN/Ethernet diagnostics, and firmware validation experience for real-time control systems."
-    });
-  }
-
-  if (!suggestions.length) {
-    suggestions.push({
-      title: "Polish first impression",
-      where: "Summary",
-      bullet: "Keep the first three lines focused on the target title, top tools, domain fit, and one measurable proof point."
-    });
-  }
-
-  suggestions.slice(0, 8).forEach((item) => {
-    const card = document.createElement("div");
-    card.className = "bullet-card";
-    card.innerHTML = `<strong>${item.title}</strong><span>Where to add: ${item.where}</span><code>${item.bullet}</code><button class="copy-btn" type="button">Copy bullet</button>`;
-    card.querySelector("button").addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(item.bullet);
-        card.querySelector("button").textContent = "Copied";
-      } catch {
-        card.querySelector("button").textContent = "Select text";
-      }
-    });
-    lists.bullets.appendChild(card);
-  });
-}
-
-function renderRecruiter(report) {
-  const items = [
-    ["First impression", `${report.recruiter.firstImpression}%`, "How quickly the resume communicates fit for the role."],
-    ["Skimmability", `${report.recruiter.skimmability}%`, "How easy it is for a recruiter to scan sections, tools, and impact."],
-    ["Buzzword overload", `${report.recruiter.buzzwordOverload}%`, "Lower is better. Measures vague phrases without evidence."],
-    ["Impact level", `${report.recruiter.impactLevel}%`, "Strength of measurable achievements and outcome language."],
-    ["Leadership signals", `${report.recruiter.leadershipSignals}%`, "Ownership, leadership, mentoring, architecture, and decision-making cues."],
-    ["Technical depth", `${report.recruiter.technicalDepth}%`, "Depth of tools, domain terms, implementation evidence, and validation detail."]
-  ];
-  lists.recruiter.innerHTML = "";
-  items.forEach(([label, value, body]) => {
-    const div = document.createElement("div");
-    div.className = "recruiter-item";
-    div.innerHTML = `<strong>${label}: ${value}</strong><span>${body}</span>`;
-    lists.recruiter.appendChild(div);
-  });
-}
-
-function drawRadar(report) {
-  const canvas = $("#radarCanvas");
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width;
-  const h = canvas.height;
-  const center = { x: w / 2, y: h / 2 + 12 };
-  const radius = 105;
-  const labels = ["ATS", "Leadership", "Tech", "Clarity", "Impact", "Metrics", "Recruiter"];
-  const values = [
-    report.formatting,
-    report.recruiter.leadershipSignals,
-    report.recruiter.technicalDepth,
-    report.recruiter.skimmability,
-    report.achievements,
-    report.achievements,
-    report.recruiter.firstImpression
-  ];
-  ctx.clearRect(0, 0, w, h);
-  ctx.strokeStyle = "rgba(148, 163, 184, 0.25)";
-  ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--muted");
-  ctx.font = "12px Arial";
-
-  for (let ring = 1; ring <= 4; ring++) {
-    ctx.beginPath();
-    labels.forEach((_, i) => {
-      const angle = -Math.PI / 2 + (i * Math.PI * 2) / labels.length;
-      const r = (radius * ring) / 4;
-      const x = center.x + Math.cos(angle) * r;
-      const y = center.y + Math.sin(angle) * r;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.closePath();
-    ctx.stroke();
-  }
-
-  labels.forEach((label, i) => {
-    const angle = -Math.PI / 2 + (i * Math.PI * 2) / labels.length;
-    ctx.fillText(label, center.x + Math.cos(angle) * (radius + 20) - 22, center.y + Math.sin(angle) * (radius + 20));
-  });
-
-  ctx.beginPath();
-  values.forEach((value, i) => {
-    const angle = -Math.PI / 2 + (i * Math.PI * 2) / values.length;
-    const r = radius * (value / 100);
-    const x = center.x + Math.cos(angle) * r;
-    const y = center.y + Math.sin(angle) * r;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.closePath();
-  ctx.fillStyle = "rgba(124, 58, 237, 0.28)";
-  ctx.strokeStyle = "rgba(6, 182, 212, 0.9)";
-  ctx.lineWidth = 2;
-  ctx.fill();
-  ctx.stroke();
-}
-
-function renderReport(report, options = {}) {
-  updateScores(report);
-  renderHeatmap(report.skills.matched);
-  renderTags(lists.missing, report.skills.missing, "No major role gaps detected");
-  renderRisks(report.formattingRisks);
-  renderRecruiter(report);
-  renderBullets(report, options.tailored);
-  drawRadar(report);
-}
-
-function showLoadingThen(callback) {
-  loadingState.hidden = false;
-  let index = 0;
-  loadingText.textContent = loadingMessages[index];
-  const timer = setInterval(() => {
-    index = (index + 1) % loadingMessages.length;
-    loadingText.textContent = loadingMessages[index];
-  }, 360);
-  setTimeout(() => {
-    clearInterval(timer);
-    loadingState.hidden = true;
-    callback();
-  }, 1200);
-}
-
-function analyze(options = {}) {
-  const report = calculateReport();
-  if (!report) {
-    scoreEls.label.textContent = "Add both resume text and job description to run the analysis.";
-    return null;
-  }
-  showLoadingThen(() => {
-    renderReport(report, options);
-    $("#dashboard").scrollIntoView({ behavior: "smooth", block: "start" });
-  });
-  return report;
-}
-
-function roastResume() {
-  const report = calculateReport();
-  if (!report) {
-    lists.roast.textContent = "Paste your resume and JD first. I need something to roast responsibly.";
+async function processFile(file) {
+  if (file.size > 10 * 1024 * 1024) {
+    showStatus("That file is over the 10 MB limit.", true);
     return;
   }
-  const lines = [];
-  if (!report.sections.metrics) lines.push("This resume is allergic to numbers. Recruiters love proof, not vibes.");
-  if (report.skills.missing.length) lines.push(`The JD asked for ${report.skills.missing[0].name}, and your resume quietly left the room.`);
-  if (report.formatting < 80) lines.push("The formatting may look pretty to humans, but ATS parsers can be very unforgiving.");
-  if (report.recruiter.skimmability < 75) lines.push("A recruiter should not need a search party to find your strongest skills.");
-  if (!lines.length) lines.push("Annoyingly solid. Now make the top summary sharper and stop hiding your best wins in the middle.");
-  lists.roast.innerHTML = lines.map((line) => `<p>${line}</p>`).join("");
-  renderReport(report);
-}
+  const ext = extension(file.name);
+  if (!["pdf", "docx", "txt", "md", "rtf"].includes(ext)) {
+    showStatus("Use a PDF, DOCX, TXT, MD, or RTF resume.", true);
+    return;
+  }
 
-function resetReport() {
-  const blank = {
-    final: 0,
-    callback: 0,
-    skills: { score: 0, matched: [], missing: [] },
-    experience: 0,
-    formatting: 0,
-    achievements: 0,
-    verbs: 0,
-    seniority: 0,
-    recruiter: { firstImpression: 0, skimmability: 0, buzzwordOverload: 0, impactLevel: 0, leadershipSignals: 0, technicalDepth: 0 },
-    formattingRisks: [["Empty state", "Paste a resume and job description to generate ATS formatting checks."]],
-    sections: {}
-  };
-  renderReport(blank);
-  scoreEls.label.textContent = "Paste a resume and JD to generate a recruiter-grade report.";
-  lists.roast.textContent = "Click “Roast My Resume” for witty recruiter-style feedback.";
-}
-
-function preloadDemoReport() {
-  resumeInput.value = sampleResume;
-  jdInput.value = sampleJD;
-  const report = calculateReport();
-  if (report) {
-    renderReport(report, { tailored: true });
-    scoreEls.label.textContent = "Live demo report loaded. Replace the sample text to analyze your own resume.";
-    lists.roast.innerHTML = "<p>This sample is strong, but it still needs more domain-specific proof for robotics, autonomous systems, and heavy machinery.</p>";
+  setScanning(true);
+  elements.fileLabel.textContent = file.name;
+  showStatus(`Reading ${file.name}…`);
+  try {
+    const [rawText] = await Promise.all([extractText(file), wait(1100)]);
+    const text = cleanText(rawText);
+    if (text.length < 80) throw new Error("Very little readable text was found. Try exporting the resume as a text-based PDF, DOCX, or TXT.");
+    state.fileName = file.name;
+    state.resumeText = text;
+    elements.originalBullet.value = firstResumeBullet(text);
+    elements.analyzeButton.disabled = false;
+    renderFragments();
+    showStatus(`${file.name} ready · ${wordCount(text)} words. Running the lab test…`);
+    await wait(450);
+    analyze();
+  } catch (error) {
+    showStatus(error.message || "The file could not be read.", true);
+  } finally {
+    setScanning(false);
   }
 }
 
-function wireFileInput(fileInput, textInput) {
-  fileInput.addEventListener("change", () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    if (!/\.(txt|md|text)$/i.test(file.name)) {
-      alert("This static demo supports .txt/.md files. PDF/DOCX parsing needs a backend parser.");
-      fileInput.value = "";
-      return;
+async function extractText(file) {
+  const ext = extension(file.name);
+  if (["txt", "md"].includes(ext)) return file.text();
+  if (ext === "rtf") return stripRtf(await file.text());
+  if (ext === "pdf") {
+    try {
+      const pdfjs = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs");
+      pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+      const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+      const pages = [];
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+        const page = await pdf.getPage(pageNumber);
+        const content = await page.getTextContent();
+        pages.push(content.items.map((item) => item.str).join(" "));
+      }
+      return pages.join("\n");
+    } catch {
+      throw new Error("PDF parsing failed in this browser. TXT or DOCX export will work best.");
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      textInput.value = reader.result;
-      analyze();
+  }
+  if (ext === "docx") {
+    try {
+      const mammoth = await import("https://cdn.jsdelivr.net/npm/mammoth@1.8.0/+esm");
+      return (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value;
+    } catch {
+      throw new Error("DOCX parsing failed in this browser. Try PDF or TXT.");
+    }
+  }
+  throw new Error("Unsupported file type. Use PDF, DOCX, TXT, MD, or RTF.");
+}
+
+function analyze() {
+  if (!state.resumeText) {
+    showStatus("Upload a resume first.", true);
+    return;
+  }
+
+  setScanning(true);
+  playClick();
+
+  window.setTimeout(() => {
+    const resume = state.resumeText;
+    const role = elements.jobTitle.value.trim() || "Target role";
+    const description = cleanText(elements.jobDescription.value);
+    const resumeLower = resume.toLowerCase();
+    const keywords = topKeywords(description, 18);
+    const matched = keywords.filter((word) => resumeLower.includes(word));
+    const missing = keywords.filter((word) => !resumeLower.includes(word));
+    const bullets = resume.split(/\n|(?=\s[•▪◦-])/).map((value) => value.trim()).filter((value) => /^[-•▪◦]/.test(value));
+    const quantified = (resume.match(/(?:\$\s?\d[\d,.]*|\d+(?:\.\d+)?%|\d+\+|\b\d{2,}\b)/g) || []).length;
+    const actionHits = actionVerbs.filter((verb) => new RegExp(`\\b${verb}\\b`, "i").test(resume)).length;
+    const sections = ["experience", "education", "skills"].filter((section) => resumeLower.includes(section)).length;
+    const contact = /[\w.+-]+@[\w.-]+\.\w{2,}/.test(resume) || /(?:\+?\d[\d ()-]{7,}\d)/.test(resume);
+    const words = wordCount(resume);
+    const keywordScore = description ? Math.round((matched.length / Math.max(keywords.length, 1)) * 100) : 68;
+    const ats = clamp(44 + sections * 11 + (contact ? 7 : 0) + Math.min(quantified * 2, 14) + (words >= 250 ? 8 : 0));
+    const impact = clamp(30 + Math.min(quantified * 6, 38) + Math.min(actionHits * 4, 28));
+    const readability = clamp(92 - Math.max(0, averageSentenceLength(resume) - 18) * 2 - Math.max(0, words - 900) / 20);
+    const fit = clamp(Math.round(keywordScore * 0.46 + ats * 0.24 + impact * 0.2 + readability * 0.1));
+
+    const signals = [
+      [fit >= 75, fit >= 75 ? "Strong alignment with the target role." : "The resume needs clearer alignment with the target role."],
+      [quantified >= 3, quantified >= 3 ? `${quantified} measurable outcomes make impact credible.` : "Too few measurable outcomes; add scope, speed, revenue, quality, or adoption metrics."],
+      [actionHits >= 5, actionHits >= 5 ? "Bullets use decisive ownership language." : "Several bullets read like responsibilities instead of achievements."],
+      [!description || missing.length < 7, !description ? "Paste a job description for sharper keyword matching." : missing.length < 7 ? "Most high-value role language is represented." : `${missing.length} important job-description terms are absent.`],
+      [sections === 3, sections === 3 ? "Core ATS sections are easy to identify." : "Use explicit Experience, Skills, and Education headings."],
+    ];
+
+    state.analysis = {
+      generatedAt: new Date().toISOString(),
+      fileName: state.fileName,
+      role,
+      scores: { fit, ats, impact, readability, keywordMatch: keywordScore },
+      matched,
+      missing,
+      facts: { words, bullets: bullets.length, quantifiedResults: quantified, actionVerbs: actionHits },
+      signals: signals.map(([good, text]) => ({ good, text })),
     };
-    reader.readAsText(file);
+
+    renderAnalysis();
+    setScanning(false);
+    showStatus(`Lab test complete for ${role}.`);
+    $("#dashboard").scrollIntoView({ behavior: "smooth" });
+  }, 850);
+}
+
+function renderAnalysis() {
+  const analysis = state.analysis;
+  if (!analysis) return;
+
+  document.body.classList.add("has-results");
+  elements.emptyState.hidden = true;
+  elements.results.hidden = false;
+  elements.dashboardTitle.textContent = "The lab has opinions.";
+  elements.dashboardText.textContent = `Test results for ${analysis.role}. Hover each 3D instrument to bring it closer.`;
+
+  updateScore("#fitScore", analysis.scores.fit);
+  updateScore("#atsScore", analysis.scores.ats);
+  updateScore("#impactScore", analysis.scores.impact);
+  updateScore("#readabilityScore", analysis.scores.readability);
+
+  elements.signals.innerHTML = analysis.signals
+    .map((signal) => `<li class="${signal.good ? "good" : "warn"}">${escapeHtml(signal.text)}</li>`)
+    .join("");
+
+  elements.facts.innerHTML = Object.entries({
+    "Resume words": analysis.facts.words,
+    "Achievement bullets": analysis.facts.bullets,
+    "Quantified results": analysis.facts.quantifiedResults,
+    "Strong action verbs": analysis.facts.actionVerbs,
+    "Keyword match": `${analysis.scores.keywordMatch}%`,
+  })
+    .map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value))}</dd>`)
+    .join("");
+
+  renderPills(elements.matchedKeywords, analysis.matched, "No clear matches yet.");
+  renderPills(elements.missingKeywords, analysis.missing, "No major keyword gaps found.");
+  $$("[data-export]").forEach((button) => { button.disabled = false; });
+}
+
+function updateScore(selector, value) {
+  const node = $(selector);
+  animateNumber(node, value);
+  node.closest(".instrument").style.setProperty("--score", `${value}%`);
+}
+
+function animateNumber(node, value) {
+  const start = Number(node.textContent) || 0;
+  const duration = 700;
+  const startedAt = performance.now();
+  requestAnimationFrame(function tick(now) {
+    const progress = Math.min(1, (now - startedAt) / duration);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    node.textContent = String(Math.round(start + (value - start) * eased));
+    if (progress < 1) requestAnimationFrame(tick);
   });
 }
 
-function debounce(fn, delay = 700) {
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
-  };
+function rewriteBullet() {
+  const original = elements.originalBullet.value.trim();
+  if (!original) {
+    showToast("Paste a bullet first.");
+    return;
+  }
+  const cleaned = original.replace(/^[-•▪◦]\s*/, "").replace(/\.$/, "");
+  const weakStart = /^(worked on|helped|assisted|responsible for|supported|participated in|handled)\b/i;
+  let rewrite = cleaned.replace(weakStart, () => chooseVerb(cleaned));
+  rewrite = rewrite.replace(/^./, (letter) => letter.toUpperCase());
+  if (!/[\d%$]/.test(rewrite)) rewrite += ", improving [business or user outcome] by [X%]";
+  if (!/\b(by|through|using|via|with)\b/i.test(rewrite)) rewrite += " through cross-functional execution";
+  rewrite = `${rewrite}.`.replace(/\.\.$/, ".");
+
+  elements.wordFragments.classList.add("is-breaking");
+  elements.rewriteOutput.innerHTML = rewrite
+    .split(/\s+/)
+    .map((word, index) => `<span style="animation-delay:${index * 30}ms">${escapeHtml(word)}&nbsp;</span>`)
+    .join("");
+  elements.rewriteFlash.hidden = false;
+  elements.rewriteFlash.style.animation = "none";
+  void elements.rewriteFlash.offsetWidth;
+  elements.rewriteFlash.style.animation = "";
+  window.setTimeout(() => {
+    elements.rewriteFlash.hidden = true;
+    elements.wordFragments.classList.remove("is-breaking");
+  }, 800);
+  playClick();
 }
 
-const liveAnalyze = debounce(() => {
-  if (resumeInput.value.trim() && jdInput.value.trim()) analyze();
-}, 900);
+function renderFragments() {
+  const words = elements.originalBullet.value.trim().split(/\s+/).filter(Boolean).slice(0, 22);
+  elements.wordFragments.innerHTML = words
+    .map((word, index) => `<span style="--break:${index % 2 ? 6 : -6}px">${escapeHtml(word)}</span>`)
+    .join("");
+}
 
-resumeInput.addEventListener("input", liveAnalyze);
-jdInput.addEventListener("input", liveAnalyze);
-analyzeBtn.addEventListener("click", () => analyze());
-tailorBtn.addEventListener("click", () => analyze({ tailored: true }));
-roastBtn.addEventListener("click", roastResume);
-sampleBtn.addEventListener("click", () => {
-  resumeInput.value = sampleResume;
-  jdInput.value = sampleJD;
-  analyze({ tailored: true });
-});
-demoBtn.addEventListener("click", () => {
-  resumeInput.value = sampleResume;
-  jdInput.value = sampleJD;
-  analyze({ tailored: true });
-});
-exportBtn.addEventListener("click", () => window.print());
-clearBtn.addEventListener("click", () => {
-  resumeInput.value = "";
-  jdInput.value = "";
-  resumeFile.value = "";
-  jdFile.value = "";
-  resetReport();
-});
-themeToggle.addEventListener("click", () => {
-  document.body.classList.toggle("dark");
-  themeToggle.textContent = document.body.classList.contains("dark") ? "☀" : "☾";
-});
+function exportResult(type) {
+  if (!state.analysis) {
+    showToast("Run a lab test first.");
+    return;
+  }
+  if (type === "print") {
+    window.print();
+    return;
+  }
+  if (type === "json") {
+    download("resume-lab-analysis.json", JSON.stringify(state.analysis, null, 2), "application/json");
+    return;
+  }
+  if (type === "csv") {
+    const rows = [
+      ["Metric", "Score"],
+      ["Fit signal", state.analysis.scores.fit],
+      ["ATS course", state.analysis.scores.ats],
+      ["Impact muscle", state.analysis.scores.impact],
+      ["Readability", state.analysis.scores.readability],
+      ["Keyword match", state.analysis.scores.keywordMatch],
+      ["Matched keywords", state.analysis.matched.join("; ")],
+      ["Missing keywords", state.analysis.missing.join("; ")],
+    ];
+    download("resume-lab-analysis.csv", rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n"), "text/csv");
+  }
+}
 
-wireFileInput(resumeFile, resumeInput);
-wireFileInput(jdFile, jdInput);
+function initCanvas() {
+  const canvas = $("#labCanvas");
+  const context = canvas.getContext("2d");
+  const pointer = { x: 0, y: 0 };
+  let width = 0;
+  let height = 0;
+  let dpr = 1;
+  let particles = [];
 
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach((entry) => {
-    if (entry.isIntersecting) entry.target.classList.add("is-visible");
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    particles = Array.from({ length: width < 760 ? 95 : 150 }, (_, index) => ({
+      x: (Math.random() - 0.5) * width * 1.4,
+      y: (Math.random() - 0.5) * height * 1.2,
+      z: 100 + Math.random() * 900,
+      speed: 0.45 + Math.random() * 1.2,
+      hue: index % 3,
+    }));
+  }
+
+  window.addEventListener("resize", resize);
+  window.addEventListener("pointermove", (event) => {
+    pointer.x = event.clientX / Math.max(width, 1) - 0.5;
+    pointer.y = event.clientY / Math.max(height, 1) - 0.5;
   });
-}, { threshold: 0.12 });
+  resize();
 
-document.querySelectorAll(".reveal").forEach((item) => observer.observe(item));
-preloadDemoReport();
+  function frame(time) {
+    context.clearRect(0, 0, width, height);
+    const gradient = context.createRadialGradient(width * 0.66, height * 0.32, 20, width * 0.66, height * 0.32, Math.max(width, height) * 0.72);
+    gradient.addColorStop(0, "rgba(88,230,194,0.12)");
+    gradient.addColorStop(0.45, "rgba(169,152,255,0.05)");
+    gradient.addColorStop(1, "rgba(7,8,23,0)");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, width, height);
+
+    context.save();
+    context.translate(width / 2 + pointer.x * 30, height / 2 + pointer.y * 20);
+    for (const particle of particles) {
+      particle.z -= particle.speed * (document.body.classList.contains("is-scanning") ? 2.8 : 1);
+      if (particle.z < 8) {
+        particle.z = 1000;
+        particle.x = (Math.random() - 0.5) * width * 1.4;
+        particle.y = (Math.random() - 0.5) * height * 1.2;
+      }
+      const scale = 520 / particle.z;
+      const x = particle.x * scale;
+      const y = particle.y * scale;
+      if (Math.abs(x) > width || Math.abs(y) > height) continue;
+      const alpha = Math.max(0, Math.min(0.7, 1 - particle.z / 1000));
+      context.fillStyle = particle.hue === 0 ? `rgba(88,230,194,${alpha})` : particle.hue === 1 ? `rgba(255,209,102,${alpha})` : `rgba(255,122,114,${alpha})`;
+      context.beginPath();
+      context.arc(x, y, Math.max(0.8, 2.4 * scale), 0, Math.PI * 2);
+      context.fill();
+    }
+    context.restore();
+
+    context.save();
+    context.globalAlpha = 0.22;
+    context.strokeStyle = "rgba(143,255,229,0.22)";
+    context.lineWidth = 1;
+    const orbit = 160 + Math.sin(time / 1000) * 10;
+    context.beginPath();
+    context.ellipse(width * 0.62, height * 0.44, orbit * 1.7, orbit * 0.52, -0.32, 0, Math.PI * 2);
+    context.stroke();
+    context.strokeStyle = "rgba(255,209,102,0.18)";
+    context.beginPath();
+    context.ellipse(width * 0.62, height * 0.44, orbit * 1.2, orbit * 0.36, 0.62, 0, Math.PI * 2);
+    context.stroke();
+    context.restore();
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+function topKeywords(text, limit) {
+  if (!text.trim()) return [];
+  const normalized = text.toLowerCase().replace(/[^a-z0-9+#.\s-]/g, " ");
+  const chosen = knownSignals.filter((signal) => normalized.includes(signal));
+  const counts = new Map();
+  normalized
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter((word) => word.length > 2 && !stopWords.has(word) && !/^\d+$/.test(word))
+    .forEach((word) => counts.set(word, (counts.get(word) || 0) + 1));
+  const singleWords = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([word]) => word);
+  return unique([...chosen, ...singleWords]).slice(0, limit);
+}
+
+function firstResumeBullet(text) {
+  return text
+    .split(/\n/)
+    .map((line) => line.trim())
+    .find((line) => /^[-•▪◦]/.test(line)) || "Led a cross-functional project that improved customer onboarding.";
+}
+
+function chooseVerb(text) {
+  const lower = text.toLowerCase();
+  if (lower.includes("design")) return "Designed";
+  if (lower.includes("data") || lower.includes("analytics")) return "Analyzed";
+  if (lower.includes("team") || lower.includes("stakeholder")) return "Led";
+  if (lower.includes("process") || lower.includes("workflow")) return "Streamlined";
+  return "Delivered";
+}
+
+function renderPills(container, values, emptyText) {
+  container.innerHTML = values.length
+    ? values.map((value) => `<span>${escapeHtml(value)}</span>`).join("")
+    : `<em>${escapeHtml(emptyText)}</em>`;
+}
+
+function showStatus(message, isError = false) {
+  elements.status.textContent = message;
+  elements.status.style.color = isError ? "#ffb0aa" : "";
+  if (isError) showToast(message);
+}
+
+function showToast(message) {
+  elements.toast.textContent = message;
+  elements.toast.classList.add("show");
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => elements.toast.classList.remove("show"), 2800);
+}
+
+function setScanning(scanning) {
+  document.body.classList.toggle("is-scanning", scanning);
+}
+
+function endDrag() {
+  state.dragDepth = 0;
+  document.body.classList.remove("is-dragging");
+  elements.fileLabel.textContent = state.fileName || "Feed your resume to the lab";
+}
+
+function hasFiles(event) {
+  return Array.from(event.dataTransfer?.types || []).includes("Files");
+}
+
+function extension(name) {
+  return String(name).split(".").pop().toLowerCase();
+}
+
+function cleanText(text) {
+  return String(text)
+    .replace(/\u0000/g, " ")
+    .replace(/[•▪◦]/g, "\n-")
+    .replace(/\r/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function stripRtf(text) {
+  return text
+    .replace(/\\'[0-9a-f]{2}/gi, " ")
+    .replace(/\\[a-z]+\d* ?/gi, " ")
+    .replace(/[{}]/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function wordCount(text) {
+  return (text.match(/\b[\w+#.-]+\b/g) || []).length;
+}
+
+function averageSentenceLength(text) {
+  const sentences = text.split(/[.!?]+/).map((sentence) => sentence.trim()).filter(Boolean);
+  if (!sentences.length) return 22;
+  return wordCount(text) / sentences.length;
+}
+
+function clamp(value) {
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function unique(values) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+function download(name, content, type) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const anchor = Object.assign(document.createElement("a"), { href: url, download: name });
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 800);
+}
+
+function playClick() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  const context = new AudioContextClass();
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = "square";
+  oscillator.frequency.setValueAtTime(180, context.currentTime);
+  oscillator.frequency.exponentialRampToValueAtTime(72, context.currentTime + 0.055);
+  gain.gain.setValueAtTime(0.025, context.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.07);
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start();
+  oscillator.stop(context.currentTime + 0.075);
+  oscillator.addEventListener("ended", () => void context.close());
+}

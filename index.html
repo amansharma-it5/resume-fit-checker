@@ -1,327 +1,214 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="ResumeFit AI is a premium ATS resume checker, keyword scanner, recruiter feedback engine, and AI resume bullet optimizer.">
-  <meta name="keywords" content="ATS resume checker, AI resume analyzer, resume keyword scanner, resume bullet optimizer, resume tailoring tool">
-  <meta name="author" content="Aman Sharma">
-  <meta property="og:title" content="ResumeFit AI - Beat ATS Filters & Get More Interviews">
-  <meta property="og:description" content="AI-powered resume analysis for ATS systems and recruiter screening.">
-  <meta property="og:type" content="website">
-  <title>ResumeFit AI | ATS Resume Checker</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23090912'/%3E%3Cpath d='M18 18h30v8H28v8h17v8H28v12H18z' fill='%23ffffff'/%3E%3Cpath d='M36 42l12 12h-9l-9-9z' fill='%238b5cf6'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="styles.css">
-  <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "ResumeFit AI",
-      "applicationCategory": "BusinessApplication",
-      "description": "AI-style ATS resume checker and recruiter-grade resume analysis platform.",
-      "creator": {
-        "@type": "Person",
-        "name": "Aman Sharma",
-        "sameAs": "https://www.linkedin.com/in/amansharmanm/"
-      }
-    }
-  </script>
-</head>
-<body class="dark">
-  <div class="scan-glow" aria-hidden="true"></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#070817" />
+    <meta
+      name="description"
+      content="Resume Lab is a playful, privacy-first 3D resume checker with ATS scoring, keyword matching, and bullet rewriting."
+    />
+    <title>Resume Lab | 3D Resume Checker</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <canvas id="labCanvas" aria-hidden="true"></canvas>
+    <div class="noise" aria-hidden="true"></div>
 
-  <header class="topbar">
-    <a class="brand" href="#home" aria-label="ResumeFit AI home">
-      <span class="brand-mark">RF</span>
-      <span>
-        ResumeFit
-        <small>AI</small>
-      </span>
-    </a>
-    <nav class="nav" aria-label="Primary navigation">
-      <a href="#analyzer">Analyzer</a>
-      <a href="#dashboard">Dashboard</a>
-      <a href="#optimizer">Optimizer</a>
-      <a href="#trust">Trust</a>
-    </nav>
-    <div class="top-actions">
-      <button id="themeToggle" class="icon-btn" type="button" aria-label="Toggle dark mode">☀</button>
-      <a class="nav-cta" href="#analyzer">Analyze Free</a>
-    </div>
-  </header>
-
-  <main>
-    <section id="home" class="hero">
-      <div class="hero-copy">
-        <div class="badge-row">
-          <span class="badge">Local-first privacy</span>
-          <span class="badge">Recruiter-grade scoring</span>
-          <span class="badge">ATS compatibility</span>
-        </div>
-        <h1>Beat ATS Filters & Get More Interviews</h1>
-        <p>AI-powered resume analysis that helps job seekers optimize resumes for ATS systems and recruiter screening.</p>
-        <div class="hero-actions">
-          <a class="primary-btn" href="#analyzer">Run Free Analysis</a>
-          <button id="demoBtn" class="secondary-btn" type="button">View Sample Analysis</button>
-        </div>
-        <div class="trust-strip">
-          <span>Resume never stored</span>
-          <span>No signup required</span>
-          <span>Built by Aman Sharma</span>
-        </div>
-      </div>
-
-      <div class="hero-visual reveal" aria-label="Animated ATS scan preview">
-        <div class="scan-card">
-          <div class="scan-header">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-          <div class="ats-scan">
-            <div class="scan-line"></div>
-            <div class="resume-lines">
-              <i></i><i></i><i></i><i></i><i></i><i></i>
-            </div>
-            <div class="scan-score">
-              <strong id="heroCounter">94</strong>
-              <small>ATS Fit</small>
-            </div>
-          </div>
-        </div>
-        <div class="floating-chip chip-one">REST APIs matched</div>
-        <div class="floating-chip chip-two">Recruiter clarity +18%</div>
-        <div class="floating-chip chip-three">Tables risk detected</div>
-      </div>
-    </section>
-
-    <section class="feature-section">
-      <div class="section-title">
-        <span class="eyebrow">Recruiter Intelligence</span>
-        <h2>Not just a score. A hiring-readiness command center.</h2>
-        <p>ResumeFit AI turns resume text and a job description into a premium report that feels like an ATS scan, recruiter review, and AI writing coach in one place.</p>
-      </div>
-      <div class="feature-grid">
-        <article class="feature-card reveal">
-          <span>01</span>
-          <h3>ATS Compatibility</h3>
-          <p>Flags formatting, section, readability, and parser risks before applications disappear into the system.</p>
-        </article>
-        <article class="feature-card reveal">
-          <span>02</span>
-          <h3>Recruiter Signals</h3>
-          <p>Simulates the first-screen review: skimmability, impact, technical depth, buzzwords, and leadership cues.</p>
-        </article>
-        <article class="feature-card reveal">
-          <span>03</span>
-          <h3>Bullet Optimization</h3>
-          <p>Creates role-specific, where-to-add bullet suggestions designed for clearer proof and stronger outcomes.</p>
-        </article>
-      </div>
-    </section>
-
-    <section id="analyzer" class="analyzer-shell reveal">
-      <div class="section-title">
-        <span class="eyebrow">AI Resume Analyzer</span>
-        <h2>Paste, scan, optimize, apply smarter.</h2>
-        <p>Real-time ATS scoring, recruiter perspective, keyword intelligence, and bullet rewrites in one polished workspace.</p>
-      </div>
-
-      <div class="input-console">
-        <article class="upload-panel">
-          <div class="panel-head">
-            <div>
-              <span class="mini-label">Step 1</span>
-              <h3>Resume</h3>
-            </div>
-            <label class="upload-btn">
-              Upload .txt
-              <input id="resumeFile" type="file" accept=".txt,.md,.text">
-            </label>
-          </div>
-          <textarea id="resumeInput" spellcheck="true" placeholder="Paste resume text here..."></textarea>
-        </article>
-
-        <article class="upload-panel">
-          <div class="panel-head">
-            <div>
-              <span class="mini-label">Step 2</span>
-              <h3>Job Description</h3>
-            </div>
-            <label class="upload-btn">
-              Upload .txt
-              <input id="jdFile" type="file" accept=".txt,.md,.text">
-            </label>
-          </div>
-          <textarea id="jdInput" spellcheck="true" placeholder="Paste job description here..."></textarea>
-        </article>
-      </div>
-
-      <div class="command-bar">
-        <button id="analyzeBtn" class="primary-btn" type="button">Analyze Resume</button>
-        <button id="tailorBtn" class="secondary-btn" type="button">Tailor Resume for This Job</button>
-        <button id="roastBtn" class="secondary-btn" type="button">Roast My Resume</button>
-        <button id="sampleBtn" class="ghost-btn" type="button">Sample Report</button>
-        <button id="exportBtn" class="ghost-btn" type="button">Export Report</button>
-        <button id="clearBtn" class="ghost-btn" type="button">Clear</button>
-      </div>
-    </section>
-
-    <section id="dashboard" class="dashboard reveal">
-      <aside class="sidebar">
-        <span class="sidebar-kicker">Workspace</span>
-        <a href="#dashboard" class="active">ATS Score</a>
+    <nav class="topbar" aria-label="Primary navigation">
+      <a class="brand" href="#top"><span>R</span><strong>Resume Lab</strong><em>PLAYGROUND</em></a>
+      <div class="navlinks">
+        <a href="#dashboard">Results</a>
         <a href="#keywords">Keywords</a>
-        <a href="#recruiter">Recruiter Mode</a>
-        <a href="#optimizer">Bullet Optimizer</a>
-        <a href="#formatting">Formatting</a>
-      </aside>
+        <a href="#rewrite">Rewrite</a>
+        <a href="#export">Export</a>
+      </div>
+      <div class="lab-state"><i></i><span>LAB BOT AWAKE</span></div>
+    </nav>
 
-      <div class="dashboard-main">
-        <div class="loading-state" id="loadingState" hidden>
-          <span></span>
-          <p id="loadingText">Parsing ATS structure...</p>
-        </div>
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow"><span></span> THE CAREER LAB <b>EXPERIMENT 01</b></p>
+          <h1>Give your resume <em>a proper workout.</em></h1>
+          <p class="lede">
+            Drop your resume into a tiny 3D testing lab. The bot scans it, stress-tests the language, finds weak signals, and turns the result into clear next actions.
+          </p>
 
-        <div class="score-hero">
-          <article class="glass-card main-score">
+          <div class="lab-pills" aria-label="Resume Lab checks">
+            <span><b>01</b> ATS obstacle course</span>
+            <span><b>02</b> Impact strength test</span>
+            <span><b>03</b> Keyword treasure hunt</span>
+          </div>
+
+          <div class="target-fields">
+            <label>
+              <span>Target role</span>
+              <input id="jobTitle" autocomplete="off" placeholder="Senior Product Designer" />
+            </label>
+            <label>
+              <span>Job intelligence</span>
+              <textarea id="jobDescription" rows="3" placeholder="Paste the job description for sharper matching…"></textarea>
+            </label>
+          </div>
+
+          <section class="dropzone" id="dropzone" aria-label="Upload resume">
+            <input id="fileInput" type="file" accept=".pdf,.docx,.txt,.md,.rtf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" hidden />
+            <div class="drop-sweep" aria-hidden="true"></div>
+            <div class="drop-icon" aria-hidden="true">↥</div>
             <div>
-              <span class="eyebrow">ATS Score</span>
-              <h2><span id="scoreValue">0</span><small>/100</small></h2>
-              <p id="scoreLabel">Paste a resume and JD to generate a recruiter-grade report.</p>
+              <span class="micro">Scan bay / ready</span>
+              <strong id="fileLabel">Feed your resume to the lab</strong>
+              <small>PDF · DOCX · TXT · private in-browser test · 10 MB max</small>
             </div>
-            <div class="score-ring" id="scoreRing">
-              <span id="scorePercent">0%</span>
-            </div>
-          </article>
+            <button id="pickButton" class="ghost compact" type="button">Pick resume ↗</button>
+          </section>
 
-          <article class="glass-card probability-card">
-            <span class="eyebrow">Interview Probability</span>
-            <strong id="callbackValue">0%</strong>
-            <p>Estimated callback likelihood based on ATS fit, recruiter readability, and role alignment.</p>
-            <div class="progress-track"><i id="callbackBar"></i></div>
-          </article>
+          <div class="hero-actions">
+            <button id="sampleButton" class="text-button" type="button">Let the bot test a sample →</button>
+            <button id="analyzeButton" class="primary" type="button" disabled>Run lab test</button>
+            <span id="status">Files never leave your browser.</span>
+          </div>
         </div>
 
-        <article class="glass-card intelligence-banner">
-          <div>
-            <span class="eyebrow">AI Pipeline Ready</span>
-            <h3>Built for embeddings, backend APIs, saved reports, auth, and Stripe billing.</h3>
+        <div class="lab-stage" id="labStage" aria-hidden="true">
+          <div class="lab-shadow"></div>
+          <div class="conveyor">
+            <i></i><i></i><i></i><i></i><i></i>
           </div>
-          <div class="pipeline-steps">
-            <span>Parse</span>
-            <span>Embed</span>
-            <span>Score</span>
-            <span>Rewrite</span>
-            <span>Export</span>
+          <div class="scanner-gate">
+            <div class="gate-top">RESUME LAB</div>
+            <div class="gate-leg left"></div>
+            <div class="gate-leg right"></div>
+            <div class="scan-beam"></div>
           </div>
-        </article>
+          <div class="resume-card-3d">
+            <b></b><span></span><span></span><span></span><span></span>
+          </div>
+          <div class="lab-bot">
+            <div class="antenna"></div>
+            <div class="bot-head"><i></i><i></i><b></b></div>
+            <div class="bot-body"><span></span></div>
+            <div class="bot-arm left"></div>
+            <div class="bot-arm right"></div>
+          </div>
+          <div class="token token-ats">ATS</div>
+          <div class="token token-impact">IMPACT</div>
+          <div class="token token-skills">SKILLS</div>
+        </div>
+      </section>
 
-        <div class="metric-grid">
-          <article class="metric-card"><span>Skills Match</span><strong id="skillsScore">0%</strong><i></i></article>
-          <article class="metric-card"><span>Experience Match</span><strong id="experienceScore">0%</strong><i></i></article>
-          <article class="metric-card"><span>ATS Formatting</span><strong id="formatScore">0%</strong><i></i></article>
-          <article class="metric-card"><span>Achievements</span><strong id="achievementScore">0%</strong><i></i></article>
-          <article class="metric-card"><span>Action Verbs</span><strong id="verbScore">0%</strong><i></i></article>
-          <article class="metric-card"><span>Seniority Fit</span><strong id="seniorityScore">0%</strong><i></i></article>
+      <section class="section dashboard" id="dashboard">
+        <div class="section-heading">
+          <span class="micro">02 / TEST RESULTS</span>
+          <h2 id="dashboardTitle">The instruments are waiting.</h2>
+          <p id="dashboardText">Feed the scanner and your ATS, impact, readability, and keyword instruments will wake up.</p>
         </div>
 
-        <div class="analytics-grid">
-          <article class="glass-card radar-card">
-            <div class="card-title">
-              <h3>Resume Strength Radar</h3>
-              <span>Live</span>
-            </div>
-            <canvas id="radarCanvas" width="360" height="300" aria-label="Resume radar chart"></canvas>
-          </article>
-
-          <article id="keywords" class="glass-card heatmap-card">
-            <div class="card-title">
-              <h3>Keyword Heatmap</h3>
-              <span id="keywordCount">0 matched</span>
-            </div>
-            <div id="keywordHeatmap" class="keyword-heatmap"></div>
-          </article>
+        <div id="emptyState" class="empty-state">
+          <div class="mini-bot">◉_◉</div>
+          <strong>No resume telemetry yet.</strong>
+          <span>Upload a file or use the sample test above.</span>
         </div>
 
-        <div class="insight-grid">
-          <article class="glass-card">
-            <div class="card-title">
-              <h3>Missing Skills</h3>
-              <span>Weighted</span>
-            </div>
-            <ul id="missingList" class="tag-list warning"></ul>
-          </article>
+        <div id="results" class="results" hidden>
+          <div class="instrument-grid">
+            <article class="instrument mint" style="--score: 0%">
+              <span>Fit Signal</span>
+              <strong id="fitScore">0</strong>
+              <small>/100</small>
+              <i></i>
+            </article>
+            <article class="instrument coral" style="--score: 0%">
+              <span>ATS Course</span>
+              <strong id="atsScore">0</strong>
+              <small>/100</small>
+              <i></i>
+            </article>
+            <article class="instrument lemon" style="--score: 0%">
+              <span>Impact Muscle</span>
+              <strong id="impactScore">0</strong>
+              <small>/100</small>
+              <i></i>
+            </article>
+            <article class="instrument violet" style="--score: 0%">
+              <span>Readability</span>
+              <strong id="readabilityScore">0</strong>
+              <small>/100</small>
+              <i></i>
+            </article>
+          </div>
 
-          <article id="formatting" class="glass-card">
-            <div class="card-title">
-              <h3>ATS Formatting Risks</h3>
-              <span>Parser checks</span>
-            </div>
-            <ul id="formatList" class="risk-list"></ul>
+          <div class="intel-grid">
+            <article class="panel">
+              <h3>Lab notes</h3>
+              <ul id="signals" class="signals"></ul>
+            </article>
+            <article class="panel">
+              <h3>Evidence matrix</h3>
+              <dl id="facts" class="facts"></dl>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section keywords" id="keywords">
+        <div class="section-heading">
+          <span class="micro">03 / KEYWORD TREASURE MAP</span>
+          <h2>Found gems. Hidden gaps.</h2>
+        </div>
+        <div class="keyword-grid">
+          <article class="panel">
+            <h3>Matched signals</h3>
+            <div id="matchedKeywords" class="pills"><em>Run a test to populate this map.</em></div>
+          </article>
+          <article class="panel risk">
+            <h3>Missing signals</h3>
+            <div id="missingKeywords" class="pills"><em>Paste a job description for gap detection.</em></div>
           </article>
         </div>
+      </section>
 
-        <article id="recruiter" class="glass-card recruiter-card">
-          <div class="card-title">
-            <h3>Recruiter Perspective</h3>
-            <span>First 7 seconds</span>
-          </div>
-          <div id="recruiterGrid" class="recruiter-grid"></div>
-        </article>
+      <section class="section rewrite" id="rewrite">
+        <div class="section-heading">
+          <span class="micro">04 / KINETIC REWRITE</span>
+          <h2>Weak language, dismantled. <em>Impact, reconstructed.</em></h2>
+        </div>
+        <div class="rewrite-grid">
+          <article class="panel source">
+            <div class="pane-head"><span>Input / weak signal</span><b>01</b></div>
+            <textarea id="originalBullet" rows="7" placeholder="Paste a resume bullet here…"></textarea>
+            <div id="wordFragments" class="word-fragments" aria-hidden="true"></div>
+          </article>
+          <article class="panel output">
+            <div class="pane-head"><span>Output / high impact</span><b>+18</b></div>
+            <p id="rewriteOutput" class="rewrite-output">The optimized statement will materialize here.</p>
+            <div id="rewriteFlash" class="rewrite-flash" hidden></div>
+          </article>
+        </div>
+        <button id="rewriteButton" class="primary rewrite-button" type="button">Optimize statement ⚡</button>
+      </section>
 
-        <article id="optimizer" class="glass-card optimizer-card">
-          <div class="card-title">
-            <h3>AI Bullet Optimizer</h3>
-            <span>STAR + metrics</span>
-          </div>
-          <div id="bulletList" class="bullet-list"></div>
-        </article>
+      <section class="section export" id="export">
+        <div class="export-orbit" aria-hidden="true"><i></i><i></i><i></i></div>
+        <span class="micro">05 / TRANSMISSION</span>
+        <h2>Take the lab notes with you.</h2>
+        <p>Export a privacy-safe report. The original resume text stays yours.</p>
+        <div class="export-actions">
+          <button class="primary" type="button" data-export="print" disabled>Print / PDF</button>
+          <button class="ghost" type="button" data-export="json" disabled>JSON</button>
+          <button class="ghost" type="button" data-export="csv" disabled>CSV</button>
+        </div>
+      </section>
+    </main>
 
-        <article class="glass-card roast-card">
-          <div class="card-title">
-            <h3>Resume Roast Mode</h3>
-            <span>Useful, not cruel</span>
-          </div>
-          <div id="roastBox" class="roast-box">Click “Roast My Resume” for witty recruiter-style feedback.</div>
-        </article>
-      </div>
-    </section>
+    <footer>
+      <span>Resume Lab</span>
+      <small>Playful, local-first resume testing · 2026</small>
+      <b>Test. Tune. Send.</b>
+    </footer>
 
-    <section class="ats-section reveal">
-      <div class="section-title">
-        <span class="eyebrow">How ATS Screening Works</span>
-        <h2>Your resume must satisfy software and humans.</h2>
-      </div>
-      <div class="ats-grid">
-        <article><strong>1. Parse</strong><p>ATS tools extract sections, contact details, skills, dates, and job history from the document.</p></article>
-        <article><strong>2. Match</strong><p>Role-specific skills, tools, phrases, seniority, and experience signals are compared with the JD.</p></article>
-        <article><strong>3. Screen</strong><p>Recruiters skim the top third for relevance, proof, clarity, and measurable impact.</p></article>
-      </div>
-    </section>
-
-    <section id="trust" class="trust-section">
-      <div class="section-title">
-        <span class="eyebrow">Trust & Credibility</span>
-        <h2>Built for serious job seekers, not vanity scores.</h2>
-      </div>
-      <div class="trust-grid">
-        <article><strong>Local-first</strong><p>Resume text is analyzed in the browser and is not stored by this static version.</p></article>
-        <article><strong>Recruiter realistic</strong><p>Scores include skimmability, proof, formatting, and role alignment.</p></article>
-        <article><strong>API-ready</strong><p>The architecture is prepared for OpenAI embeddings, PDF/DOCX parsing, and backend reports.</p></article>
-      </div>
-      <div class="testimonial-row">
-        <blockquote>“This feels closer to a recruiter screen than a keyword toy.”<span>Senior technical recruiter</span></blockquote>
-        <blockquote>“The where-to-add bullets make the advice immediately usable.”<span>Job seeker, software engineering</span></blockquote>
-      </div>
-    </section>
-  </main>
-
-  <footer class="footer">
-    <p>Built by <strong>Aman Sharma</strong> to help job seekers tailor resumes responsibly.</p>
-    <a href="https://www.linkedin.com/in/amansharmanm/" target="_blank" rel="noopener">Connect on LinkedIn</a>
-  </footer>
-
-  <script src="app.js"></script>
-</body>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
 </html>
