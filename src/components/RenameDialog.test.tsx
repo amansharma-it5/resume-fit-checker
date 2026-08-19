@@ -93,7 +93,6 @@ describe("RenameDialog", () => {
     await user.tab();
     expect(input).toHaveFocus();
     await user.keyboard("{Escape}");
-    await new Promise((resolve) => requestAnimationFrame(resolve));
     expect(trigger).toHaveFocus();
   });
 });

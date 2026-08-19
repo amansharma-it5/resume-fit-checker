@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
 const MAX_TITLE_LENGTH = 120;
 
@@ -22,19 +22,17 @@ export function RenameDialog({
   const returnFocusRef = useRef<HTMLButtonElement | null>(null);
   const wasOpen = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (open) {
       wasOpen.current = true;
       returnFocusRef.current = returnFocus;
       setName(currentName);
       setValidationError("");
-      requestAnimationFrame(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      });
+      inputRef.current?.focus();
+      inputRef.current?.select();
     } else if (wasOpen.current) {
       wasOpen.current = false;
-      requestAnimationFrame(() => returnFocusRef.current?.focus());
+      returnFocusRef.current?.focus();
     }
   }, [currentName, open, returnFocus]);
 
