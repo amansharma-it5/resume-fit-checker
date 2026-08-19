@@ -1,7 +1,7 @@
 import { buildVerificationResult } from "../../rewrite-verification.js";
 
 const GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-const MODEL = "openai/gpt-oss-20b";
+const MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
 const MAX_BULLET_CHARS = 1000;
 const MAX_JD_CHARS = 2000;
 const MAX_CONTEXT_CHARS = 2000;
