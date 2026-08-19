@@ -408,6 +408,18 @@ button small {
   gap: 10px;
   margin-top: 20px;
 }
+.rename-dialog form {
+  display: grid;
+}
+.rename-dialog input {
+  width: 100%;
+}
+.field-error {
+  min-height: 1.5em;
+  margin: 6px 0 0;
+  color: var(--danger);
+  font-size: 0.9rem;
+}
 .empty-state,
 .not-found {
   min-height: 300px;

@@ -13,4 +13,11 @@
 7. Test keyboard navigation, focus, reduced motion, mobile, tablet, and desktop layouts.
 8. Request export/deletion and verify tracked status and deletion reauthentication.
 
+Synthetic guest documents used during preview testing must be removed with **Settings → Clear guest data**. This deletes
+the preview browser's IndexedDB records and does not call Supabase.
+
+Supabase's built-in email service is rate-limited and intended for evaluation. Treat `EMAIL_RATE_LIMITED` as a blocked
+email-delivery test, never weaken the limit to make a test pass, and configure a production-grade custom SMTP provider
+before launch. Repeat signup verification, magic-link, and password-reset journeys after SMTP is configured.
+
 Safari requires manual testing; Playwright WebKit is a compatibility proxy, not Safari itself.

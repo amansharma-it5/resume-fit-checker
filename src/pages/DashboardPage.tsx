@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { RenameDialog } from "../components/RenameDialog";
 import { StatusMessage } from "../components/StatusMessage";
 import {
   importGuestResumes,
@@ -26,23 +27,30 @@ export function DashboardPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ResumeStatus | "all">("active");
   const [pendingDelete, setPendingDelete] = useState<ResumeDocument | null>(null);
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [primary, guest] = await Promise.all([
-        account ? listAccountResumes() : listGuestResumes(),
-        account ? listGuestResumes() : Promise.resolve([]),
-      ]);
-      setResumes(primary);
-      setGuestResumes(guest);
-      setError(false);
-    } catch {
-      setError(true);
-      setMessage("Documents could not be loaded.");
-    } finally {
-      setLoading(false);
-    }
-  }, [account]);
+  const [pendingRename, setPendingRename] = useState<{
+    resume: ResumeDocument;
+    trigger: HTMLButtonElement;
+  } | null>(null);
+  const load = useCallback(
+    async (showLoading = true) => {
+      if (showLoading) setLoading(true);
+      try {
+        const [primary, guest] = await Promise.all([
+          account ? listAccountResumes() : listGuestResumes(),
+          account ? listGuestResumes() : Promise.resolve([]),
+        ]);
+        setResumes(primary);
+        setGuestResumes(guest);
+        setError(false);
+      } catch {
+        setError(true);
+        setMessage("Documents could not be loaded.");
+      } finally {
+        if (showLoading) setLoading(false);
+      }
+    },
+    [account],
+  );
   useEffect(() => {
     void load();
   }, [load]);
@@ -53,7 +61,7 @@ export function DashboardPage() {
   async function action(work: () => Promise<unknown>, success: string) {
     try {
       await work();
-      await load();
+      await load(false);
       setError(false);
       setMessage(success);
     } catch {
@@ -125,14 +133,7 @@ export function DashboardPage() {
                 <span className="autosave">Saved</span>
               </div>
               <div className="document-actions">
-                <button
-                  onClick={() => {
-                    const title = window.prompt("Resume name", resume.title)?.trim();
-                    if (title) void action(() => updateResume(account, resume, { title }), "Resume renamed.");
-                  }}
-                >
-                  Rename
-                </button>
+                <button onClick={(event) => setPendingRename({ resume, trigger: event.currentTarget })}>Rename</button>
                 <button onClick={() => void action(() => duplicateResume(account, resume), "Resume duplicated.")}>
                   Duplicate
                 </button>
@@ -197,6 +198,17 @@ export function DashboardPage() {
           </div>
         </dl>
       </section>
+      <RenameDialog
+        open={Boolean(pendingRename)}
+        currentName={pendingRename?.resume.title ?? ""}
+        returnFocus={pendingRename?.trigger ?? null}
+        onCancel={() => setPendingRename(null)}
+        onSave={(title) => {
+          const target = pendingRename?.resume;
+          setPendingRename(null);
+          if (target) void action(() => updateResume(account, target, { title }), "Resume renamed.");
+        }}
+      />
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         title="Permanently delete resume?"
