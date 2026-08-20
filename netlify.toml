@@ -1,3 +1,17 @@
 [build]
-  publish = "."
+  command = "pnpm build"
+  publish = "dist"
   functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "11"
+
+[context.production.environment]
+  VITE_AUTH_ENABLED = "false"
+
+[context.deploy-preview.environment]
+  VITE_AUTH_ENABLED = "true"
+
+[context.branch-deploy.environment]
+  VITE_AUTH_ENABLED = "true"
