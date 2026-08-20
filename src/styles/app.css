@@ -92,6 +92,13 @@ main {
 .lab-stage {
   position: relative;
   min-height: 500px;
+  transform-origin: center;
+}
+@media (min-width: 851px) {
+  .lab-stage {
+    width: calc(100% - 160px);
+    justify-self: center;
+  }
 }
 .resume-sheet {
   position: absolute;
@@ -124,7 +131,11 @@ main {
 }
 .scanner-ring {
   position: absolute;
-  inset: 12% 5%;
+  top: 50%;
+  left: 50%;
+  width: min(90%, 520px);
+  aspect-ratio: 1;
+  translate: -50% -50%;
   border: 1px solid rgba(88, 230, 194, 0.5);
   border-radius: 50%;
   box-shadow: 0 0 60px rgba(88, 230, 194, 0.15);
@@ -497,6 +508,12 @@ footer {
     flex-wrap: wrap;
   }
 }
+@media (min-width: 701px) and (max-width: 850px) {
+  .lab-stage {
+    width: calc(100% - 64px);
+    justify-self: center;
+  }
+}
 @media (max-width: 520px) {
   main {
     width: calc(100vw - 24px);
@@ -516,7 +533,9 @@ footer {
     font-size: 56px;
   }
   .lab-stage {
+    width: calc(100% - 56px);
     min-height: 320px;
+    justify-self: center;
   }
   .resume-sheet {
     width: 160px;
@@ -533,6 +552,11 @@ footer {
   .auth-panel,
   .prose-page {
     padding: 18px;
+  }
+}
+@media (max-width: 360px) {
+  .topbar .brand > span:last-child {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
