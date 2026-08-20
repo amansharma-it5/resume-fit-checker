@@ -89,6 +89,11 @@ main {
   font-size: 18px;
   line-height: 1.7;
 }
+.lab-stage-viewport {
+  min-width: 0;
+  overflow: clip;
+  isolation: isolate;
+}
 .lab-stage {
   position: relative;
   min-height: 500px;
@@ -97,7 +102,7 @@ main {
 @media (min-width: 851px) {
   .lab-stage {
     width: calc(100% - 160px);
-    justify-self: center;
+    margin-inline: auto;
   }
 }
 .resume-sheet {
@@ -493,6 +498,8 @@ footer {
   }
   .lab-stage {
     min-height: 390px;
+  }
+  .lab-stage-viewport {
     order: -1;
   }
   .score-grid {
@@ -511,7 +518,7 @@ footer {
 @media (min-width: 701px) and (max-width: 850px) {
   .lab-stage {
     width: calc(100% - 64px);
-    justify-self: center;
+    margin-inline: auto;
   }
 }
 @media (max-width: 520px) {
@@ -535,7 +542,7 @@ footer {
   .lab-stage {
     width: calc(100% - 56px);
     min-height: 320px;
-    justify-self: center;
+    margin-inline: auto;
   }
   .resume-sheet {
     width: 160px;

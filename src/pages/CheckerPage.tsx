@@ -168,15 +168,17 @@ export function CheckerPage() {
             over the network.
           </p>
         </div>
-        <div className="lab-stage" aria-hidden="true">
-          <div className="scanner-ring" />
-          <div className="resume-sheet">
-            <span />
-            <span />
-            <span />
-            <span />
+        <div className="lab-stage-viewport" aria-hidden="true">
+          <div className="lab-stage">
+            <div className="scanner-ring" />
+            <div className="resume-sheet">
+              <span />
+              <span />
+              <span />
+              <span />
+            </div>
+            <div className="scan-beam" />
           </div>
-          <div className="scan-beam" />
         </div>
       </section>
       <section className="workbench" aria-labelledby="checker-title">
