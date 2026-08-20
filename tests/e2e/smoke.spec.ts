@@ -4,12 +4,17 @@ import AxeBuilder from "@axe-core/playwright";
 const responsiveViewports = [
   { width: 320, height: 760 },
   { width: 360, height: 800 },
-  { width: 375, height: 812 },
   { width: 390, height: 844 },
   { width: 412, height: 915 },
   { width: 768, height: 1024 },
+  { width: 1024, height: 768 },
   { width: 1280, height: 800 },
+  { width: 1366, height: 768 },
+  { width: 1440, height: 900 },
+  { width: 1920, height: 1080 },
 ];
+
+const animationFractions = [0, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page) {
   const dimensions = await page.evaluate(() => {
@@ -49,6 +54,49 @@ async function expectContained(page: import("@playwright/test").Page, selector: 
   expect(bounds).not.toBeNull();
   expect(bounds!.x).toBeGreaterThanOrEqual(0);
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(await page.evaluate(() => window.innerWidth));
+}
+
+async function expectAnimationStatesContained(page: import("@playwright/test").Page, context: string) {
+  const samples = await page.evaluate(async (fractions) => {
+    const scene = document.querySelector<HTMLElement>(".lab-stage");
+    if (!scene) throw new Error("The 3D lab scene was not found.");
+    const animations = scene.getAnimations({ subtree: true });
+    animations.forEach((animation) => animation.pause());
+    const results = [];
+    for (const fraction of fractions) {
+      for (const animation of animations) {
+        const duration = Number(animation.effect?.getTiming().duration) || 1;
+        animation.currentTime = duration * fraction;
+      }
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      results.push({
+        fraction,
+        innerWidth: window.innerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      });
+    }
+    return results;
+  }, animationFractions);
+
+  for (const sample of samples) {
+    expect(sample.scrollWidth, `${context} at ${sample.fraction} animation cycles`).toBeLessThanOrEqual(
+      sample.innerWidth,
+    );
+  }
+}
+
+async function fillAndAnalyze(page: import("@playwright/test").Page) {
+  await page
+    .getByLabel("Or paste resume text")
+    .fill(
+      "Jordan Test Experience Senior Frontend Engineer 2020-2025 Built React applications for 12 teams and improved delivery by 20 percent. Skills React TypeScript SQL Education Bachelor of Science",
+    );
+  await page.getByLabel("Target role").fill("Senior Frontend Engineer");
+  await page.getByLabel("Job description").fill("Required Qualifications\n- React\n- TypeScript\n- SQL");
+  const analyzeButton = page.getByRole("button", { name: "Analyze locally" });
+  await analyzeButton.focus();
+  await analyzeButton.press("Enter");
+  await expect(page.getByRole("heading", { name: "Evidence dashboard" })).toBeVisible();
 }
 
 test("guest checker and dashboard critical flow", async ({ page }) => {
@@ -98,8 +146,14 @@ test("rename dialog supports validation, keyboard cancellation, save, and focus 
   await expect(rename).toBeFocused();
 });
 
-test("production-default build keeps accounts disabled and guest mode available", async ({ page }) => {
+test("authentication feature flag matches the deployment context", async ({ page }) => {
   await page.goto("/");
+  if (process.env.PLAYWRIGHT_BASE_URL) {
+    await expect(page.getByRole("link", { name: "Log in" })).toBeVisible();
+    await page.goto("/login");
+    await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
+    return;
+  }
   await expect(page.getByText("Accounts coming soon")).toBeVisible();
   await expect(page.getByRole("link", { name: "Log in" })).toHaveCount(0);
   await page.goto("/login");
@@ -111,11 +165,30 @@ test("production-default build keeps accounts disabled and guest mode available"
   await expect(page.getByRole("button", { name: "Create resume" })).toBeEnabled();
 });
 
-test("3D lab stays within the document at mobile, tablet, and desktop widths", async ({ page }) => {
+test("3D lab stays within the document for two complete animation cycles", async ({ page }) => {
+  test.setTimeout(90_000);
   for (const viewport of responsiveViewports) {
     await page.setViewportSize(viewport);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.goto("/");
     await expect(page.locator(".lab-stage")).toBeVisible();
+    await expectAnimationStatesContained(page, `${viewport.width}px before ATS results`);
+    await fillAndAnalyze(page);
+    await expectAnimationStatesContained(page, `${viewport.width}px after ATS results`);
+  }
+});
+
+test("reduced motion remains contained before and after ATS results", async ({ page }) => {
+  test.setTimeout(90_000);
+  for (const viewport of responsiveViewports) {
+    await page.setViewportSize(viewport);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await expect(page.locator(".lab-stage")).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page.waitForTimeout(100);
+    await expectNoHorizontalOverflow(page);
+    await fillAndAnalyze(page);
     await expectNoHorizontalOverflow(page);
   }
 });
@@ -126,18 +199,36 @@ test("mobile dialogs, upload controls, ATS results, and rewrite sections stay co
   await expectContained(page, ".file-control");
   await expectContained(page, ".rewrite-lab");
 
-  await page
-    .getByLabel("Or paste resume text")
-    .fill(
-      "Jordan Test Experience Senior Frontend Engineer 2020-2025 Built React applications for 12 teams and improved delivery by 20 percent. Skills React TypeScript SQL Education Bachelor of Science",
-    );
-  await page.getByLabel("Target role").fill("Senior Frontend Engineer");
-  await page.getByLabel("Job description").fill("Required Qualifications\n- React\n- TypeScript\n- SQL");
-  await page.getByRole("button", { name: "Analyze locally" }).click();
-  await expect(page.getByRole("heading", { name: "Evidence dashboard" })).toBeVisible();
+  await page.getByLabel("Resume file").setInputFiles({
+    name: "responsive-smoke.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      "Jordan Test Experience Senior Frontend Engineer Built React applications for 12 teams. Skills React TypeScript SQL Education Bachelor of Science",
+    ),
+  });
+  await expect(page.getByLabel("Or paste resume text")).toContainText("Jordan Test");
+  await fillAndAnalyze(page);
   await expectContained(page, ".results");
   await expectContained(page, ".rewrite-lab");
   await expectNoHorizontalOverflow(page);
+
+  await page.getByRole("button", { name: /Smart Rewrite/ }).click();
+  await expect(page.locator(".rewrite-output")).not.toContainText("Your rewrite will appear here.");
+  const aiRewrite = page.getByRole("button", { name: /AI Rewrite/ });
+  await expect(aiRewrite).toBeDisabled();
+  await page.getByLabel("Send this selected text to Groq AI for rewriting.").check();
+  await expect(aiRewrite).toBeEnabled();
+
+  const analyzeButton = page.getByRole("button", { name: "Analyze locally" });
+  await page.keyboard.press("Tab");
+  await analyzeButton.focus();
+  const focusStyle = await analyzeButton.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth };
+  });
+  expect(focusStyle.outlineStyle).not.toBe("none");
+  expect(focusStyle.outlineWidth).not.toBe("0px");
+  await expectContained(page, ".workbench");
 
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Create resume" }).click();
