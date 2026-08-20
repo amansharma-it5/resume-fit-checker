@@ -5,7 +5,12 @@ import {
   listGuestResumes,
   migrateLegacySummariesOnce,
   saveAnalysisSummary,
+  getGuestResume,
+  saveGuestResume,
+  saveGuestVersion,
+  listGuestVersions,
 } from "./guest-db";
+import { createStructuredResume } from "../resume-builder/model";
 
 describe.sequential("guest IndexedDB", () => {
   it("creates guest resumes without a network request", async () => {
@@ -58,5 +63,19 @@ describe.sequential("guest IndexedDB", () => {
         recommendations: [],
       });
     expect(await listAnalysisSummaries()).toHaveLength(5);
+  });
+  it("rejects stale guest writes and stores deduplicated versions", async () => {
+    const created = await createGuestResume("Versioned resume");
+    const structured = createStructuredResume(created.id, created.title);
+    const saved = await saveGuestResume(
+      { ...created, structuredData: structured as unknown as Record<string, unknown> },
+      0,
+    );
+    expect(saved.editorVersion).toBe(1);
+    await expect(saveGuestResume(created, 0)).rejects.toThrow("SAVE_CONFLICT");
+    await saveGuestVersion(structured, "Baseline");
+    await saveGuestVersion(structured, "Duplicate");
+    expect(await listGuestVersions(created.id)).toHaveLength(1);
+    expect((await getGuestResume(created.id))?.title).toBe("Versioned resume");
   });
 });

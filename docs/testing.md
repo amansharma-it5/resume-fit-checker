@@ -21,3 +21,7 @@ email-delivery test, never weaken the limit to make a test pass, and configure a
 before launch. Repeat signup verification, magic-link, and password-reset journeys after SMTP is configured.
 
 Safari requires manual testing; Playwright WebKit is a compatibility proxy, not Safari itself.
+
+# Phase 2 coverage
+
+The unit suite covers the structured model, plain-text ATS projection, reducer undo/redo, template switching, Auto-Adjust limits, local import extraction, guest stale-write handling, guest version deduplication, and migration assertions. Playwright covers a guest editor journey, keyboard accessibility smoke test, all required viewport widths, and root horizontal-overflow regression. `supabase test db` adds owner and two-user isolation checks for structured saves and version reads.

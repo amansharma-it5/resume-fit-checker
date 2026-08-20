@@ -1,6 +1,6 @@
 # Resume Lab
 
-Resume Lab is a privacy-first career workspace. Phase 1 uses Vite, React, and strict TypeScript while preserving the deterministic local ATS engine, local file parsing, Smart Rewrite, and consent-gated Groq AI Rewrite with two-pass verification.
+Resume Lab is a privacy-first career workspace. Phase 2 adds a structured resume builder while preserving the deterministic local ATS engine, local file parsing, Smart Rewrite, and consent-gated Groq AI Rewrite with two-pass verification.
 
 ## Current capabilities
 
@@ -11,6 +11,10 @@ Resume Lab is a privacy-first career workspace. Phase 1 uses Vite, React, and st
 - Supabase email/password, magic-link, verification, reset, session restoration, and protected routes
 - Guest/account dashboard lifecycle and explicit retry-safe guest import
 - JSON, CSV, and print/PDF analysis export
+- Structured guest and account resume editor with every core section, keyboard reordering, undo/redo, validation, debounced autosave, and manual save
+- Local extraction review for PDF, DOCX, TXT, Markdown, and RTF imports; source text is not stored in the structured document
+- Immutable, deduplicated version snapshots (latest 20 per resume) and deterministic live preview
+- Fifteen original ATS-safe templates: Clear, Essential, Classic, Executive, Corporate, Leadership, Horizon, Vector, Slate, Dense, Focus, One Page, Accent, Studio, and Portfolio
 
 The score explains rule-based signals and does not predict hiring decisions. Scanned PDFs and unusually complex DOCX files may require conversion to text.
 
@@ -31,3 +35,9 @@ pnpm test:rls
 ```
 
 Netlify publishes `dist` and deploys functions from `netlify/functions`. See [architecture](docs/architecture.md), [environment variables](docs/environment.md), [testing](docs/testing.md), and [feature status](docs/feature-status.md).
+
+## Resume Builder notes
+
+Guest resumes, structured content, and guest version snapshots remain in browser IndexedDB. Guest data is not uploaded automatically. Signed-in users save only through owner-scoped Supabase RLS policies; the editor uses an optimistic `editor_version` token and reports conflicts rather than overwriting a newer document.
+
+The preview is a deterministic browser layout shared by the editor and future export work. PDF and DOCX resume export intentionally remains Phase 5 work, so this release does not pretend that a browser preview is an exported file. Parsing is local and requires review for scans, complex columns, and unusual document structures.

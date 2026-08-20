@@ -9,6 +9,7 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AccountsComingSoonPage } from "./pages/AccountsComingSoonPage";
+import { ResumeEditorPage } from "./pages/ResumeEditorPage";
 import { authEnabled as configuredAuthEnabled } from "./lib/features";
 
 export function App() {
@@ -28,6 +29,7 @@ export function AppRoutes({ authEnabled }: { authEnabled: boolean }) {
         <Route path="reset-password" element={authPage(<ResetPasswordPage />)} />
         <Route path="auth/callback" element={authPage(<AuthCallbackPage />)} />
         <Route path="dashboard" element={<DashboardPage authEnabled={authEnabled} />} />
+        <Route path="resumes/:resumeId/edit" element={<ResumeEditorPage />} />
         <Route path="settings" element={<SettingsPage authEnabled={authEnabled} />} />
         <Route path="privacy" element={<PrivacyPage />} />
         <Route path="account" element={<Navigate to="/account/data" replace />} />

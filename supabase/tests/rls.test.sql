@@ -1,5 +1,5 @@
 begin;
-select plan(14);
+select plan(20);
 
 insert into auth.users(id, email) values ('10000000-0000-0000-0000-000000000001', 'one@example.invalid'), ('20000000-0000-0000-0000-000000000002', 'two@example.invalid');
 
@@ -12,9 +12,15 @@ select lives_ok($$select public.import_guest_resumes('[{"source_guest_id":"12000
 select is((select count(*)::integer from public.resumes where source_guest_id = '12000000-0000-0000-0000-000000000001'), 1, 'guest import creates one row');
 select lives_ok($$select public.import_guest_resumes('[{"source_guest_id":"12000000-0000-0000-0000-000000000001","title":"Guest","structured_data":{"sections":[]}}]'::jsonb)$$, 'guest import is retry safe');
 select is((select count(*)::integer from public.resumes where source_guest_id = '12000000-0000-0000-0000-000000000001'), 1, 'retry does not duplicate data');
+select lives_ok($$select public.save_resume_document('11000000-0000-0000-0000-000000000001', 0, 'Structured resume', '{"schemaVersion":1,"sections":[]}'::jsonb)$$, 'owner can make a version-checked structured save');
+select is((select editor_version from public.resumes where id = '11000000-0000-0000-0000-000000000001'), 1, 'structured save increments optimistic version');
+select lives_ok($$select public.create_resume_version('11000000-0000-0000-0000-000000000001', 'Baseline')$$, 'owner can create an immutable snapshot');
+select is((select count(*)::integer from public.resume_versions where resume_id = '11000000-0000-0000-0000-000000000001'), 1, 'owner version is stored');
 
 set local request.jwt.claims = '{"sub":"20000000-0000-0000-0000-000000000002","role":"authenticated"}';
 select is((select count(*)::integer from public.resumes), 0, 'second user cannot read first user records');
+select is((select count(*)::integer from public.resume_versions), 0, 'second user cannot read first user versions');
+select throws_ok($$select public.save_resume_document('11000000-0000-0000-0000-000000000001', 1, 'Stolen', '{"schemaVersion":1}'::jsonb)$$, '42501', 'RESUME_NOT_FOUND', 'second user cannot save first user resume');
 select lives_ok($$update public.resumes set title = 'Stolen'$$, 'second user update statement is harmless');
 select is((select count(*)::integer from public.resumes where title = 'Stolen'), 0, 'second user cannot update first user records');
 select throws_ok($$insert into public.resume_sections(resume_id, section_type, heading, position) values ('11000000-0000-0000-0000-000000000001', 'skills', 'Skills', 0)$$, '23503', null, 'second user cannot attach a child record to first user resume');
