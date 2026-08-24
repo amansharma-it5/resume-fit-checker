@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
+import { expectedAuthEnabled } from "./src/test/playwright-auth-mode";
 
 const externalBaseUrl = process.env.PLAYWRIGHT_BASE_URL;
+expectedAuthEnabled(process.env);
 
 export default defineConfig({
   testDir: "./tests/e2e",

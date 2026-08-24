@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { expectedAuthEnabled } from "../../src/test/playwright-auth-mode";
 
 const responsiveViewports = [
   { width: 320, height: 760 },
@@ -147,19 +148,31 @@ test("rename dialog supports validation, keyboard cancellation, save, and focus 
 });
 
 test("authentication feature flag matches the deployment context", async ({ page }) => {
+  const authEnabled = expectedAuthEnabled(process.env);
   await page.goto("/");
-  if (process.env.PLAYWRIGHT_BASE_URL) {
+  if (authEnabled) {
     await expect(page.getByRole("link", { name: "Log in" })).toBeVisible();
     await page.goto("/login");
     await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Email magic link" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Create account" })).toBeVisible();
+    await page.goto("/signup");
+    await expect(page.getByRole("button", { name: "Sign up" })).toBeVisible();
+    await page.goto("/forgot-password");
+    await expect(page.getByRole("button", { name: "Send reset link" })).toBeVisible();
     return;
   }
   await expect(page.getByText("Accounts coming soon")).toBeVisible();
   await expect(page.getByRole("link", { name: "Log in" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Sign up" })).toHaveCount(0);
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "Continue privately in guest mode" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Log in" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Email magic link" })).toHaveCount(0);
+  await page.goto("/signup");
+  await expect(page.getByRole("heading", { name: "Continue privately in guest mode" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign up" })).toHaveCount(0);
+  await page.goto("/login");
   await page.getByRole("link", { name: "Open guest workspace" }).click();
   await expect(page.getByRole("heading", { name: "Your resumes" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Create resume" })).toBeEnabled();
