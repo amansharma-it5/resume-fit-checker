@@ -75,7 +75,13 @@ export function CopilotPanel({
     }
   };
   return (
-    <section className="editor-tool copilot-panel" id="copilot-panel" tabIndex={-1} aria-labelledby="copilot-title">
+    <section
+      className="editor-tool copilot-panel"
+      id="copilot-panel"
+      tabIndex={-1}
+      role="region"
+      aria-labelledby="copilot-title"
+    >
       <h2 id="copilot-title">Resume Copilot</h2>
       <p>AI suggestions are never applied automatically. Review the selected evidence before accepting.</p>
       <label>
