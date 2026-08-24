@@ -179,6 +179,12 @@ export async function listAnalysisSummaries() {
 export async function deleteAnalysisSummary(id: string) {
   await (await db()).delete("analyses", id);
 }
+export async function getGuestAnalysisOverrides(key: string) {
+  return (await (await db()).get("meta", `analysis-overrides:${key}`))?.value || [];
+}
+export async function saveGuestAnalysisOverrides(key: string, value: unknown) {
+  await (await db()).put("meta", { key: `analysis-overrides:${key}`, value });
+}
 export async function clearGuestData() {
   (await db()).close();
   await deleteDB(DB_NAME);

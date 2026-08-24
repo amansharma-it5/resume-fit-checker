@@ -16,14 +16,32 @@ import {
 } from "../lib/guest-db";
 import type { AnalysisResult, AnalysisSummary } from "../types";
 import { StatusMessage } from "../components/StatusMessage";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import {
+  applyEvidenceOverrides,
+  canConfirmRequirement,
+  requirementId,
+  type RequirementOverride,
+} from "../lib/evidence-overrides";
+import { getGuestAnalysisOverrides, saveGuestAnalysisOverrides } from "../lib/guest-db";
 
 type Verification = any;
+function opaqueAnalysisIdentity(resume: string, fileName: string, role: string, jd: string) {
+  let hash = 2166136261;
+  for (const char of `${fileName}\u0000${role}\u0000${resume}\u0000${jd}`)
+    hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return `v1-${(hash >>> 0).toString(36)}`;
+}
 export function CheckerPage() {
   const [resumeText, setResumeText] = useState("");
   const [fileName, setFileName] = useState("Pasted resume");
   const [role, setRole] = useState("");
   const [jd, setJd] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [overrides, setOverrides] = useState<RequirementOverride[]>([]);
+  const [newRequirement, setNewRequirement] = useState("");
+  const [newPriority, setNewPriority] = useState<"required" | "preferred">("required");
+  const [pendingOverride, setPendingOverride] = useState<{ label: string; value: RequirementOverride } | null>(null);
   const [status, setStatus] = useState("Your resume and job description stay in this browser during local analysis.");
   const [error, setError] = useState(false);
   const [history, setHistory] = useState<AnalysisSummary[]>([]);
@@ -63,12 +81,24 @@ export function CheckerPage() {
       return;
     }
     const result = analyzeResumeFit({ resumeText, jobDescription: jd, role: role || "Target role", fileName });
+    const identity = opaqueAnalysisIdentity(resumeText, fileName, role, jd);
+    const savedOverrides = (await getGuestAnalysisOverrides(identity)) as RequirementOverride[];
+    setOverrides(savedOverrides);
     setAnalysis(result);
     const summary = sanitizeAnalysisForStorage(result);
     await saveAnalysisSummary(summary);
     setHistory(await listAnalysisSummaries());
     setError(false);
     setStatus("Analysis complete. Only a privacy-safe summary was saved in IndexedDB.");
+  }
+  const overrideIdentity = opaqueAnalysisIdentity(resumeText, fileName, role, jd);
+  const displayAnalysis = useMemo(
+    () => (analysis ? applyEvidenceOverrides(analysis, overrides) : null),
+    [analysis, overrides],
+  );
+  function updateOverride(next: RequirementOverride[]) {
+    setOverrides(next);
+    void saveGuestAnalysisOverrides(overrideIdentity, next);
   }
   function localRewrite() {
     const value = smartRewrite(bullet);
@@ -145,21 +175,21 @@ export function CheckerPage() {
   }
   const scoreRows = useMemo(
     () =>
-      analysis
+      displayAnalysis
         ? [
-            ["Overall", analysis.scores.overall],
-            ["ATS structure", analysis.scores.atsStructure],
-            ["Required coverage", analysis.scores.requiredQualificationCoverage],
-            ["Preferred coverage", analysis.scores.preferredQualificationCoverage],
-            ["Keywords & skills", analysis.scores.keywordSkillCoverage],
-            ["Experience fit", analysis.scores.experienceSeniorityFit],
-            ["Impact", analysis.scores.impactAchievement],
-            ["Action language", analysis.scores.contentQualityActionLanguage],
-            ["Readability", analysis.scores.readabilityBulletQuality],
-            ["Completeness", analysis.scores.resumeCompleteness],
+            ["Overall", displayAnalysis.scores.overall],
+            ["ATS structure", displayAnalysis.scores.atsStructure],
+            ["Required coverage", displayAnalysis.scores.requiredQualificationCoverage],
+            ["Preferred coverage", displayAnalysis.scores.preferredQualificationCoverage],
+            ["Keywords & skills", displayAnalysis.scores.keywordSkillCoverage],
+            ["Experience fit", displayAnalysis.scores.experienceSeniorityFit],
+            ["Impact", displayAnalysis.scores.impactAchievement],
+            ["Action language", displayAnalysis.scores.contentQualityActionLanguage],
+            ["Readability", displayAnalysis.scores.readabilityBulletQuality],
+            ["Completeness", displayAnalysis.scores.resumeCompleteness],
           ]
         : [],
-    [analysis],
+    [displayAnalysis],
   );
   return (
     <div className="checker-page">
@@ -225,7 +255,7 @@ export function CheckerPage() {
         </button>
         <StatusMessage message={status} error={error} />
       </section>
-      {analysis && (
+      {displayAnalysis && (
         <section className="results" aria-labelledby="results-title">
           <h2 id="results-title">Evidence dashboard</h2>
           <p>This score explains deterministic signals; it does not predict hiring decisions.</p>
@@ -240,7 +270,7 @@ export function CheckerPage() {
           <section className="score-explanations" aria-label="Transparent score explanations">
             <h3>How this score was calculated</h3>
             <div className="category-list">
-              {Object.entries(analysis.scores.categoryDetails || {}).map(([key, detail]: [string, any]) => (
+              {Object.entries(displayAnalysis.scores.categoryDetails || {}).map(([key, detail]: [string, any]) => (
                 <article key={key} className="category-detail">
                   <h4>{key.replace(/([A-Z])/g, " $1")}</h4>
                   <p>
@@ -255,9 +285,45 @@ export function CheckerPage() {
           </section>
           <section className="evidence-matrix" aria-label="Requirement evidence matrix">
             <h3>Evidence matrix</h3>
+            <div className="override-controls">
+              <label>
+                New requirement
+                <input value={newRequirement} onChange={(event) => setNewRequirement(event.target.value)} />
+              </label>
+              <label>
+                Priority
+                <select
+                  value={newPriority}
+                  onChange={(event) => setNewPriority(event.target.value as "required" | "preferred")}
+                >
+                  <option value="required">Required</option>
+                  <option value="preferred">Preferred</option>
+                </select>
+              </label>
+              <button
+                onClick={() => {
+                  if (!newRequirement.trim()) return;
+                  updateOverride([
+                    ...overrides,
+                    { id: `added:${crypto.randomUUID()}`, action: "add", term: newRequirement, priority: newPriority },
+                  ]);
+                  setNewRequirement("");
+                }}
+              >
+                Add requirement
+              </button>
+              <button
+                onClick={() =>
+                  setPendingOverride({ label: "Reset all local overrides?", value: { id: "all", action: "remove" } })
+                }
+                disabled={!overrides.length}
+              >
+                Reset all
+              </button>
+            </div>
             <ul>
-              {(analysis.requirements || []).map((item: any) => (
-                <li key={`${item.priority}-${item.term}`}>
+              {(displayAnalysis.requirements || []).map((item: any, index: number) => (
+                <li key={item.id || `${item.priority}-${item.term}`}>
                   <strong>{item.term}</strong> · {item.priority} · {item.status} ·{" "}
                   {item.confidence ? `${Math.round(item.confidence * 100)}% confidence` : "no evidence"}
                   {item.evidence && (
@@ -267,6 +333,61 @@ export function CheckerPage() {
                     </span>
                   )}
                   <p>{item.reason} Add only truthful evidence.</p>
+                  <p className="override-badge">
+                    {item.override === "ENGINE" ? "Engine result" : `Manual override: ${item.override}`}
+                  </p>
+                  <div className="button-row" aria-label={`Controls for ${item.term}`}>
+                    <button
+                      disabled={!canConfirmRequirement(item)}
+                      onClick={() =>
+                        updateOverride([
+                          ...overrides.filter((value) => value.id !== requirementId(item, index)),
+                          { id: requirementId(item, index), action: "confirm" },
+                        ])
+                      }
+                    >
+                      Confirm match
+                    </button>
+                    <button
+                      onClick={() =>
+                        updateOverride([
+                          ...overrides.filter((value) => value.id !== requirementId(item, index)),
+                          { id: requirementId(item, index), action: "reject" },
+                        ])
+                      }
+                    >
+                      Reject match
+                    </button>
+                    <button
+                      onClick={() =>
+                        setPendingOverride({
+                          label: `Remove ${item.term} from this local analysis?`,
+                          value: { id: requirementId(item, index), action: "remove" },
+                        })
+                      }
+                    >
+                      Remove
+                    </button>
+                    <button
+                      onClick={() =>
+                        setPendingOverride({
+                          label: `Ignore ${item.term} as local JD noise?`,
+                          value: { id: requirementId(item, index), action: "ignore" },
+                        })
+                      }
+                    >
+                      Ignore noise
+                    </button>
+                    {item.override !== "ENGINE" && (
+                      <button
+                        onClick={() =>
+                          updateOverride(overrides.filter((value) => value.id !== requirementId(item, index)))
+                        }
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -275,7 +396,7 @@ export function CheckerPage() {
             <div>
               <h3>Matched requirements</h3>
               <ul>
-                {(analysis.matched || []).map((term) => (
+                {(displayAnalysis.matched || []).map((term) => (
                   <li key={term}>{term}</li>
                 ))}
               </ul>
@@ -283,7 +404,7 @@ export function CheckerPage() {
             <div>
               <h3>Missing requirements</h3>
               <ul>
-                {(analysis.missing || []).map((term) => (
+                {(displayAnalysis.missing || []).map((term) => (
                   <li key={term}>{term}</li>
                 ))}
               </ul>
@@ -291,7 +412,7 @@ export function CheckerPage() {
             <div>
               <h3>Priorities</h3>
               <ul>
-                {analysis.recommendations.map((item, index) => (
+                {displayAnalysis.recommendations.map((item, index) => (
                   <li key={index}>{item}</li>
                 ))}
               </ul>
@@ -421,6 +542,25 @@ export function CheckerPage() {
           <p>No saved summaries yet.</p>
         )}
       </section>
+      <ConfirmDialog
+        open={Boolean(pendingOverride)}
+        title="Confirm local override"
+        confirmLabel="Confirm"
+        destructive
+        onCancel={() => setPendingOverride(null)}
+        onConfirm={() => {
+          if (!pendingOverride) return;
+          if (pendingOverride.value.id === "all") updateOverride([]);
+          else
+            updateOverride([
+              ...overrides.filter((value) => value.id !== pendingOverride.value.id),
+              pendingOverride.value,
+            ]);
+          setPendingOverride(null);
+        }}
+      >
+        <p>{pendingOverride?.label}</p>
+      </ConfirmDialog>
     </div>
   );
 }
