@@ -243,7 +243,9 @@ export function CheckerPage() {
               {Object.entries(analysis.scores.categoryDetails || {}).map(([key, detail]: [string, any]) => (
                 <article key={key} className="category-detail">
                   <h4>{key.replace(/([A-Z])/g, " $1")}</h4>
-                  <p><strong>{detail.score ?? "N/A"}/100</strong> · {detail.weight}% of overall score</p>
+                  <p>
+                    <strong>{detail.score ?? "N/A"}/100</strong> · {detail.weight}% of overall score
+                  </p>
                   {detail.evidence?.length > 0 && <p>Evidence: {detail.evidence.join(" ")}</p>}
                   {detail.deductions?.length > 0 && <p>Deductions: {detail.deductions.join(" ")}</p>}
                   {detail.actions?.length > 0 && <p>Next action: {detail.actions[0]}</p>}
@@ -256,8 +258,14 @@ export function CheckerPage() {
             <ul>
               {(analysis.requirements || []).map((item: any) => (
                 <li key={`${item.priority}-${item.term}`}>
-                  <strong>{item.term}</strong> · {item.priority} · {item.status} · {item.confidence ? `${Math.round(item.confidence * 100)}% confidence` : "no evidence"}
-                  {item.evidence && <span> · {item.location}: {item.evidence}</span>}
+                  <strong>{item.term}</strong> · {item.priority} · {item.status} ·{" "}
+                  {item.confidence ? `${Math.round(item.confidence * 100)}% confidence` : "no evidence"}
+                  {item.evidence && (
+                    <span>
+                      {" "}
+                      · {item.location}: {item.evidence}
+                    </span>
+                  )}
                   <p>{item.reason} Add only truthful evidence.</p>
                 </li>
               ))}
