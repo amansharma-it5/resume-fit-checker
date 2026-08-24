@@ -147,3 +147,38 @@ test("keyword score reports insufficient JD detail when no usable requirements a
   assert.equal(analysis.scores.keywordStatus, "insufficient_jd_detail");
   assert.equal(analysis.scores.keywordMatch, 0);
 });
+
+test("keeps one-word heading skills and removes recruiter footer noise", () => {
+  const analysis = analyzeResumeFit({
+    resumeText: "Skills\nReact\nSQL\nAWS\nPython",
+    jobDescription: "Required Qualifications\n- React\n- SQL\nSkills\n- AWS\n- Python\nRecruiter: Casey Example\nUnsubscribe from alerts",
+    role: "Engineer",
+  });
+  assert.deepEqual(analysis.job.required.sort(), ["amazon web services", "python", "react", "sql"].sort());
+  assert.equal(analysis.job.removedNoise, true);
+  assert.ok(analysis.requirements.every((item) => item.status === "matched"));
+});
+
+test("uses aliases without substring inflation and reports evidence location", () => {
+  const analysis = analyzeResumeFit({
+    resumeText: "Skills\nAzure DevOps\nRESTful API\nCI/CD\nExperience\n- Built integrations.",
+    jobDescription: "Required Qualifications\n- Microsoft Azure\n- REST API\n- Continuous integration\n- Java",
+    role: "Engineer",
+  });
+  const azure = analysis.requirements.find((item) => item.term === "microsoft azure");
+  const java = analysis.requirements.find((item) => item.term === "java");
+  assert.equal(azure?.status, "matched");
+  assert.equal(azure?.location, "skills");
+  assert.equal(java?.status, "missing");
+});
+
+test("does not double count overlapping employment ranges", () => {
+  const analysis = analyzeResumeFit({
+    resumeText: "Experience\nSenior Engineer Jan 2020 - Dec 2022\nConsultant Jan 2021 - Present",
+    jobDescription: "Minimum Requirements\n- 5 years experience",
+    role: "Senior Engineer",
+  });
+  assert.ok(analysis.resume.demonstratedYears < 8);
+  assert.equal(analysis.resume.experienceEvidence.insufficientEvidence, false);
+  assert.equal(Object.keys(analysis.scores.categoryDetails).length, 9);
+});

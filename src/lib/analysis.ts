@@ -13,9 +13,13 @@ export const smartRewrite = engine.rewriteBullet as (text: string) => {
   after: string;
   warnings: string[];
 };
-export function sanitizeAnalysisForStorage(analysis: AnalysisResult): Omit<AnalysisSummary, "id"> {
+export function sanitizeAnalysisForStorage(
+  analysis: AnalysisResult,
+  context: Pick<AnalysisSummary, "resumeId" | "resumeVersion" | "analysisKey"> = {},
+): Omit<AnalysisSummary, "id"> {
   const safe = (engine.sanitizeAnalysisForStorage as (value: unknown) => any)(analysis);
   return {
+    ...context,
     role: String(safe.role || "Target role"),
     fileName: String(safe.fileName || "Resume"),
     timestamp: String(safe.generatedAt || new Date().toISOString()),

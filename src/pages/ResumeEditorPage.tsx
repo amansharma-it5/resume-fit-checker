@@ -2,9 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { analyzeResumeFit, canCopyOrApply, smartRewrite } from "../lib/analysis";
+import { analyzeResumeFit, canCopyOrApply, sanitizeAnalysisForStorage, smartRewrite } from "../lib/analysis";
 import { extractResumeText } from "../lib/file-parser";
-import { getGuestResume } from "../lib/guest-db";
+import { getGuestResume, saveAnalysisSummary } from "../lib/guest-db";
 import {
   createResumeVersion,
   createResumeFromStructuredData,
@@ -76,11 +76,14 @@ export function ResumeEditorPage() {
   const [targetRole, setTargetRole] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [analysis, setAnalysis] = useState<any>(null);
+  const [analysisStatus, setAnalysisStatus] = useState<"idle" | "calculating" | "updated" | "error">("idle");
+  const [analysisNotice, setAnalysisNotice] = useState("");
   const [rewrite, setRewrite] = useState<any>(null);
   const [rewriteLoading, setRewriteLoading] = useState(false);
   const [consent, setConsent] = useState(false);
   const loadId = useRef(resumeId);
   const resumeRef = useRef(resume);
+  const analysisRequest = useRef(0);
 
   useLayoutEffect(() => {
     resumeRef.current = resume;
@@ -201,14 +204,56 @@ export function ResumeEditorPage() {
     return text ? text.split(/\s+/).length : 0;
   }, [resume]);
 
-  function analyze() {
-    const result = analyzeResumeFit({
-      resumeText: resumeToPlainText(resume),
-      jobDescription,
-      role: targetRole || "Target role",
-      fileName: resume.title,
-    });
-    setAnalysis(result);
+  const analyze = useCallback(() => {
+    const request = ++analysisRequest.current;
+    setAnalysisStatus("calculating");
+    setAnalysisNotice("Calculating ATS analysis.");
+    try {
+      const result = analyzeResumeFit({
+        resumeText: resumeToPlainText(resume),
+        jobDescription,
+        role: targetRole || "Target role",
+        fileName: resume.title,
+      });
+      if (request !== analysisRequest.current) return;
+      setAnalysis(result);
+      setAnalysisStatus("updated");
+      setAnalysisNotice("ATS analysis updated.");
+      if (!account && resumeDocument) {
+        const key = `${resume.id}:${resume.documentVersion}:${targetRole.trim().toLowerCase()}:${jobDescription.length}`;
+        void saveAnalysisSummary(
+          sanitizeAnalysisForStorage(result, {
+            resumeId: resume.id,
+            resumeVersion: resume.documentVersion,
+            analysisKey: key,
+          }),
+        );
+      }
+    } catch {
+      if (request !== analysisRequest.current) return;
+      setAnalysisStatus("error");
+      setAnalysisNotice("ATS analysis could not be calculated. Your resume remains unchanged.");
+    }
+  }, [account, jobDescription, resume, resumeDocument, targetRole]);
+
+  useEffect(() => {
+    if (!jobDescription.trim()) return;
+    const timer = window.setTimeout(analyze, 500);
+    return () => window.clearTimeout(timer);
+  }, [analyze, jobDescription, resume]);
+
+  function focusIssue(sectionId: string) {
+    const target = document.getElementById(`section-${sectionId}`);
+    if (!target) {
+      setAnalysisNotice("That field is no longer available. Review the current resume sections.");
+      return;
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.setAttribute("tabindex", "-1");
+    target.focus({ preventScroll: true });
+    target.classList.add("ats-field-highlight");
+    window.setTimeout(() => target.classList.remove("ats-field-highlight"), 2200);
+    setAnalysisNotice("Opened the relevant resume section.");
   }
 
   function applyRewrite(text: string) {
@@ -304,7 +349,9 @@ export function ResumeEditorPage() {
           <ul>
             {issues.map((issue, index) => (
               <li key={`${issue.sectionId}-${index}`}>
-                <a href={`#section-${issue.sectionId}`}>{issue.message}</a>
+                <button type="button" className="issue-link" onClick={() => focusIssue(issue.sectionId)}>
+                  {issue.message}
+                </button>
               </li>
             ))}
           </ul>
@@ -602,6 +649,9 @@ export function ResumeEditorPage() {
             <button className="primary" onClick={analyze}>
               Analyze structured resume
             </button>
+            <p role="status" aria-live="polite">
+              {analysisNotice}
+            </p>
             {analysis && (
               <div className="ats-editor-results" role="status">
                 <h3>ATS result: {analysis.scores?.overall ?? "Insufficient JD detail"}</h3>
@@ -610,6 +660,7 @@ export function ResumeEditorPage() {
                   Matched: {analysis.matched?.length || 0} · Partial: {analysis.partial?.length || 0} · Missing:{" "}
                   {analysis.missing?.length || 0}
                 </p>
+                <p>Analysis state: {analysisStatus === "calculating" ? "Calculating" : "Updated"}</p>
               </div>
             )}
           </details>

@@ -64,6 +64,28 @@ describe.sequential("guest IndexedDB", () => {
       });
     expect(await listAnalysisSummaries()).toHaveLength(5);
   });
+  it("deduplicates version-linked summaries without retaining resume text", async () => {
+    const summary = {
+      resumeId: "guest-resume-1",
+      resumeVersion: 3,
+      analysisKey: "guest-resume-1:3:engineer:20",
+      role: "Engineer",
+      fileName: "resume.txt",
+      timestamp: new Date().toISOString(),
+      scores: { overall: 80 },
+      counts: { matched: 1, partial: 0, missing: 0 },
+      sections: ["experience"],
+      matchedTerms: ["React"],
+      partialTerms: [],
+      missingTerms: [],
+      recommendations: ["Add evidence"],
+    };
+    await saveAnalysisSummary(summary);
+    await saveAnalysisSummary(summary);
+    const stored = (await listAnalysisSummaries()).filter((item) => item.analysisKey === summary.analysisKey);
+    expect(stored).toHaveLength(1);
+    expect(JSON.stringify(stored)).not.toContain("originalResumeText");
+  });
   it("rejects stale guest writes and stores deduplicated versions", async () => {
     const created = await createGuestResume("Versioned resume");
     const structured = createStructuredResume(created.id, created.title);

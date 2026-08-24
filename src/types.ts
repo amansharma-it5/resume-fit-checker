@@ -30,6 +30,10 @@ export interface AnalysisResult {
 
 export interface AnalysisSummary {
   id: string;
+  /** Links a summary to one document without retaining its text. */
+  resumeId?: string;
+  resumeVersion?: number;
+  analysisKey?: string;
   role: string;
   fileName: string;
   timestamp: string;
