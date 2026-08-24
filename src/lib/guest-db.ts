@@ -1,5 +1,6 @@
 import { deleteDB, openDB, type DBSchema } from "idb";
 import type { AnalysisSummary, ResumeDocument } from "../types";
+import type { ResumeVersionSnapshot, StructuredResume } from "../resume-builder/types";
 
 const DB_NAME = "resume-lab-guest-v2";
 const LEGACY_KEY = "resumeLabAnalysesV1";
@@ -8,17 +9,29 @@ interface GuestSchema extends DBSchema {
   resumes: { key: string; value: ResumeDocument; indexes: { "by-updated": string; "by-status": string } };
   analyses: { key: string; value: AnalysisSummary; indexes: { "by-timestamp": string } };
   meta: { key: string; value: { key: string; value: unknown } };
+  versions: {
+    key: string;
+    value: ResumeVersionSnapshot;
+    indexes: { "by-resume": string; "by-created": string };
+  };
 }
 
 function db() {
-  return openDB<GuestSchema>(DB_NAME, 1, {
-    upgrade(database) {
-      const resumes = database.createObjectStore("resumes", { keyPath: "id" });
-      resumes.createIndex("by-updated", "updatedAt");
-      resumes.createIndex("by-status", "status");
-      const analyses = database.createObjectStore("analyses", { keyPath: "id" });
-      analyses.createIndex("by-timestamp", "timestamp");
-      database.createObjectStore("meta", { keyPath: "key" });
+  return openDB<GuestSchema>(DB_NAME, 2, {
+    upgrade(database, oldVersion) {
+      if (oldVersion < 1) {
+        const resumes = database.createObjectStore("resumes", { keyPath: "id" });
+        resumes.createIndex("by-updated", "updatedAt");
+        resumes.createIndex("by-status", "status");
+        const analyses = database.createObjectStore("analyses", { keyPath: "id" });
+        analyses.createIndex("by-timestamp", "timestamp");
+        database.createObjectStore("meta", { keyPath: "key" });
+      }
+      if (oldVersion < 2) {
+        const versions = database.createObjectStore("versions", { keyPath: "id" });
+        versions.createIndex("by-resume", "resumeId");
+        versions.createIndex("by-created", "createdAt");
+      }
     },
   });
 }
@@ -73,6 +86,29 @@ export async function putGuestResume(resume: ResumeDocument) {
   await (await db()).put("resumes", resume);
   return resume;
 }
+export async function getGuestResume(id: string) {
+  return (await db()).get("resumes", id);
+}
+
+export async function saveGuestResume(resume: ResumeDocument, expectedVersion: number): Promise<ResumeDocument> {
+  const database = await db();
+  const tx = database.transaction("resumes", "readwrite");
+  const current = await tx.store.get(resume.id);
+  const currentVersion = current?.editorVersion || 0;
+  if (current && currentVersion !== expectedVersion) {
+    tx.abort();
+    try {
+      await tx.done;
+    } catch {
+      // The explicit abort is expected for an optimistic-concurrency conflict.
+    }
+    throw new Error("SAVE_CONFLICT");
+  }
+  const saved = { ...resume, editorVersion: expectedVersion + 1, updatedAt: new Date().toISOString() };
+  await tx.store.put(saved);
+  await tx.done;
+  return saved;
+}
 export async function createGuestResume(title = "Untitled resume") {
   const now = new Date().toISOString();
   return putGuestResume({
@@ -82,10 +118,43 @@ export async function createGuestResume(title = "Untitled resume") {
     structuredData: { sections: [] },
     createdAt: now,
     updatedAt: now,
+    editorVersion: 0,
   });
 }
 export async function permanentlyDeleteGuestResume(id: string) {
-  await (await db()).delete("resumes", id);
+  const database = await db();
+  const tx = database.transaction(["resumes", "versions"], "readwrite");
+  await tx.objectStore("resumes").delete(id);
+  const versionIds = await tx.objectStore("versions").index("by-resume").getAllKeys(id);
+  await Promise.all(versionIds.map((versionId) => tx.objectStore("versions").delete(versionId)));
+  await tx.done;
+}
+
+export async function listGuestVersions(resumeId: string) {
+  return (await (await db()).getAllFromIndex("versions", "by-resume", resumeId)).sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  );
+}
+
+export async function saveGuestVersion(resume: StructuredResume, label?: string) {
+  const database = await db();
+  const existing = await listGuestVersions(resume.id);
+  const fingerprint = JSON.stringify(resume);
+  if (existing.some((item) => JSON.stringify(item.snapshot) === fingerprint)) return existing[0];
+  const snapshot: ResumeVersionSnapshot = {
+    id: crypto.randomUUID(),
+    resumeId: resume.id,
+    label: label?.trim() || undefined,
+    version: (existing[0]?.version || 0) + 1,
+    snapshot: structuredClone(resume),
+    createdAt: new Date().toISOString(),
+  };
+  const tx = database.transaction("versions", "readwrite");
+  await tx.store.put(snapshot);
+  const overflow = [...existing, snapshot].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(20);
+  await Promise.all(overflow.map((item) => tx.store.delete(item.id)));
+  await tx.done;
+  return snapshot;
 }
 export async function saveAnalysisSummary(summary: Omit<AnalysisSummary, "id">) {
   const database = await db();

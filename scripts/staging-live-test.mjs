@@ -99,6 +99,26 @@ try {
   });
   assert.equal(duplicate.response.status, 201, "owner duplication failed");
 
+  const structuredSave = await request("/rest/v1/rpc/save_resume_document", {
+    method: "POST",
+    token: sessionA.access_token,
+    body: {
+      target_resume_id: resume.id,
+      expected_editor_version: 0,
+      next_title: "Structured staging resume",
+      next_structured_data: { schemaVersion: 1, sections: [] },
+    },
+  });
+  assert.equal(structuredSave.response.status, 200, "owner structured save RPC failed");
+  assert.equal(structuredSave.data.editor_version, 1, "structured save did not advance the version token");
+
+  const snapshot = await request("/rest/v1/rpc/create_resume_version", {
+    method: "POST",
+    token: sessionA.access_token,
+    body: { target_resume_id: resume.id, version_label: "Staging baseline" },
+  });
+  assert.equal(snapshot.response.status, 200, "owner version snapshot RPC failed");
+
   const guestId = randomUUID();
   const importBody = {
     guest_resumes: [{ source_guest_id: guestId, title: "Imported guest resume", structured_data: { sections: [] } }],
@@ -121,6 +141,24 @@ try {
   });
   assert.equal(crossRead.response.status, 200);
   assert.deepEqual(crossRead.data, [], "user B could read user A's resume");
+
+  const crossVersions = await request(`/rest/v1/resume_versions?resume_id=eq.${resume.id}&select=id`, {
+    token: sessionB.access_token,
+  });
+  assert.equal(crossVersions.response.status, 200);
+  assert.deepEqual(crossVersions.data, [], "user B could read user A's resume versions");
+
+  const crossStructuredSave = await request("/rest/v1/rpc/save_resume_document", {
+    method: "POST",
+    token: sessionB.access_token,
+    body: {
+      target_resume_id: resume.id,
+      expected_editor_version: 1,
+      next_title: "Unauthorized structured change",
+      next_structured_data: { schemaVersion: 1, sections: [] },
+    },
+  });
+  assert.notEqual(crossStructuredSave.response.status, 200, "user B could save user A's resume");
 
   const crossUpdate = await request(`/rest/v1/resumes?id=eq.${resume.id}`, {
     method: "PATCH",
@@ -167,7 +205,7 @@ try {
   assert.equal(profileB.data.length, 0, "another user's profile was visible");
 
   console.log(
-    "Staging live checks passed: auth, refresh, owner CRUD, guest import idempotency, anonymous denial, and two-user RLS isolation.",
+    "Staging live checks passed: auth, refresh, structured saves, version snapshots, owner CRUD, guest import idempotency, anonymous denial, and two-user RLS isolation.",
   );
 } finally {
   await Promise.all(createdUsers.map((id) => admin(`/auth/v1/admin/users/${id}`, { method: "DELETE" })));

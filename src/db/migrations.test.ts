@@ -9,6 +9,7 @@ const files = [
   "202608190004_security_and_rpc.sql",
   "202608190005_retention.sql",
   "202608190006_ownership_integrity.sql",
+  "202608200001_resume_builder.sql",
 ].map((name) => readFileSync(resolve("supabase/migrations", name), "utf8"));
 const sql = files.join("\n").toLowerCase();
 const ownedTables = [
@@ -41,5 +42,13 @@ describe("database migrations", () => {
   it("does not grant table access to anonymous users", () => {
     expect(sql).toContain("revoke all on all tables in schema public from anon, authenticated");
     expect(sql).not.toMatch(/grant\s+(select|insert|update|delete)[^;]+\s+to\s+anon/);
+  });
+  it("uses owner-scoped optimistic saves and capped snapshots", () => {
+    expect(sql).toContain("save_resume_document");
+    expect(sql).toContain("and owner_id = auth.uid()");
+    expect(sql).toContain("and editor_version = expected_editor_version");
+    expect(sql).toContain("create_resume_version");
+    expect(sql).toContain("offset 20");
+    expect(sql).toContain("revoke all on function public.save_resume_document");
   });
 });

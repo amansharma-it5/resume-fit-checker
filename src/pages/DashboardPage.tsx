@@ -134,6 +134,11 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
                 <span className="autosave">Saved</span>
               </div>
               <div className="document-actions">
+                {resume.status === "active" && (
+                  <Link className="button-link" to={`/resumes/${resume.id}/edit`}>
+                    Edit
+                  </Link>
+                )}
                 <button onClick={(event) => setPendingRename({ resume, trigger: event.currentTarget })}>Rename</button>
                 <button onClick={() => void action(() => duplicateResume(account, resume), "Resume duplicated.")}>
                   Duplicate

@@ -11,6 +11,7 @@ export interface ResumeDocument {
   updatedAt: string;
   deletedAt?: string | null;
   importedAt?: string | null;
+  editorVersion?: number;
 }
 
 export interface AnalysisResult {

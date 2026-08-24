@@ -1,6 +1,14 @@
 import { supabase } from "./supabase";
-import { createGuestResume, permanentlyDeleteGuestResume, putGuestResume } from "./guest-db";
+import {
+  createGuestResume,
+  permanentlyDeleteGuestResume,
+  putGuestResume,
+  saveGuestResume,
+  saveGuestVersion,
+  listGuestVersions,
+} from "./guest-db";
 import type { ResumeDocument, ResumeStatus } from "../types";
+import type { ResumeVersionSnapshot, StructuredResume } from "../resume-builder/types";
 
 function mapRow(row: any): ResumeDocument {
   return {
@@ -14,16 +22,70 @@ function mapRow(row: any): ResumeDocument {
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at,
     importedAt: row.imported_at,
+    editorVersion: row.editor_version || 0,
   };
 }
 export async function listAccountResumes() {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from("resumes")
-    .select("id,owner_id,source_guest_id,title,status,structured_data,created_at,updated_at,deleted_at,imported_at")
+    .select(
+      "id,owner_id,source_guest_id,title,status,structured_data,created_at,updated_at,deleted_at,imported_at,editor_version",
+    )
     .order("updated_at", { ascending: false });
   if (error) throw error;
   return (data || []).map(mapRow);
+}
+
+export async function saveStructuredResume(account: boolean, document: ResumeDocument, resume: StructuredResume) {
+  if (!account) {
+    return saveGuestResume(
+      { ...document, title: resume.title, structuredData: resume as unknown as Record<string, unknown> },
+      document.editorVersion || 0,
+    );
+  }
+  if (!supabase) throw new Error("Account storage is unavailable.");
+  const { data, error } = await supabase.rpc("save_resume_document", {
+    target_resume_id: document.id,
+    expected_editor_version: document.editorVersion || 0,
+    next_title: resume.title,
+    next_structured_data: resume,
+  });
+  if (error) {
+    if (error.message.includes("SAVE_CONFLICT")) throw new Error("SAVE_CONFLICT");
+    throw error;
+  }
+  return mapRow(data);
+}
+
+export async function listResumeVersions(account: boolean, resumeId: string): Promise<ResumeVersionSnapshot[]> {
+  if (!account) return listGuestVersions(resumeId);
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from("resume_versions")
+    .select("id,resume_id,version_number,snapshot,reason,created_at")
+    .eq("resume_id", resumeId)
+    .order("version_number", { ascending: false });
+  if (error) throw error;
+  return (data || []).map((row) => ({
+    id: row.id,
+    resumeId: row.resume_id,
+    version: row.version_number,
+    snapshot: row.snapshot as StructuredResume,
+    label: row.reason || undefined,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function createResumeVersion(account: boolean, resume: StructuredResume, label?: string) {
+  if (!account) return saveGuestVersion(resume, label);
+  if (!supabase) throw new Error("Account storage is unavailable.");
+  const { data, error } = await supabase.rpc("create_resume_version", {
+    target_resume_id: resume.id,
+    version_label: label || null,
+  });
+  if (error) throw error;
+  return data;
 }
 export async function createResume(account: boolean, title?: string) {
   if (!account) return createGuestResume(title);
@@ -64,9 +126,13 @@ export async function updateResume(
   return mapRow(data);
 }
 export async function duplicateResume(account: boolean, resume: ResumeDocument) {
-  return createResumeWithData(account, `${resume.title} copy`, structuredClone(resume.structuredData));
+  return createResumeFromStructuredData(account, `${resume.title} copy`, structuredClone(resume.structuredData));
 }
-async function createResumeWithData(account: boolean, title: string, structuredData: Record<string, unknown>) {
+export async function createResumeFromStructuredData(
+  account: boolean,
+  title: string,
+  structuredData: Record<string, unknown>,
+) {
   const created = await createResume(account, title);
   return updateResume(account, created, { structuredData });
 }
@@ -89,6 +155,19 @@ export async function importGuestResumes(resumes: ResumeDocument[]) {
   if (!payload.length) return 0;
   const { data, error } = await supabase.rpc("import_guest_resumes", { guest_resumes: payload });
   if (error) throw error;
+  const sourceIds = payload.map((item) => item.source_guest_id);
+  const { data: importedRows, error: importedError } = await supabase
+    .from("resumes")
+    .select("id")
+    .in("source_guest_id", sourceIds);
+  if (importedError) throw importedError;
+  for (const row of importedRows || []) {
+    const { error: versionError } = await supabase.rpc("create_resume_version", {
+      target_resume_id: row.id,
+      version_label: "Imported guest resume",
+    });
+    if (versionError) throw versionError;
+  }
   const now = new Date().toISOString();
   await Promise.all(
     resumes
