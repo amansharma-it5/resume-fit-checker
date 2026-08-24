@@ -25,3 +25,5 @@ Safari requires manual testing; Playwright WebKit is a compatibility proxy, not 
 # Phase 2 coverage
 
 The unit suite covers the structured model, plain-text ATS projection, reducer undo/redo, template switching, Auto-Adjust limits, local import extraction, guest stale-write handling, guest version deduplication, and migration assertions. Playwright covers a guest editor journey, keyboard accessibility smoke test, all required viewport widths, and root horizontal-overflow regression. `supabase test db` adds owner and two-user isolation checks for structured saves and version reads.
+
+pgTAP is deferred when Docker is unavailable; do not start Docker solely to run it. The staging-only `pnpm test:staging` script is the current live RLS evidence: it verifies authenticated owner CRUD, optimistic structured saves and version snapshots, idempotent guest import, anonymous denial, token refresh, and two-user isolation. It refuses any project URL other than the staging project and removes its synthetic users in a `finally` block.
