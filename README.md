@@ -5,7 +5,7 @@ Resume Lab is a privacy-first career workspace. Phase 2 adds a structured resume
 ## Current capabilities
 
 - Local PDF, DOCX, TXT, Markdown, and RTF resume analysis (10 MB maximum)
-- Deterministic scoring: ATS structure 20%, keyword match 25%, experience fit 20%, impact 20%, readability 15%
+- Deterministic nine-category scoring: ATS structure 12%, required coverage 18%, preferred coverage 8%, keyword and skills 13%, experience and seniority 14%, impact 10%, action language 9%, readability 8%, completeness 8%
 - Local Smart Rewrite and optional same-origin Groq AI Rewrite
 - IndexedDB guest resumes and privacy-safe analysis summaries; no silent guest upload
 - Supabase email/password, magic-link, verification, reset, session restoration, and protected routes
@@ -16,7 +16,7 @@ Resume Lab is a privacy-first career workspace. Phase 2 adds a structured resume
 - Immutable, deduplicated version snapshots (latest 20 per resume) and deterministic live preview
 - Fifteen original ATS-safe templates: Clear, Essential, Classic, Executive, Corporate, Leadership, Horizon, Vector, Slate, Dense, Focus, One Page, Accent, Studio, and Portfolio
 
-The score explains rule-based signals and does not predict hiring decisions. Scanned PDFs and unusually complex DOCX files may require conversion to text.
+The score explains rule-based signals, evidence, deductions, and truthful next actions; it does not predict hiring decisions. JD aliases are matched conservatively and a requirement is never treated as candidate experience without resume evidence. Scanned PDFs and unusually complex DOCX files may require conversion to text.
 
 ## Local development
 

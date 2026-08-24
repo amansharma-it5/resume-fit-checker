@@ -257,9 +257,39 @@ button small {
 }
 .score-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
   gap: 10px;
   margin: 22px 0;
+}
+.score-explanations,
+.evidence-matrix {
+  margin: 22px 0;
+}
+.category-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+.category-detail,
+.evidence-matrix li {
+  border: 1px solid var(--line);
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.category-detail h4 {
+  margin: 0;
+  text-transform: capitalize;
+}
+.category-detail p,
+.evidence-matrix p {
+  color: var(--muted);
+  line-height: 1.45;
+}
+.evidence-matrix ul {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
 }
 .score-card {
   min-height: 110px;

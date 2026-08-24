@@ -149,10 +149,14 @@ export function CheckerPage() {
         ? [
             ["Overall", analysis.scores.overall],
             ["ATS structure", analysis.scores.atsStructure],
-            ["Keyword match", analysis.scores.keywordMatch],
-            ["Experience fit", analysis.scores.experienceFit],
+            ["Required coverage", analysis.scores.requiredQualificationCoverage],
+            ["Preferred coverage", analysis.scores.preferredQualificationCoverage],
+            ["Keywords & skills", analysis.scores.keywordSkillCoverage],
+            ["Experience fit", analysis.scores.experienceSeniorityFit],
             ["Impact", analysis.scores.impactAchievement],
-            ["Readability", analysis.scores.clarityReadability],
+            ["Action language", analysis.scores.contentQualityActionLanguage],
+            ["Readability", analysis.scores.readabilityBulletQuality],
+            ["Completeness", analysis.scores.resumeCompleteness],
           ]
         : [],
     [analysis],
@@ -233,6 +237,32 @@ export function CheckerPage() {
               </div>
             ))}
           </div>
+          <section className="score-explanations" aria-label="Transparent score explanations">
+            <h3>How this score was calculated</h3>
+            <div className="category-list">
+              {Object.entries(analysis.scores.categoryDetails || {}).map(([key, detail]: [string, any]) => (
+                <article key={key} className="category-detail">
+                  <h4>{key.replace(/([A-Z])/g, " $1")}</h4>
+                  <p><strong>{detail.score ?? "N/A"}/100</strong> · {detail.weight}% of overall score</p>
+                  {detail.evidence?.length > 0 && <p>Evidence: {detail.evidence.join(" ")}</p>}
+                  {detail.deductions?.length > 0 && <p>Deductions: {detail.deductions.join(" ")}</p>}
+                  {detail.actions?.length > 0 && <p>Next action: {detail.actions[0]}</p>}
+                </article>
+              ))}
+            </div>
+          </section>
+          <section className="evidence-matrix" aria-label="Requirement evidence matrix">
+            <h3>Evidence matrix</h3>
+            <ul>
+              {(analysis.requirements || []).map((item: any) => (
+                <li key={`${item.priority}-${item.term}`}>
+                  <strong>{item.term}</strong> · {item.priority} · {item.status} · {item.confidence ? `${Math.round(item.confidence * 100)}% confidence` : "no evidence"}
+                  {item.evidence && <span> · {item.location}: {item.evidence}</span>}
+                  <p>{item.reason} Add only truthful evidence.</p>
+                </li>
+              ))}
+            </ul>
+          </section>
           <div className="result-columns">
             <div>
               <h3>Matched requirements</h3>

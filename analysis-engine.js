@@ -1,17 +1,25 @@
 const SCORE_WEIGHTS = Object.freeze({
-  atsStructure: 0.2,
-  keywordMatch: 0.25,
-  experienceFit: 0.2,
-  impactAchievement: 0.2,
-  clarityReadability: 0.15,
+  atsStructure: 0.12,
+  requiredQualificationCoverage: 0.18,
+  preferredQualificationCoverage: 0.08,
+  keywordSkillCoverage: 0.13,
+  experienceSeniorityFit: 0.14,
+  impactAchievement: 0.1,
+  contentQualityActionLanguage: 0.09,
+  readabilityBulletQuality: 0.08,
+  resumeCompleteness: 0.08,
 });
 
 const SECTION_NAMES = Object.freeze(["summary", "experience", "skills", "education", "projects", "certifications"]);
 
 const REQUIRED_CUES = /\b(required|requirement|must|required qualifications|minimum qualifications|minimum requirements|you have|you will need|need to have|minimum|at least)\b/i;
 const PREFERRED_CUES = /\b(preferred|nice to have|nice-to-have|bonus|plus|ideally|desired|would be great|preferred qualifications)\b/i;
-const REQUIRED_HEADINGS = new Set(["required", "requirements", "required qualifications", "minimum requirements", "minimum qualifications", "basic qualifications"]);
-const PREFERRED_HEADINGS = new Set(["preferred", "preferred qualifications", "nice to have", "nice-to-have", "bonus", "desired qualifications"]);
+const REQUIRED_HEADINGS = new Set(["required", "requirements", "required qualifications", "minimum requirements", "minimum qualifications", "basic qualifications", "must have"]);
+const PREFERRED_HEADINGS = new Set(["preferred", "preferred qualifications", "nice to have", "nice-to-have", "bonus", "desired qualifications", "good to have"]);
+const RESPONSIBILITY_HEADINGS = new Set(["responsibilities", "what you will do", "what youll do", "duties"]);
+const SKILL_HEADINGS = new Set(["skills", "technical skills", "tools", "technologies"]);
+const EDUCATION_HEADINGS = new Set(["education", "educational requirements"]);
+const CERTIFICATION_HEADINGS = new Set(["certifications", "certification"]);
 
 const STOP_WORDS = new Set(
   "a an the and or of for to in on at by with from into as is are be been being this that those these our your you we they them their candidate candidates role roles job jobs work works working responsible responsibility responsibilities qualification qualifications required preferred plus must should ability able strong excellent good great company looking need needs including across within about least years year experience experienced team teams cross functional fast paced environment proven track record highly".split(" "),
@@ -39,8 +47,10 @@ const PHRASE_SIGNAL_WORDS = new Set(
 
 const SYNONYMS = Object.freeze({
   "amazon web services": ["aws"],
+  "azure devops": ["azure devops", "azure-devops"],
+  "microsoft azure": ["azure"],
   "business to business": ["b2b"],
-  "continuous integration": ["ci/cd", "ci cd"],
+  "continuous integration": ["ci/cd", "ci cd", "continuous integration and delivery"],
   "design system": ["design systems"],
   "generative ai": ["genai", "gen ai"],
   "javascript": ["js"],
@@ -49,6 +59,7 @@ const SYNONYMS = Object.freeze({
   "node.js": ["node", "nodejs"],
   "product requirements document": ["prd"],
   "react": ["react.js", "reactjs"],
+  "rest api": ["restful api", "restful APIs", "rest APIs"],
   "typescript": ["ts"],
   "user experience": ["ux"],
   "user interface": ["ui"],
@@ -82,7 +93,8 @@ function analyzeResumeFit({ resumeText = "", jobDescription = "", role = "Target
 }
 
 function analyzeJobDescription(text = "", role = "") {
-  const normalized = normalizeText(text);
+  const cleanedText = removeJobNoise(text);
+  const normalized = normalizeText(cleanedText);
   if (!normalized) {
     return {
       role,
@@ -96,23 +108,27 @@ function analyzeJobDescription(text = "", role = "") {
     };
   }
 
-  const { requiredChunks, preferredChunks } = splitRequirementChunks(text);
+  const { requiredChunks, preferredChunks, responsibilities, skills, education, certifications } = splitRequirementChunks(cleanedText);
   const required = uniqueTerms(extractTerms(requiredChunks.join("\n")));
   const preferred = uniqueTerms(extractTerms(preferredChunks.join("\n"))).filter((term) => !required.includes(term));
-  const allTerms = uniqueTerms([...required, ...preferred, ...extractTerms(text)]);
+  const allTerms = uniqueTerms([...required, ...preferred, ...skills, ...extractTerms(cleanedText)]);
 
   return {
     role,
     hasJobDescription: true,
     required,
     preferred,
+    responsibilities,
+    education,
+    certifications,
     skills: allTerms.filter((term) => isSkillLike(term)),
     hasUsableRequirements: required.length + preferred.length > 0,
     requirements: [
       ...required.map((term) => ({ term, priority: "required" })),
       ...preferred.map((term) => ({ term, priority: "preferred" })),
     ],
-    requestedYears: estimateYears(text),
+    requestedYears: estimateYears(cleanedText),
+    removedNoise: cleanedText !== cleanText(text),
   };
 }
 
@@ -124,7 +140,8 @@ function analyzeResume(text = "", role = "") {
   const metrics = extractMetrics(cleaned);
   const roleTitles = extractRoleTitles(cleaned);
   const seniority = detectSeniority(`${role} ${roleTitles.join(" ")}`);
-  const demonstratedYears = estimateYears(cleaned);
+  const experience = estimateDemonstratedExperience(cleaned);
+  const demonstratedYears = experience.years || estimateYears(cleaned);
   const actionVerbHits = countTerms(cleaned, STRONG_VERBS);
   const weakVerbHits = countTerms(cleaned, WEAK_VERBS);
   const responsibilityBullets = bullets.filter((bullet) => /^(responsible for|worked on|helped|assisted|supported|handled|participated in)\b/i.test(stripBulletMarker(bullet)));
@@ -143,6 +160,7 @@ function analyzeResume(text = "", role = "") {
     roleTitles,
     seniority,
     demonstratedYears,
+    experienceEvidence: experience,
     actionVerbHits,
     weakVerbHits,
     responsibilityBullets,
@@ -163,6 +181,9 @@ function matchRequirements(requirements = [], resumeText = "") {
       priority,
       status: evidence.exact ? "matched" : evidence.partial ? "partial" : "missing",
       evidence: evidence.exact || evidence.partial || "",
+      location: evidence.location || "",
+      confidence: evidence.exact ? 1 : evidence.partial ? 0.72 : 0,
+      reason: evidence.type === "exact" ? "Exact term in resume evidence." : evidence.type === "synonym" ? "Recognized alias in resume evidence." : evidence.type === "partial" || evidence.type === "fuzzy" ? "Conservative related evidence; review before claiming the skill." : "No supported resume evidence found.",
       matchType: evidence.type,
     };
   });
@@ -185,8 +206,8 @@ function scoreAnalysis(resume, job, requirements) {
       resume.missingSections.length * 5,
   );
 
-  const requiredCoverage = (matchedRequired + partialRequired * 0.45) / Math.max(required.length, 1);
-  const preferredCoverage = (matchedPreferred + partialPreferred * 0.35) / Math.max(preferred.length, 1);
+  const requiredCoverage = required.length ? (matchedRequired + partialRequired * 0.45) / required.length : null;
+  const preferredCoverage = preferred.length ? (matchedPreferred + partialPreferred * 0.35) / preferred.length : null;
   let keywordMatch = 0;
   let keywordStatus = job.hasJobDescription ? "insufficient_jd_detail" : "missing_jd";
   if (required.length && preferred.length) {
@@ -202,22 +223,36 @@ function scoreAnalysis(resume, job, requirements) {
     keywordStatus = "missing_jd";
   }
 
-  const yearsScore = job.requestedYears ? clamp((resume.demonstratedYears / Math.max(job.requestedYears, 1)) * 70 + 20) : 70;
+  const yearsScore = job.requestedYears ? clamp((resume.demonstratedYears / Math.max(job.requestedYears, 1)) * 70 + 20) : 60;
   const seniorityScore = resume.seniority.aligned ? 100 : resume.seniority.level === "unknown" ? 65 : 45;
   const experienceFit = clamp(yearsScore * 0.55 + seniorityScore * 0.25 + Math.min(resume.roleTitles.length, 4) * 5);
 
   const impactAchievement = clamp(28 + Math.min(resume.metricCount * 9, 36) + Math.min(resume.actionVerbHits * 4, 28) - resume.responsibilityBullets.length * 5 - resume.weakVerbHits * 2);
-  const clarityReadability = clamp(92 - Math.max(0, resume.averageSentenceWords - 22) * 2 - resume.longBullets.length * 5 - resume.shortBullets.length * 2 - resume.stuffing.length * 6);
-
-  const overall = clamp(
-    atsStructure * SCORE_WEIGHTS.atsStructure +
-      (keywordStatus === "scored" ? keywordMatch : 0) * SCORE_WEIGHTS.keywordMatch +
-      experienceFit * SCORE_WEIGHTS.experienceFit +
-      impactAchievement * SCORE_WEIGHTS.impactAchievement +
-      clarityReadability * SCORE_WEIGHTS.clarityReadability,
-  );
-
-  return { overall, atsStructure, keywordMatch, keywordStatus, experienceFit, impactAchievement, clarityReadability };
+  const contentQualityActionLanguage = clamp(86 + resume.actionVerbHits * 2 - resume.weakVerbHits * 5 - resume.responsibilityBullets.length * 6 - resume.stuffing.length * 5);
+  const readabilityBulletQuality = clamp(92 - Math.max(0, resume.averageSentenceWords - 22) * 2 - resume.longBullets.length * 5 - resume.shortBullets.length * 2 - resume.stuffing.length * 6);
+  const resumeCompleteness = clamp(25 + resume.sections.length * 10 + (resume.hasContact ? 15 : 0) + (resume.words >= 180 ? 10 : 0) - resume.missingSections.length * 8);
+  const categories = {
+    atsStructure,
+    requiredQualificationCoverage: requiredCoverage === null ? null : clamp(requiredCoverage * 100),
+    preferredQualificationCoverage: preferredCoverage === null ? null : clamp(preferredCoverage * 100),
+    keywordSkillCoverage: keywordStatus === "scored" ? keywordMatch : null,
+    experienceSeniorityFit: experienceFit,
+    impactAchievement,
+    contentQualityActionLanguage,
+    readabilityBulletQuality,
+    resumeCompleteness,
+  };
+  const activeWeight = Object.entries(categories).reduce((sum, [key, value]) => sum + (value === null ? 0 : SCORE_WEIGHTS[key]), 0);
+  const overall = clamp(Object.entries(categories).reduce((sum, [key, value]) => sum + (value === null ? 0 : value * SCORE_WEIGHTS[key]), 0) / Math.max(activeWeight, 1));
+  return {
+    overall,
+    ...categories,
+    categoryDetails: buildCategoryDetails(categories, resume, job, requirements),
+    keywordMatch: categories.keywordSkillCoverage ?? 0,
+    keywordStatus,
+    experienceFit,
+    clarityReadability: readabilityBulletQuality,
+  };
 }
 
 function sanitizeAnalysisForStorage(analysis) {
@@ -264,6 +299,49 @@ function sanitizeAnalysisForStorage(analysis) {
   };
 }
 
+function buildCategoryDetails(categories, resume, job, requirements) {
+  const missingRequired = requirements.filter((item) => item.priority === "required" && item.status === "missing").map((item) => item.term);
+  const detail = (key, evidence, deductions, actions) => ({ score: categories[key], weight: SCORE_WEIGHTS[key] * 100, evidence, deductions, actions });
+  return {
+    atsStructure: detail("atsStructure", [`Detected sections: ${resume.sections.join(", ") || "none"}.`], resume.missingSections.map((item) => `Missing ${item} section.`), ["Use standard section headings and keep contact details in selectable text."]),
+    requiredQualificationCoverage: detail("requiredQualificationCoverage", [`${requirements.filter((item) => item.priority === "required" && item.status === "matched").length} required terms have direct evidence.`], missingRequired.map((item) => `No evidence for ${item}.`), missingRequired.length ? ["Add only truthful evidence for a missing required qualification."] : ["Keep required-skill evidence specific and easy to find."]),
+    preferredQualificationCoverage: detail("preferredQualificationCoverage", [`${requirements.filter((item) => item.priority === "preferred" && item.status === "matched").length} preferred terms have direct evidence.`], categories.preferredQualificationCoverage === null ? ["No preferred qualifications were extracted."] : [], ["Treat preferred qualifications as optional; do not claim unverified experience."]),
+    keywordSkillCoverage: detail("keywordSkillCoverage", [`${requirements.filter((item) => item.status === "matched").length} requirement terms matched.`], requirements.filter((item) => item.status === "missing").slice(0, 4).map((item) => `Missing ${item.term}.`), ["Add a keyword only next to supported resume evidence."]),
+    experienceSeniorityFit: detail("experienceSeniorityFit", [`Demonstrated experience: ${resume.demonstratedYears || "not enough evidence"} years.`, `Requested experience: ${job.requestedYears || "not stated"} years.`], job.requestedYears && !resume.demonstratedYears ? ["Resume dates do not provide enough evidence for an experience calculation."] : [], ["Clarify role dates and scope where accurate."]),
+    impactAchievement: detail("impactAchievement", [`${resume.metricCount} measurable signals found.`], resume.metricCount ? [] : ["No measurable outcome detected."], ["Add a verified result, scale, or outcome to achievement bullets."]),
+    contentQualityActionLanguage: detail("contentQualityActionLanguage", [`${resume.actionVerbHits} strong action verbs found.`], resume.responsibilityBullets.slice(0, 3).map((bullet) => `Responsibility-style bullet: ${stripBulletMarker(bullet)}`), ["Lead bullets with a specific action and outcome."]),
+    readabilityBulletQuality: detail("readabilityBulletQuality", [`Average sentence length: ${Math.round(resume.averageSentenceWords)} words.`], [...resume.longBullets.slice(0, 2).map(() => "Bullet is unusually long."), ...resume.shortBullets.slice(0, 2).map(() => "Bullet is unusually short.")], ["Keep each bullet focused on one clear accomplishment."]),
+    resumeCompleteness: detail("resumeCompleteness", [`${resume.words} resume words and ${resume.sections.length} sections detected.`], resume.missingSections.map((item) => `Missing ${item}.`), ["Complete the standard sections that accurately represent your background."]),
+  };
+}
+
+function removeJobNoise(text = "") {
+  return String(text)
+    .split(/\r?\n/)
+    .filter((line) => !/(unsubscribe|equal opportunity employer|all rights reserved|confidentiality notice|this email|recruiter|talent acquisition|@\w|\b(?:street|road|avenue|suite)\b)/i.test(line))
+    .join("\n");
+}
+
+function estimateDemonstratedExperience(text = "") {
+  const currentYear = new Date().getUTCFullYear();
+  const ranges = [...String(text).matchAll(/\b((?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)?\s*\d{4})\s*(?:-|–|to)\s*((?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)?\s*(?:\d{4}|present|current))/gi)]
+    .map((match) => ({ start: parseDateYear(match[1]), end: /present|current/i.test(match[2]) ? currentYear : parseDateYear(match[2]) }))
+    .filter((range) => range.start && range.end && range.end >= range.start);
+  if (!ranges.length) return { years: 0, ranges: [], insufficientEvidence: true };
+  const merged = ranges.sort((a, b) => a.start - b.start).reduce((all, range) => {
+    const prior = all.at(-1);
+    if (prior && range.start <= prior.end + 1) prior.end = Math.max(prior.end, range.end);
+    else all.push({ ...range });
+    return all;
+  }, []);
+  return { years: Number(merged.reduce((sum, range) => sum + range.end - range.start + 1, 0).toFixed(1)), ranges: merged, insufficientEvidence: false };
+}
+
+function parseDateYear(value = "") {
+  const match = String(value).match(/\b(19\d{2}|20\d{2})\b/);
+  return match ? Number(match[1]) : 0;
+}
+
 function rewriteBullet(original = "") {
   const input = String(original).trim();
   const cleaned = stripBulletMarker(input).replace(/\.$/, "");
@@ -297,7 +375,7 @@ function findEvidence(term, text) {
   for (const alias of aliases) {
     const pattern = boundaryPattern(alias);
     const line = lines.find((candidate) => pattern.test(normalizeText(candidate)));
-    if (line) return { exact: line, partial: "", type: alias === term ? "exact" : "synonym" };
+    if (line) return { exact: line, partial: "", type: alias === term ? "exact" : "synonym", location: evidenceLocation(text, line) };
   }
   const termTokens = tokenize(term).filter((token) => !STOP_WORDS.has(token));
   if (termTokens.length >= 2) {
@@ -306,14 +384,21 @@ function findEvidence(term, text) {
       const hits = termTokens.filter((token) => tokens.has(token)).length;
       return hits >= Math.max(2, Math.ceil(termTokens.length * 0.67));
     });
-    if (line) return { exact: "", partial: line, type: "partial" };
+    if (line) return { exact: "", partial: line, type: "partial", location: evidenceLocation(text, line) };
   }
   if (term.length >= 6) {
     const resumeTokens = new Set(tokenize(text));
     const close = tokenize(term).some((token) => token.length >= 6 && [...resumeTokens].some((candidate) => levenshtein(token, candidate) <= 1));
-    if (close) return { exact: "", partial: lines.find((line) => tokenize(line).some((token) => levenshtein(token, tokenize(term)[0]) <= 1)) || "", type: "fuzzy" };
+    if (close) { const line = lines.find((candidate) => tokenize(candidate).some((token) => levenshtein(token, tokenize(term)[0]) <= 1)) || ""; return { exact: "", partial: line, type: "fuzzy", location: evidenceLocation(text, line) }; }
   }
   return { exact: "", partial: "", type: "none" };
+}
+
+function evidenceLocation(text, evidence) {
+  const lines = String(text).split(/\r?\n/);
+  const index = lines.findIndex((line) => line.includes(evidence));
+  const before = lines.slice(0, Math.max(index, 0)).reverse().find((line) => detectSections(line).length);
+  return before ? detectSections(before)[0] : "resume text";
 }
 
 function extractTerms(text = "") {
@@ -333,7 +418,7 @@ function extractTerms(text = "") {
 }
 
 function splitRequirementChunks(text) {
-  const chunks = { requiredChunks: [], preferredChunks: [] };
+  const chunks = { requiredChunks: [], preferredChunks: [], responsibilities: [], skills: [], education: [], certifications: [] };
   let context = "";
   for (const rawLine of cleanText(text).split(/\n/)) {
     const line = rawLine.trim();
@@ -347,9 +432,14 @@ function splitRequirementChunks(text) {
       context = "preferred";
       continue;
     }
+    if (RESPONSIBILITY_HEADINGS.has(heading) || SKILL_HEADINGS.has(heading) || EDUCATION_HEADINGS.has(heading) || CERTIFICATION_HEADINGS.has(heading)) { context = heading; continue; }
     for (const part of line.split(/[.;]\s+|(?=\s*[-•▪◦]\s*)/)) {
       const chunk = part.replace(/^[-•▪◦]\s*/, "").trim();
       if (!chunk || !hasExtractableTerm(chunk)) continue;
+      if (RESPONSIBILITY_HEADINGS.has(context)) { chunks.responsibilities.push(chunk); continue; }
+      if (SKILL_HEADINGS.has(context)) { chunks.skills.push(...extractTerms(chunk)); chunks.requiredChunks.push(chunk); continue; }
+      if (EDUCATION_HEADINGS.has(context)) { chunks.education.push(chunk); chunks.requiredChunks.push(chunk); continue; }
+      if (CERTIFICATION_HEADINGS.has(context)) { chunks.certifications.push(chunk); chunks.requiredChunks.push(chunk); continue; }
       if (PREFERRED_CUES.test(chunk)) chunks.preferredChunks.push(chunk);
       else if (REQUIRED_CUES.test(chunk) || context === "required") chunks.requiredChunks.push(chunk);
       else if (context === "preferred") chunks.preferredChunks.push(chunk);
