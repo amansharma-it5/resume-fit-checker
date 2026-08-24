@@ -1,10 +1,20 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { smartRewrite } from "../../lib/analysis";
 import { validateCopilotSuggestion } from "../../lib/copilot-safety";
 
 export type CopilotTarget = { label: string; text: string; evidence: string; apply: (text: string) => void };
 
-export function CopilotPanel({ targets, role, jd }: { targets: CopilotTarget[]; role: string; jd: string }) {
+export function CopilotPanel({
+  targets,
+  role,
+  jd,
+  requestedTargetIndex,
+}: {
+  targets: CopilotTarget[];
+  role: string;
+  jd: string;
+  requestedTargetIndex?: number;
+}) {
   const [targetIndex, setTargetIndex] = useState(0);
   const [consent, setConsent] = useState(false);
   const [suggestion, setSuggestion] = useState("");
@@ -12,6 +22,12 @@ export function CopilotPanel({ targets, role, jd }: { targets: CopilotTarget[]; 
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (requestedTargetIndex !== undefined) {
+      setTargetIndex(requestedTargetIndex);
+      setSuggestion("");
+    }
+  }, [requestedTargetIndex]);
   const target = targets[targetIndex];
   const generate = async () => {
     if (!target?.text.trim() || busy) return;
@@ -59,7 +75,7 @@ export function CopilotPanel({ targets, role, jd }: { targets: CopilotTarget[]; 
     }
   };
   return (
-    <section className="editor-tool copilot-panel" aria-labelledby="copilot-title">
+    <section className="editor-tool copilot-panel" id="copilot-panel" tabIndex={-1} aria-labelledby="copilot-title">
       <h2 id="copilot-title">Resume Copilot</h2>
       <p>AI suggestions are never applied automatically. Review the selected evidence before accepting.</p>
       <label>

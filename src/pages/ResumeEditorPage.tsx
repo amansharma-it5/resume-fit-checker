@@ -79,6 +79,7 @@ export function ResumeEditorPage() {
   const [analysis, setAnalysis] = useState<any>(null);
   const [analysisStatus, setAnalysisStatus] = useState<"idle" | "calculating" | "updated" | "error">("idle");
   const [analysisNotice, setAnalysisNotice] = useState("");
+  const [copilotTargetIndex, setCopilotTargetIndex] = useState<number | undefined>();
   const [rewrite, setRewrite] = useState<any>(null);
   const [rewriteLoading, setRewriteLoading] = useState(false);
   const [consent, setConsent] = useState(false);
@@ -295,6 +296,21 @@ export function ResumeEditorPage() {
     window.setTimeout(() => target.classList.remove("ats-field-highlight"), 2200);
     setAnalysisNotice("Opened the relevant resume section.");
   }
+  function fixIssueWithCopilot(sectionId: string, issueText: string) {
+    const index = copilotTargets.findIndex((item) =>
+      item.label
+        .toLowerCase()
+        .includes(resume.sections.find((section) => section.id === sectionId)?.title.toLowerCase() || ""),
+    );
+    if (index < 0) {
+      setAnalysisNotice("This issue no longer has an editable Copilot target.");
+      return;
+    }
+    setCopilotTargetIndex(index);
+    document.getElementById("copilot-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.setTimeout(() => document.getElementById("copilot-panel")?.focus(), 0);
+    setAnalysisNotice(`Copilot opened for: ${issueText}`);
+  }
 
   function applyRewrite(text: string) {
     if (!selectedBullet) return;
@@ -392,6 +408,9 @@ export function ResumeEditorPage() {
                 <button type="button" className="issue-link" onClick={() => focusIssue(issue.sectionId)}>
                   {issue.message}
                 </button>
+                <button type="button" onClick={() => fixIssueWithCopilot(issue.sectionId, issue.message)}>
+                  Fix with Copilot
+                </button>
               </li>
             ))}
           </ul>
@@ -486,7 +505,12 @@ export function ResumeEditorPage() {
               </div>
             )}
           </details>
-          <CopilotPanel targets={copilotTargets} role={targetRole} jd={jobDescription} />
+          <CopilotPanel
+            targets={copilotTargets}
+            role={targetRole}
+            jd={jobDescription}
+            requestedTargetIndex={copilotTargetIndex}
+          />
           <details className="editor-tool">
             <summary>Templates and layout</summary>
             <TemplateGallery
