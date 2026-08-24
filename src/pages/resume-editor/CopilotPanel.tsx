@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { smartRewrite } from "../../lib/analysis";
+import { validateCopilotSuggestion } from "../../lib/copilot-safety";
 
 export type CopilotTarget = { label: string; text: string; evidence: string; apply: (text: string) => void };
 
@@ -34,6 +35,12 @@ export function CopilotPanel({ targets, role, jd }: { targets: CopilotTarget[]; 
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.code || "GROQ_REJECTED");
       if (request !== controller.current) return;
+      const checked = validateCopilotSuggestion(payload.rewrittenBullet || "", `${target.text}\n${target.evidence}`);
+      if (!checked.ok) {
+        setSuggestion("");
+        setStatus(`More information required: ${checked.unsupported.join(", ")}.`);
+        return;
+      }
       setOriginal(target.text);
       setSuggestion(payload.rewrittenBullet || "");
       setStatus(
@@ -99,6 +106,11 @@ export function CopilotPanel({ targets, role, jd }: { targets: CopilotTarget[]; 
           <div className="button-row">
             <button
               onClick={() => {
+                const checked = validateCopilotSuggestion(suggestion, `${target?.text}\n${target?.evidence}`);
+                if (!checked.ok) {
+                  setStatus(`More information required: ${checked.unsupported.join(", ")}.`);
+                  return;
+                }
                 target?.apply(suggestion);
                 setStatus("Suggestion accepted. Undo is available.");
               }}
