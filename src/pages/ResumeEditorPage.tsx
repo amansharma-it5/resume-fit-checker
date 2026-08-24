@@ -36,6 +36,7 @@ import type { ResumeDocument } from "../types";
 import { ResumePreview } from "./resume-editor/ResumePreview";
 import { SectionEditor } from "./resume-editor/SectionEditor";
 import { TemplateGallery } from "./resume-editor/TemplateGallery";
+import { CopilotPanel, type CopilotTarget } from "./resume-editor/CopilotPanel";
 
 type SelectedBullet = { sectionId: string; entryId: string; bulletId: string; text: string };
 
@@ -202,6 +203,45 @@ export function ResumeEditorPage() {
   const words = useMemo(() => {
     const text = resumeToPlainText(resume);
     return text ? text.split(/\s+/).length : 0;
+  }, [resume]);
+  const copilotTargets = useMemo<CopilotTarget[]>(() => {
+    const targets: CopilotTarget[] = [];
+    for (const section of resume.sections)
+      for (const entry of section.entries) {
+        const evidence = [
+          entry.fields.employer,
+          entry.fields.jobTitle,
+          entry.fields.skill,
+          ...entry.bullets.map((bullet) => bullet.text),
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        if (section.type === "summary" && typeof entry.fields.text === "string")
+          targets.push({
+            label: "Professional summary",
+            text: entry.fields.text,
+            evidence,
+            apply: (text) =>
+              dispatch({ type: "update-field", sectionId: section.id, entryId: entry.id, field: "text", value: text }),
+          });
+        if (section.type === "skills" && typeof entry.fields.skill === "string")
+          targets.push({
+            label: "Skill",
+            text: entry.fields.skill,
+            evidence,
+            apply: (text) =>
+              dispatch({ type: "update-field", sectionId: section.id, entryId: entry.id, field: "skill", value: text }),
+          });
+        for (const bullet of entry.bullets)
+          targets.push({
+            label: `${section.title} bullet`,
+            text: bullet.text,
+            evidence,
+            apply: (text) =>
+              dispatch({ type: "update-bullet", sectionId: section.id, entryId: entry.id, bulletId: bullet.id, text }),
+          });
+      }
+    return targets.filter((target) => target.text.trim());
   }, [resume]);
 
   const analyze = useCallback(() => {
@@ -446,6 +486,7 @@ export function ResumeEditorPage() {
               </div>
             )}
           </details>
+          <CopilotPanel targets={copilotTargets} role={targetRole} jd={jobDescription} />
           <details className="editor-tool">
             <summary>Templates and layout</summary>
             <TemplateGallery
