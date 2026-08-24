@@ -123,10 +123,14 @@ export async function createGuestResume(title = "Untitled resume") {
 }
 export async function permanentlyDeleteGuestResume(id: string) {
   const database = await db();
-  const tx = database.transaction(["resumes", "versions"], "readwrite");
+  const tx = database.transaction(["resumes", "versions", "analyses"], "readwrite");
   await tx.objectStore("resumes").delete(id);
   const versionIds = await tx.objectStore("versions").index("by-resume").getAllKeys(id);
   await Promise.all(versionIds.map((versionId) => tx.objectStore("versions").delete(versionId)));
+  const analyses = await tx.objectStore("analyses").getAll();
+  await Promise.all(
+    analyses.filter((item) => item.resumeId === id).map((item) => tx.objectStore("analyses").delete(item.id)),
+  );
   await tx.done;
 }
 
@@ -158,9 +162,16 @@ export async function saveGuestVersion(resume: StructuredResume, label?: string)
 }
 export async function saveAnalysisSummary(summary: Omit<AnalysisSummary, "id">) {
   const database = await db();
-  await database.put("analyses", { ...summary, id: crypto.randomUUID() });
+  if (summary.analysisKey) {
+    const existing = await database.getAll("analyses");
+    const duplicate = existing.find((item) => item.analysisKey === summary.analysisKey);
+    if (duplicate) return duplicate;
+  }
+  const saved = { ...summary, id: crypto.randomUUID() };
+  await database.put("analyses", saved);
   const all = (await database.getAll("analyses")).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   await Promise.all(all.slice(5).map((item) => database.delete("analyses", item.id)));
+  return saved;
 }
 export async function listAnalysisSummaries() {
   return (await (await db()).getAll("analyses")).sort((a, b) => b.timestamp.localeCompare(a.timestamp));

@@ -1,11 +1,12 @@
 # Resume Lab
 
-Resume Lab is a privacy-first career workspace. Phase 2 adds a structured resume builder while preserving the deterministic local ATS engine, local file parsing, Smart Rewrite, and consent-gated Groq AI Rewrite with two-pass verification.
+Resume Lab is a privacy-first career workspace. Phase 3 adds deterministic ATS intelligence to the structured editor while preserving local file parsing, Smart Rewrite, and consent-gated Groq AI Rewrite with two-pass verification.
 
 ## Current capabilities
 
 - Local PDF, DOCX, TXT, Markdown, and RTF resume analysis (10 MB maximum)
 - Deterministic nine-category scoring: ATS structure 12%, required coverage 18%, preferred coverage 8%, keyword and skills 13%, experience and seniority 14%, impact 10%, action language 9%, readability 8%, completeness 8%
+- Structured-editor ATS checks debounce for 500 ms, announce calculation state, and never replace a newer result with an older request. Guest history stores only version-linked score summaries, requirement terms, counts, and recommendations in IndexedDB; it never stores resume or job-description text.
 - Local Smart Rewrite and optional same-origin Groq AI Rewrite
 - IndexedDB guest resumes and privacy-safe analysis summaries; no silent guest upload
 - Supabase email/password, magic-link, verification, reset, session restoration, and protected routes
