@@ -2,6 +2,8 @@
 
 Resume Lab is a privacy-first career workspace. Phase 3 adds deterministic ATS intelligence to the structured editor while preserving local file parsing, Smart Rewrite, and consent-gated Groq AI Rewrite with two-pass verification.
 
+Phase 4 foundation adds an opt-in Resume Copilot. It sends only the selected resume field, local supporting evidence, target role, and a limited JD excerpt to Groq after consent. It never auto-applies suggestions. Suggestions are checked before display and again before acceptance; unsupported metrics, dates, credentials, and selected technology claims are blocked with a request for more verified information. Provider failure falls back to local Smart Rewrite. The current guard is conservative and does not replace user review or the existing Groq fact-check flow.
+
 ## Current capabilities
 
 - Local PDF, DOCX, TXT, Markdown, and RTF resume analysis (10 MB maximum)
