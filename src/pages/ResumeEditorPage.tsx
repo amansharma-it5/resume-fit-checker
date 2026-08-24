@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -7,6 +7,7 @@ import { extractResumeText } from "../lib/file-parser";
 import { getGuestResume } from "../lib/guest-db";
 import {
   createResumeVersion,
+  createResumeFromStructuredData,
   listAccountResumes,
   listResumeVersions,
   saveStructuredResume,
@@ -21,6 +22,7 @@ import {
   validateResume,
 } from "../resume-builder/model";
 import { createEditorHistory, editorReducer } from "../resume-builder/reducer";
+import { saveSnapshotIsCurrent } from "../resume-builder/autosave";
 import { extractStructuredSections, importExtractedResume, type ExtractionSection } from "../resume-builder/importer";
 import { getTemplate } from "../resume-builder/templates";
 import type {
@@ -78,6 +80,11 @@ export function ResumeEditorPage() {
   const [rewriteLoading, setRewriteLoading] = useState(false);
   const [consent, setConsent] = useState(false);
   const loadId = useRef(resumeId);
+  const resumeRef = useRef(resume);
+
+  useLayoutEffect(() => {
+    resumeRef.current = resume;
+  }, [resume]);
 
   useEffect(() => {
     let active = true;
@@ -125,12 +132,12 @@ export function ResumeEditorPage() {
     }
     setStatus("saving");
     setError("");
+    const snapshot = structuredClone(resume);
+    const snapshotJson = JSON.stringify(snapshot);
     try {
-      const saved = await saveStructuredResume(account, resumeDocument, resume);
+      const saved = await saveStructuredResume(account, resumeDocument, snapshot);
       setResumeDocument(saved);
-      const canonical = { ...resume, documentVersion: saved.editorVersion || resume.documentVersion + 1 };
-      dispatch({ type: "replace", resume: canonical, record: false });
-      setLastSavedJson(JSON.stringify(canonical));
+      if (saveSnapshotIsCurrent(resumeRef.current, snapshotJson)) setLastSavedJson(snapshotJson);
       setStatus("saved");
     } catch (cause) {
       setStatus(
@@ -368,12 +375,26 @@ export function ResumeEditorPage() {
                 ))}
                 <button
                   className="primary"
-                  onClick={() => {
-                    dispatch({ type: "replace", resume: importExtractedResume(resume.id, resume.title, extraction) });
-                    setExtraction(null);
+                  onClick={async () => {
+                    try {
+                      const imported = importExtractedResume(
+                        crypto.randomUUID(),
+                        `${resume.title} imported`,
+                        extraction,
+                      );
+                      const created = await createResumeFromStructuredData(
+                        account,
+                        imported.title,
+                        imported as unknown as Record<string, unknown>,
+                      );
+                      await createResumeVersion(account, { ...imported, id: created.id, title: created.title });
+                      navigate(`/resumes/${created.id}/edit`);
+                    } catch (cause) {
+                      setError(cause instanceof Error ? cause.message : "Could not create the imported resume.");
+                    }
                   }}
                 >
-                  Import reviewed sections
+                  Create new resume from reviewed sections
                 </button>
               </div>
             )}

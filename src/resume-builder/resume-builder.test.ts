@@ -3,6 +3,7 @@ import { autoAdjust, createStructuredResume, resumeToPlainText } from "./model";
 import { createEditorHistory, editorReducer } from "./reducer";
 import { RESUME_TEMPLATES } from "./templates";
 import { extractStructuredSections, importExtractedResume } from "./importer";
+import { saveSnapshotIsCurrent } from "./autosave";
 
 describe("structured resume model", () => {
   it("creates stable ordered ATS-safe sections", () => {
@@ -49,6 +50,14 @@ describe("structured resume model", () => {
     expect(result.resume.sections).toHaveLength(resume.sections.length);
     expect(result.changes.length).toBeGreaterThan(0);
   });
+
+  it("does not treat an older autosave snapshot as the current editor state", () => {
+    const saved = createStructuredResume("resume-save");
+    const newer = structuredClone(saved);
+    newer.title = "Edited while saving";
+    expect(saveSnapshotIsCurrent(saved, JSON.stringify(saved))).toBe(true);
+    expect(saveSnapshotIsCurrent(newer, JSON.stringify(saved))).toBe(false);
+  });
 });
 
 describe("local resume import", () => {
@@ -61,5 +70,14 @@ describe("local resume import", () => {
     const resume = importExtractedResume("resume-5", "Imported", extracted);
     expect(resume.sourceText).toBeUndefined();
     expect(resumeToPlainText(resume)).toContain("Improved reliability");
+  });
+
+  it("creates an import as a distinct structured document", () => {
+    const source = createStructuredResume("existing-resume", "Existing resume");
+    const imported = importExtractedResume("new-imported-resume", "Imported resume", [
+      { type: "summary", title: "Summary", text: "Imported professional summary", confidence: 0.9 },
+    ]);
+    expect(imported.id).not.toBe(source.id);
+    expect(source.sections.map((section) => section.id)).not.toEqual(imported.sections.map((section) => section.id));
   });
 });
