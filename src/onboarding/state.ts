@@ -1,4 +1,5 @@
 const KEY = "resume-lab.onboarding.v1";
+const NON_EDIT_ACTIONS = new Set(["undo", "redo", "replace"]);
 export interface OnboardingState {
   version: 1;
   dismissed: boolean;
@@ -25,4 +26,9 @@ export type OnboardingStep = "resume" | "edited" | "jobDescription" | "ats" | "r
 export function markOnboardingStep(step: OnboardingStep) {
   const state = readOnboardingState();
   writeOnboardingState({ ...state, steps: { ...state.steps, [step]: true } });
+}
+
+/** Hydration, history navigation, and replace actions must not complete onboarding review. */
+export function isMeaningfulEditorAction(action: { type: string }) {
+  return !NON_EDIT_ACTIONS.has(action.type);
 }

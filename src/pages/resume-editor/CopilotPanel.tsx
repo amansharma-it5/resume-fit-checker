@@ -16,12 +16,14 @@ export function CopilotPanel({
   jd,
   requestedTargetIndex,
   onAnnouncement,
+  onInspected,
 }: {
   targets: CopilotTarget[];
   role: string;
   jd: string;
   requestedTargetIndex?: number;
   onAnnouncement?: (message: string) => void;
+  onInspected?: () => void;
 }) {
   const [targetIndex, setTargetIndex] = useState(0);
   const [consent, setConsent] = useState(false);
@@ -48,8 +50,9 @@ export function CopilotPanel({
       setSuggestion("");
       setSource("ai");
       panelRef.current?.focus({ preventScroll: true });
+      onInspected?.();
     }
-  }, [requestedTargetIndex]);
+  }, [onInspected, requestedTargetIndex]);
   const target = targets[targetIndex];
   const generate = async (regenerate = false) => {
     if (!target?.text.trim() || (busy && !regenerate)) return;
@@ -117,6 +120,9 @@ export function CopilotPanel({
     >
       <h2 id="copilot-title">Resume Copilot</h2>
       <p>AI suggestions are never applied automatically. Review the selected evidence before accepting.</p>
+      {!target?.text.trim() && (
+        <p className="guidance-note">Select a summary, skill, or bullet first. AI is optional; local Smart Rewrite stays private.</p>
+      )}
       <label>
         Improve
         <select
@@ -126,6 +132,7 @@ export function CopilotPanel({
             setTargetIndex(Number(event.target.value));
             setSuggestion("");
             setSource("ai");
+            onInspected?.();
           }}
         >
           {targets.map((item, index) => (

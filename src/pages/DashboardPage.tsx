@@ -16,7 +16,7 @@ import {
 } from "../lib/resume-service";
 import { listGuestResumes } from "../lib/guest-db";
 import type { ResumeDocument, ResumeStatus } from "../types";
-import { readOnboardingState, resetOnboardingState, writeOnboardingState } from "../onboarding/state";
+import { markOnboardingStep, readOnboardingState, resetOnboardingState, writeOnboardingState } from "../onboarding/state";
 
 export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
   const navigate = useNavigate();
@@ -75,14 +75,18 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
     }
   }
   function updateOnboarding(next: typeof onboarding) {
-    setOnboarding(next);
-    writeOnboardingState(next);
+    // A dashboard action can finish after navigation; merge its minimal flags instead of clobbering editor progress.
+    const current = readOnboardingState();
+    const merged = { ...current, dismissed: next.dismissed, steps: { ...current.steps, ...next.steps } };
+    setOnboarding(merged);
+    writeOnboardingState(merged);
   }
   async function createSample() {
     try {
       const result = await createSampleResumeDocument(account);
       await load(false);
-      updateOnboarding({ ...onboarding, dismissed: false, steps: { ...onboarding.steps, resume: true } });
+      markOnboardingStep("resume");
+      updateOnboarding({ ...readOnboardingState(), dismissed: false });
       setMessage(
         result.existed
           ? "Your existing fictional sample is ready to open."

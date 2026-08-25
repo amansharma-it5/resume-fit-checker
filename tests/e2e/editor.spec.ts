@@ -53,6 +53,23 @@ test("guest onboarding creates a confirmed fictional sample without provider tra
   expect(requests).toEqual([]);
 });
 
+test("onboarding progress follows explicit edit, local rewrite, and export actions", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Try a sample resume" }).click();
+  await page.getByRole("button", { name: "Create sample resume" }).click();
+  await page.getByLabel("Full name").fill("Avery Example");
+  await page.getByRole("button", { name: "Rewrite" }).first().click();
+  await page.getByRole("button", { name: /Smart Rewrite.*local and private/ }).click();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download plain text" }).click();
+  await (await download).createReadStream();
+  const progress = await page.evaluate(() => localStorage.getItem("resume-lab.onboarding.v1"));
+  expect(progress).toContain('"edited":true');
+  expect(progress).toContain('"rewrite":true');
+  expect(progress).toContain('"export":true');
+  expect(progress).not.toContain("Avery Example");
+});
+
 test("editor is keyboard accessible and has no serious axe violations", async ({ page }) => {
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Create resume" }).click();
