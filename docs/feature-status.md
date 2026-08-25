@@ -43,3 +43,11 @@ Limitations: there is no OCR, cloud processing, or perfect column reconstruction
 Implemented: optional Guest Mode onboarding, accessible empty-state choices, explicit fictional sample-resume confirmation, local duplicate protection, a sample job-description action with overwrite confirmation, contextual local-only guidance, and minimal browser-only dismissal/progress state. Progress is event-derived from real edits, JD work, ATS calculation, local rewrite/Copilot inspection, and initiated local export; it stores no resume, JD, evidence, rewrite, or export content.
 
 Limitations: onboarding is a compact checklist, not a coordinate-based product tour. Sample data is educational synthetic content, not professional advice; users must still review ATS and AI output themselves.
+
+# Phase 8 status
+
+Implemented: Guest Mode local job targets with a versioned IndexedDB store, required company/role/base-resume/JD validation, safe source URLs, explicit tailored-resume duplication, target-specific JDs, status/search/filter views, local deletion that preserves resumes, and target links into the existing editor, ATS, and export workflow.
+
+Privacy: targets, JDs, and score summaries remain browser-local. Creating or opening a target sends no provider, Supabase, analytics, or server request. This is deliberately not cloud sync, job-board scraping, application submission, or a full CRM.
+
+Limitations: target relinking/replacing a missing tailored copy and richer multi-target reporting remain future work. A target score is refreshed from the existing deterministic editor ATS check; the product does not invent evidence or use a hard-coded score.

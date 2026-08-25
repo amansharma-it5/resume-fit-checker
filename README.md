@@ -64,6 +64,10 @@ New Guest Mode workspaces can create a blank resume, open the local import revie
 
 Onboarding progress stores only a version, dismissal flag, and short completion flags in local browser storage. It advances after an intentional resume edit, JD load/edit, completed local ATS analysis, local Smart Rewrite or Copilot inspection, and starting a local export. Passive rendering, autosave, imports, and provider calls do not complete checklist steps. **Dismiss**, **Get started**, and **Restart onboarding** never modify resumes, versions, ATS history, or settings. The checklist is optional, does not preselect AI consent, and never sends sample or onboarding data to a provider.
 
+## Local job targets
+
+Guest Mode can create a browser-local job target from a base resume and a job description. Creating a target makes a separate tailored resume, so edits, versions, rewrites, and exports never flow back into the base document. Target JDs are isolated, and changing either the JD or tailored resume marks its stored score summary stale until the deterministic ATS check runs again. This is not cloud sync, a job-board integration, reminder system, or application CRM.
+
 ## Resume export
 
 The editor can download a real UTF-8 `.txt` resume or open the browser's **Print / Save as PDF** flow. Both use the visible sections and ordered entries from the canonical structured resume; no resume text is sent to a server, Supabase, Groq, analytics, or a print service by Resume Lab.
