@@ -411,6 +411,10 @@ test("exports a sanitized ATS-friendly plain-text resume without hidden sections
   const panel = page.locator(".export-panel");
   await expect(panel.getByRole("heading", { name: "Export readiness" })).toBeVisible();
   await panel.getByLabel("Filename").fill("../Avery: Resume.txt.txt");
+  const exportRequests: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() !== "GET") exportRequests.push(request.postData() || request.url());
+  });
   const downloadPromise = page.waitForEvent("download");
   await panel.getByRole("button", { name: "Download plain text" }).click();
   const download = await downloadPromise;
@@ -420,6 +424,8 @@ test("exports a sanitized ATS-friendly plain-text resume without hidden sections
   expect(contents).toContain("- Improved release reliability across three services.");
   expect(contents).not.toContain("This summary must remain hidden");
   expect(contents).not.toContain("<");
+  expect(exportRequests).toEqual([]);
+  await expect(page.getByLabel("Bullet 1")).toHaveValue("Improved release reliability across three services.");
   await expect(page.getByRole("status", { name: "Editor notifications" })).toContainText(
     "Plain-text resume download started",
   );

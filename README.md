@@ -22,6 +22,7 @@ The Copilot treats resume and JD text as untrusted data. Deterministic validatio
 - Local extraction review for PDF, DOCX, TXT, Markdown, and RTF imports; source text is not stored in the structured document
 - Immutable, deduplicated version snapshots (latest 20 per resume) and deterministic live preview
 - Fifteen original ATS-safe templates: Clear, Essential, Classic, Executive, Corporate, Leadership, Horizon, Vector, Slate, Dense, Focus, One Page, Accent, Studio, and Portfolio
+- Local structured-resume export: ATS-friendly UTF-8 plain-text download and selectable-text browser **Print / Save as PDF**
 
 The score explains rule-based signals, evidence, deductions, and truthful next actions; it does not predict hiring decisions. JD aliases are matched conservatively and a requirement is never treated as candidate experience without resume evidence. Scanned PDFs and unusually complex DOCX files may require conversion to text.
 
@@ -47,7 +48,13 @@ Netlify publishes `dist` and deploys functions from `netlify/functions`. See [ar
 
 Guest resumes, structured content, and guest version snapshots remain in browser IndexedDB. Guest data is not uploaded automatically. Signed-in users save only through owner-scoped Supabase RLS policies; the editor uses an optimistic `editor_version` token and reports conflicts rather than overwriting a newer document.
 
-The preview is a deterministic browser layout shared by the editor and future export work. PDF and DOCX resume export intentionally remains Phase 5 work, so this release does not pretend that a browser preview is an exported file. Parsing is local and requires review for scans, complex columns, and unusual document structures.
+The preview is a deterministic browser layout shared by the editor and export workflow. Parsing is local and requires review for scans, complex columns, and unusual document structures.
+
+## Resume export
+
+The editor can download a real UTF-8 `.txt` resume or open the browser's **Print / Save as PDF** flow. Both use the visible sections and ordered entries from the canonical structured resume; no resume text is sent to a server, Supabase, Groq, analytics, or a print service by Resume Lab.
+
+Plain-text download uses one sanitized `.txt` filename extension and an ATS-friendly linear reading order. Print / Save as PDF produces selectable browser text and hides the editor, ATS panel, Copilot, controls, and animations. Select US Letter or A4 before printing. Browser and printer drivers may paginate differently, so review the browser print preview before saving. DOCX is intentionally not included: Resume Lab does not rename HTML or text as a fake `.docx` file.
 
 ## Copilot manual checks
 
