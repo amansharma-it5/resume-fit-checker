@@ -1125,3 +1125,21 @@ footer {
     break-inside: avoid;
   }
 }
+.empty-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+.onboarding-checklist {
+  margin-top: 1.25rem;
+  max-width: 46rem;
+  border-left: 3px solid #125f65;
+  padding-left: 1rem;
+}
+.onboarding-checklist ol {
+  padding-left: 1.25rem;
+}
+.help-link {
+  margin-top: 0.75rem;
+}

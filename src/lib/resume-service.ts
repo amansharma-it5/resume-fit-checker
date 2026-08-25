@@ -6,9 +6,11 @@ import {
   saveGuestResume,
   saveGuestVersion,
   listGuestVersions,
+  listGuestResumes,
 } from "./guest-db";
 import type { ResumeDocument, ResumeStatus } from "../types";
 import type { ResumeVersionSnapshot, StructuredResume } from "../resume-builder/types";
+import { createSampleResume, SAMPLE_TITLE } from "../onboarding/sample-data";
 
 function mapRow(row: any): ResumeDocument {
   return {
@@ -135,6 +137,20 @@ export async function createResumeFromStructuredData(
 ) {
   const created = await createResume(account, title);
   return updateResume(account, created, { structuredData });
+}
+export async function createSampleResumeDocument(account: boolean) {
+  const existing = account ? await listAccountResumes() : await listGuestResumes();
+  const found = existing.find(
+    (item) => item.title === SAMPLE_TITLE && (item.structuredData as any)?.onboardingSample === true,
+  );
+  if (found) return { document: found, existed: true };
+  const created = await createResume(account, SAMPLE_TITLE);
+  const structured = { ...createSampleResume(created.id), onboardingSample: true } as unknown as Record<
+    string,
+    unknown
+  >;
+  const document = await updateResume(account, created, { structuredData: structured });
+  return { document, existed: false };
 }
 export async function deleteResumePermanently(account: boolean, resume: ResumeDocument) {
   if (!account) return permanentlyDeleteGuestResume(resume.id);

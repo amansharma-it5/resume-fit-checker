@@ -7,11 +7,13 @@ export function ExportPanel({
   onPageSize,
   onFocusSection,
   onAnnouncement,
+  onExportStarted,
 }: {
   resume: StructuredResume;
   onPageSize: (pageSize: PageSize) => void;
   onFocusSection: (sectionId: string) => void;
   onAnnouncement: (message: string) => void;
+  onExportStarted?: () => void;
 }) {
   const [filename, setFilename] = useState(() => defaultExportFilename(resume));
   const [busy, setBusy] = useState(false);
@@ -31,6 +33,7 @@ export function ExportPanel({
       setBusy(true);
       const result = downloadPlainText(resume, filename);
       setFilename(result.filename);
+      onExportStarted?.();
       onAnnouncement(`Plain-text resume download started: ${result.filename}`);
     } catch (error) {
       onAnnouncement(error instanceof Error ? error.message : "Plain-text export could not start.");
@@ -53,6 +56,7 @@ export function ExportPanel({
       onAnnouncement("Print dialog closed. Your resume was not changed.");
     };
     window.addEventListener("afterprint", restore, { once: true });
+    onExportStarted?.();
     onAnnouncement(`Print view opened for ${resume.layout.pageSize === "a4" ? "A4" : "US Letter"}.`);
     window.print();
     window.setTimeout(() => document.title === printTitle && restore(), 1000);
@@ -64,6 +68,11 @@ export function ExportPanel({
       <p>
         Downloads stay on this device. Plain text is ATS-friendly; Print / Save as PDF uses your browser print dialog.
       </p>
+      {readiness.length > 0 && (
+        <p className="guidance-note">
+          Review these items if useful. Existing non-blocking warnings do not prevent local export.
+        </p>
+      )}
       <div className="export-controls">
         <label>
           Filename

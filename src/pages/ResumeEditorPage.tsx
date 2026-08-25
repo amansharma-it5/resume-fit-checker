@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { SAMPLE_JOB_DESCRIPTION } from "../onboarding/sample-data";
+import { isMeaningfulEditorAction, markOnboardingStep } from "../onboarding/state";
 import { analyzeResumeFit, canCopyOrApply, sanitizeAnalysisForStorage, smartRewrite } from "../lib/analysis";
 import { extractResumeDocument } from "../lib/file-parser";
 import { getGuestResume, saveAnalysisSummary } from "../lib/guest-db";
@@ -21,7 +23,7 @@ import {
   SECTION_TITLES,
   validateResume,
 } from "../resume-builder/model";
-import { createEditorHistory, editorReducer } from "../resume-builder/reducer";
+import { createEditorHistory, editorReducer, type EditorAction } from "../resume-builder/reducer";
 import { saveSnapshotIsCurrent } from "../resume-builder/autosave";
 import { extractStructuredSections, importExtractedResume, type ExtractionSection } from "../resume-builder/importer";
 import { getTemplate } from "../resume-builder/templates";
@@ -62,6 +64,11 @@ export function ResumeEditorPage() {
     editorReducer,
     createEditorHistory(createStructuredResume(resumeId || crypto.randomUUID())),
   );
+  // Only user-facing reducer actions pass through this callback; hydration and restores use dispatch directly.
+  const dispatchUserEdit = useCallback((action: EditorAction) => {
+    dispatch(action);
+    if (isMeaningfulEditorAction(action)) markOnboardingStep("edited");
+  }, []);
   const resume = history.present;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -76,6 +83,7 @@ export function ResumeEditorPage() {
   const [extraction, setExtraction] = useState<ExtractionSection[] | null>(null);
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const [confirmImport, setConfirmImport] = useState(false);
+  const [confirmSampleJD, setConfirmSampleJD] = useState(false);
   const [selectedBullet, setSelectedBullet] = useState<SelectedBullet | null>(null);
   const [targetRole, setTargetRole] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -233,7 +241,13 @@ export function ResumeEditorPage() {
             text: entry.fields.text,
             evidence,
             apply: (text) =>
-              dispatch({ type: "update-field", sectionId: section.id, entryId: entry.id, field: "text", value: text }),
+              dispatchUserEdit({
+                type: "update-field",
+                sectionId: section.id,
+                entryId: entry.id,
+                field: "text",
+                value: text,
+              }),
           });
         if (section.type === "skills" && typeof entry.fields.skill === "string")
           targets.push({
@@ -242,7 +256,13 @@ export function ResumeEditorPage() {
             text: entry.fields.skill,
             evidence,
             apply: (text) =>
-              dispatch({ type: "update-field", sectionId: section.id, entryId: entry.id, field: "skill", value: text }),
+              dispatchUserEdit({
+                type: "update-field",
+                sectionId: section.id,
+                entryId: entry.id,
+                field: "skill",
+                value: text,
+              }),
           });
         for (const bullet of entry.bullets)
           targets.push({
@@ -251,11 +271,17 @@ export function ResumeEditorPage() {
             text: bullet.text,
             evidence,
             apply: (text) =>
-              dispatch({ type: "update-bullet", sectionId: section.id, entryId: entry.id, bulletId: bullet.id, text }),
+              dispatchUserEdit({
+                type: "update-bullet",
+                sectionId: section.id,
+                entryId: entry.id,
+                bulletId: bullet.id,
+                text,
+              }),
           });
       }
     return targets.filter((target) => target.text.trim());
-  }, [resume]);
+  }, [dispatchUserEdit, resume]);
 
   const analyze = useCallback(() => {
     const request = ++analysisRequest.current;
@@ -270,6 +296,7 @@ export function ResumeEditorPage() {
       });
       if (request !== analysisRequest.current) return;
       setAnalysis(result);
+      markOnboardingStep("ats");
       setAnalysisStatus("updated");
       setAnalysisNotice("ATS analysis updated.");
       if (!account && resumeDocument) {
@@ -323,7 +350,7 @@ export function ResumeEditorPage() {
 
   function applyRewrite(text: string) {
     if (!selectedBullet) return;
-    dispatch({ type: "update-bullet", ...selectedBullet, text });
+    dispatchUserEdit({ type: "update-bullet", ...selectedBullet, text });
     setSelectedBullet({ ...selectedBullet, text });
   }
 
@@ -571,9 +598,10 @@ export function ResumeEditorPage() {
           </details>
           <ExportPanel
             resume={resume}
-            onPageSize={(pageSize) => dispatch({ type: "update-layout", patch: { pageSize } })}
+            onPageSize={(pageSize) => dispatchUserEdit({ type: "update-layout", patch: { pageSize } })}
             onFocusSection={focusIssue}
             onAnnouncement={setAnalysisNotice}
+            onExportStarted={() => markOnboardingStep("export")}
           />
           <CopilotPanel
             targets={copilotTargets}
@@ -581,6 +609,7 @@ export function ResumeEditorPage() {
             jd={jobDescription}
             requestedTargetIndex={copilotTargetIndex}
             onAnnouncement={setAnalysisNotice}
+            onInspected={() => markOnboardingStep("rewrite")}
           />
           <details className="editor-tool">
             <summary>Templates and layout</summary>
@@ -731,7 +760,7 @@ export function ResumeEditorPage() {
               section={section}
               index={index}
               total={resume.sections.length}
-              dispatch={dispatch}
+              dispatch={dispatchUserEdit}
               onDelete={setDeleteSection}
               onSelectBullet={(bullet) => {
                 setSelectedBullet(bullet);
@@ -774,20 +803,45 @@ export function ResumeEditorPage() {
           </details>
           <details className="editor-tool">
             <summary>ATS check</summary>
+            {!jobDescription.trim() && (
+              <p className="guidance-note">
+                Add a job description to compare evidence. The fictional sample is optional and stays local.
+              </p>
+            )}
             <label>
               Target role
               <input value={targetRole} onChange={(event) => setTargetRole(event.target.value)} />
             </label>
             <label>
               Job description
-              <textarea rows={8} value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} />
+              <textarea
+                rows={8}
+                value={jobDescription}
+                onChange={(event) => {
+                  setJobDescription(event.target.value);
+                  if (event.target.value.trim()) markOnboardingStep("jobDescription");
+                }}
+              />
             </label>
+            <button
+              onClick={() => {
+                if (jobDescription.trim()) setConfirmSampleJD(true);
+                else {
+                  setJobDescription(SAMPLE_JOB_DESCRIPTION);
+                  markOnboardingStep("jobDescription");
+                  setAnalysisNotice("Fictional sample job description loaded locally.");
+                }
+              }}
+            >
+              Load fictional sample job description
+            </button>
             <button className="primary" onClick={analyze}>
               Analyze structured resume
             </button>
             {analysis && (
               <div className="ats-editor-results" role="status">
                 <h3>ATS result: {analysis.scores?.overall ?? "Insufficient JD detail"}</h3>
+                <p>Use evidence and issue links to review the relevant resume fields.</p>
                 <p>{analysis.recommendations?.[0] || "Review the matched and missing requirements."}</p>
                 <p>
                   Matched: {analysis.matched?.length || 0} · Partial: {analysis.partial?.length || 0} · Missing:{" "}
@@ -807,6 +861,7 @@ export function ResumeEditorPage() {
                 <button
                   onClick={() => {
                     const result = smartRewrite(selectedBullet.text);
+                    if (selectedBullet.text.trim() && result.after.trim()) markOnboardingStep("rewrite");
                     setRewrite({
                       rewrittenBullet: result.after,
                       warnings: result.warnings,
@@ -879,6 +934,23 @@ export function ResumeEditorPage() {
           <ResumePreview resume={resume} zoom={zoom} />
         </aside>
       </div>
+      <ConfirmDialog
+        open={confirmSampleJD}
+        title="Replace the current job description?"
+        confirmLabel="Load sample job description"
+        onCancel={() => setConfirmSampleJD(false)}
+        onConfirm={() => {
+          setConfirmSampleJD(false);
+          setJobDescription(SAMPLE_JOB_DESCRIPTION);
+          markOnboardingStep("jobDescription");
+          setAnalysisNotice("Fictional sample job description loaded locally.");
+        }}
+      >
+        <p>
+          This replaces the current local job description with fictional sample content. It does not send anything to an
+          AI provider.
+        </p>
+      </ConfirmDialog>
       <ConfirmDialog
         open={Boolean(deleteSection)}
         title="Delete section?"

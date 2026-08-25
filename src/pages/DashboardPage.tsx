@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { RenameDialog } from "../components/RenameDialog";
@@ -7,6 +7,7 @@ import { StatusMessage } from "../components/StatusMessage";
 import {
   importGuestResumes,
   createResume,
+  createSampleResumeDocument,
   deleteResumePermanently,
   duplicateResume,
   listAccountResumes,
@@ -15,8 +16,15 @@ import {
 } from "../lib/resume-service";
 import { listGuestResumes } from "../lib/guest-db";
 import type { ResumeDocument, ResumeStatus } from "../types";
+import {
+  markOnboardingStep,
+  readOnboardingState,
+  resetOnboardingState,
+  writeOnboardingState,
+} from "../onboarding/state";
 
 export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const account = Boolean(user);
   const [resumes, setResumes] = useState<ResumeDocument[]>([]);
@@ -31,6 +39,8 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
     resume: ResumeDocument;
     trigger: HTMLButtonElement;
   } | null>(null);
+  const [confirmSample, setConfirmSample] = useState(false);
+  const [onboarding, setOnboarding] = useState(readOnboardingState);
   const load = useCallback(
     async (showLoading = true) => {
       if (showLoading) setLoading(true);
@@ -69,6 +79,30 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
       setMessage("That change could not be saved. Try again.");
     }
   }
+  function updateOnboarding(next: typeof onboarding) {
+    // A dashboard action can finish after navigation; merge its minimal flags instead of clobbering editor progress.
+    const current = readOnboardingState();
+    const merged = { ...current, dismissed: next.dismissed, steps: { ...current.steps, ...next.steps } };
+    setOnboarding(merged);
+    writeOnboardingState(merged);
+  }
+  async function createSample() {
+    try {
+      const result = await createSampleResumeDocument(account);
+      await load(false);
+      markOnboardingStep("resume");
+      updateOnboarding({ ...readOnboardingState(), dismissed: false });
+      setMessage(
+        result.existed
+          ? "Your existing fictional sample is ready to open."
+          : "Fictional sample resume created locally.",
+      );
+      navigate(`/resumes/${result.document.id}/edit`);
+    } catch {
+      setError(true);
+      setMessage("The sample resume could not be created.");
+    }
+  }
   return (
     <section className="workspace-page">
       <header className="page-heading">
@@ -79,6 +113,18 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
             ? "Documents are protected by your account and row-level security."
             : "Guest documents stay in IndexedDB on this device until you explicitly import them."}
         </p>
+        <div className="dashboard-actions">
+          <button onClick={() => updateOnboarding({ ...onboarding, dismissed: false })}>Get started</button>
+          <button
+            onClick={() => {
+              resetOnboardingState();
+              setOnboarding(readOnboardingState());
+              setMessage("Onboarding restarted. Your resumes were not changed.");
+            }}
+          >
+            Restart onboarding
+          </button>
+        </div>
       </header>
       <div className="dashboard-actions">
         <button className="primary" onClick={() => void action(() => createResume(account), "Resume created.")}>
@@ -184,8 +230,71 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
       ) : (
         <div className="empty-state">
           <h2>No resumes here</h2>
-          <p>Create a resume or change the search and status filters.</p>
+          {query || filter !== "active" ? (
+            <p>Change the search or status filters to see matching documents.</p>
+          ) : (
+            <>
+              <p>
+                Start privately: make a blank document, review a local import, or explore a fictional sample. Nothing is
+                uploaded in Guest Mode.
+              </p>
+              <div className="empty-state-actions">
+                <button
+                  className="primary"
+                  onClick={() => void action(() => createResume(account), "Blank resume created.")}
+                >
+                  Create a blank resume
+                </button>
+                <button
+                  onClick={() =>
+                    void action(async () => {
+                      const document = await createResume(account);
+                      navigate(`/resumes/${document.id}/edit`);
+                    }, "Import review is ready in the editor.")
+                  }
+                >
+                  Import an existing resume
+                </button>
+                <button onClick={() => setConfirmSample(true)}>Try a sample resume</button>
+              </div>
+              {!onboarding.dismissed && (
+                <section className="onboarding-checklist" aria-labelledby="onboarding-title">
+                  <h3 id="onboarding-title">Get started</h3>
+                  <ol>
+                    <li>
+                      {onboarding.steps.resume
+                        ? "Done: resume created or opened"
+                        : "Create, import, or open a sample resume"}
+                    </li>
+                    <li>
+                      {onboarding.steps.edited ? "Done: resume content reviewed" : "Review or edit resume content"}
+                    </li>
+                    <li>
+                      {onboarding.steps.jobDescription
+                        ? "Done: job description added"
+                        : "Add or load a job description"}
+                    </li>
+                    <li>{onboarding.steps.ats ? "Done: ATS analysis reviewed" : "Review ATS results and evidence"}</li>
+                    <li>
+                      {onboarding.steps.rewrite
+                        ? "Done: rewrite area used"
+                        : "Optionally try local Smart Rewrite or inspect Copilot"}
+                    </li>
+                    <li>{onboarding.steps.export ? "Done: export started" : "Export as TXT or Print / Save as PDF"}</li>
+                  </ol>
+                  <button onClick={() => updateOnboarding({ ...onboarding, dismissed: true })}>
+                    Dismiss onboarding
+                  </button>
+                </section>
+              )}
+            </>
+          )}
         </div>
+      )}
+      {onboarding.dismissed && (
+        <button className="help-link" onClick={() => updateOnboarding({ ...onboarding, dismissed: false })}>
+          Get started
+        </button>
       )}
       <section className="usage-summary">
         <h2>Usage summary</h2>
@@ -215,6 +324,21 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
           if (target) void action(() => updateResume(account, target, { title }), "Resume renamed.");
         }}
       />
+      <ConfirmDialog
+        open={confirmSample}
+        title="Create a fictional sample resume?"
+        confirmLabel="Create sample resume"
+        onCancel={() => setConfirmSample(false)}
+        onConfirm={() => {
+          setConfirmSample(false);
+          void createSample();
+        }}
+      >
+        <p>
+          This fictional resume uses reserved example contact details. It is stored only in Guest Mode on this browser,
+          can be edited or deleted, and is never uploaded automatically.
+        </p>
+      </ConfirmDialog>
       <ConfirmDialog
         open={Boolean(pendingDelete)}
         title="Permanently delete resume?"

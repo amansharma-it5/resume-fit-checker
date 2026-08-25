@@ -58,6 +58,12 @@ TXT, Markdown, and RTF are read as local text. Text-based PDFs are supported whe
 
 Import files are limited to 10 MB and local extracted text is bounded. Heuristic parsing cannot perfectly reconstruct multi-column, graphical, or unusually designed resumes, so users must review every mapping. Parsed source content stays in the active import session and is not written to analysis history, analytics, logs, or the canonical structured resume.
 
+## Optional onboarding
+
+New Guest Mode workspaces can create a blank resume, open the local import review, or explicitly create a fictional sample resume. The sample uses reserved `example.com` contact details and fictional employers; it is editable and deletable like any other guest document and is never created automatically. A fictional sample job description can be loaded only by an explicit editor action and the normal deterministic ATS engine calculates its results.
+
+Onboarding progress stores only a version, dismissal flag, and short completion flags in local browser storage. It advances after an intentional resume edit, JD load/edit, completed local ATS analysis, local Smart Rewrite or Copilot inspection, and starting a local export. Passive rendering, autosave, imports, and provider calls do not complete checklist steps. **Dismiss**, **Get started**, and **Restart onboarding** never modify resumes, versions, ATS history, or settings. The checklist is optional, does not preselect AI consent, and never sends sample or onboarding data to a provider.
+
 ## Resume export
 
 The editor can download a real UTF-8 `.txt` resume or open the browser's **Print / Save as PDF** flow. Both use the visible sections and ordered entries from the canonical structured resume; no resume text is sent to a server, Supabase, Groq, analytics, or a print service by Resume Lab.
