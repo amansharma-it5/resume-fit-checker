@@ -1,13 +1,29 @@
 import { describe, expect, it } from "vitest";
 import { createBullet, createSection, createStructuredResume } from "./model";
-import { defaultExportFilename, getExportReadiness, safeExportUrl, sanitizeExportFilename, serializeResumePlainText } from "./export";
+import {
+  defaultExportFilename,
+  getExportReadiness,
+  safeExportUrl,
+  sanitizeExportFilename,
+  serializeResumePlainText,
+} from "./export";
 
 function fixture() {
   const resume = createStructuredResume("export-1", "Product Resume");
   const [contact, summary, experience, education, skills] = resume.sections;
-  contact.entries[0].fields = { fullName: "Jane Doe", email: "jane@example.test", linkedin: "https://linkedin.example/jane" };
+  contact.entries[0].fields = {
+    fullName: "Jane Doe",
+    email: "jane@example.test",
+    linkedin: "https://linkedin.example/jane",
+  };
   summary.entries[0].fields.text = "Product engineer who improves reliable delivery.";
-  experience.entries[0].fields = { jobTitle: "Engineer", employer: "Example Co", startDate: "2022-01", endDate: "2024-01", location: "Remote" };
+  experience.entries[0].fields = {
+    jobTitle: "Engineer",
+    employer: "Example Co",
+    startDate: "2022-01",
+    endDate: "2024-01",
+    location: "Remote",
+  };
   experience.entries[0].bullets = [createBullet("Improved release reliability.", 0)];
   education.entries[0].fields = { degree: "BSc", institution: "Example University" };
   skills.entries[0].fields = { category: "Technical", skill: "TypeScript", proficiency: "Advanced" };

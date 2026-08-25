@@ -699,6 +699,34 @@ footer {
   border: 1px solid var(--line);
   background: rgba(16, 20, 43, 0.86);
 }
+.export-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.export-controls > p,
+.export-actions,
+.export-readiness {
+  grid-column: 1 / -1;
+}
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.export-readiness h3 {
+  margin-bottom: 6px;
+}
+.export-readiness ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+.export-readiness .error {
+  color: #ffb1a8;
+}
 
 .issue-link {
   display: inline;
@@ -869,6 +897,10 @@ footer {
   transform-origin: top center;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
 }
+.resume-preview[data-page-size="a4"] {
+  width: 210mm;
+  min-height: 297mm;
+}
 .resume-preview h1 {
   margin: 0;
   font-size: 25pt;
@@ -994,7 +1026,8 @@ footer {
   }
   .editor-topbar label,
   .field-grid,
-  .layout-controls {
+  .layout-controls,
+  .export-controls {
     grid-template-columns: 1fr;
   }
   .add-section-grid,
@@ -1010,5 +1043,55 @@ footer {
   }
   .item-toolbar button {
     flex: 1 1 120px;
+  }
+}
+
+@media print {
+  @page {
+    margin: 0.4in;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .preview-pane,
+  .preview-pane *,
+  .resume-preview,
+  .resume-preview * {
+    visibility: visible !important;
+  }
+  .preview-pane {
+    display: block !important;
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+  .preview-controls,
+  .preview-page-count {
+    display: none !important;
+  }
+  .resume-preview {
+    width: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: var(--resume-margin) !important;
+    transform: none !important;
+    box-shadow: none !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+  .resume-preview h1,
+  .resume-preview h2 {
+    color: #000 !important;
+  }
+  .resume-preview a {
+    color: #000 !important;
+    text-decoration: underline;
+  }
+  .preview-entry,
+  .preview-section {
+    break-inside: avoid;
   }
 }

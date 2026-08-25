@@ -10,7 +10,17 @@ const MAX_FILENAME_LENGTH = 80;
 const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"]);
 
 const FIELD_ORDER: Record<string, string[]> = {
-  contact: ["fullName", "professionalTitle", "email", "phone", "location", "linkedin", "portfolio", "website", "customLinks"],
+  contact: [
+    "fullName",
+    "professionalTitle",
+    "email",
+    "phone",
+    "location",
+    "linkedin",
+    "portfolio",
+    "website",
+    "customLinks",
+  ],
   summary: ["text"],
   experience: ["jobTitle", "employer", "location", "employmentType", "startDate", "endDate", "description"],
   education: ["degree", "field", "institution", "location", "startDate", "endDate", "gpa", "honors", "coursework"],
@@ -27,7 +37,11 @@ const FIELD_ORDER: Record<string, string[]> = {
 };
 
 function asText(value: ResumeEntry["fields"][string] | undefined) {
-  if (Array.isArray(value)) return value.map((item) => item.trim()).filter(Boolean).join("; ");
+  if (Array.isArray(value))
+    return value
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .join("; ");
   return typeof value === "string" ? value.trim() : "";
 }
 
@@ -100,9 +114,7 @@ export function defaultExportFilename(resume: StructuredResume) {
 
 export function sanitizeExportFilename(value: string, extension = ".txt") {
   const safeExtension = extension.startsWith(".") ? extension.toLowerCase() : `.${extension.toLowerCase()}`;
-  const printable = [...value]
-    .map((character) => ((character.codePointAt(0) || 0) < 32 ? " " : character))
-    .join("");
+  const printable = [...value].map((character) => ((character.codePointAt(0) || 0) < 32 ? " " : character)).join("");
   let withoutExtension = printable
     .replace(/[\\/:*?"<>|]/g, " ")
     .replace(/\.\.+/g, " ")
@@ -111,7 +123,10 @@ export function sanitizeExportFilename(value: string, extension = ".txt") {
     .replace(/[. ]+$/g, "")
     .trim();
   while (withoutExtension.toLowerCase().endsWith(safeExtension))
-    withoutExtension = withoutExtension.slice(0, -safeExtension.length).replace(/[. ]+$/g, "").trim();
+    withoutExtension = withoutExtension
+      .slice(0, -safeExtension.length)
+      .replace(/[. ]+$/g, "")
+      .trim();
   withoutExtension = withoutExtension.slice(0, MAX_FILENAME_LENGTH - safeExtension.length).trim();
   return `${withoutExtension || "resume"}${safeExtension}`;
 }
@@ -121,26 +136,43 @@ export function getExportReadiness(resume: StructuredResume): ExportReadinessIss
   const sections = exportableSections(resume);
   const contact = resume.sections.find((section) => section.type === "contact");
   const name = asText(contact?.entries[0]?.fields.fullName);
-  if (!name) issues.push({ level: "warning", sectionId: contact?.id, message: "Add your full name for a clearer export filename." });
+  if (!name)
+    issues.push({
+      level: "warning",
+      sectionId: contact?.id,
+      message: "Add your full name for a clearer export filename.",
+    });
   const summary = resume.sections.find((section) => section.type === "summary");
   if (summary?.visible && !exportableSections({ ...resume, sections: [summary] }).length)
     issues.push({ level: "warning", sectionId: summary.id, message: "Professional Summary is visible but empty." });
   const coreTypes = new Set(["experience", "projects", "education"]);
   if (!sections.some(({ section }) => coreTypes.has(section.type)))
-    issues.push({ level: "warning", message: "Add experience, projects, or education to give the resume useful context." });
+    issues.push({
+      level: "warning",
+      message: "Add experience, projects, or education to give the resume useful context.",
+    });
   for (const section of resume.sections) {
     if (section.visible && !sections.some(({ section: exported }) => exported.id === section.id))
-      issues.push({ level: "warning", sectionId: section.id, message: `${section.title} is visible but empty and will not be exported.` });
+      issues.push({
+        level: "warning",
+        sectionId: section.id,
+        message: `${section.title} is visible but empty and will not be exported.`,
+      });
     for (const entry of section.entries) {
       for (const [key, value] of Object.entries(entry.fields)) {
         if (["linkedin", "portfolio", "website", "url"].includes(key) && asText(value) && !safeExportUrl(asText(value)))
-          issues.push({ level: "warning", sectionId: section.id, message: `${section.title} contains an unsupported link that will be plain text only.` });
+          issues.push({
+            level: "warning",
+            sectionId: section.id,
+            message: `${section.title} contains an unsupported link that will be plain text only.`,
+          });
       }
     }
   }
   const text = serializeResumePlainText(resume);
   if (!text) issues.push({ level: "error", message: "Add meaningful resume content before exporting." });
-  if (/\S{120,}/.test(text)) issues.push({ level: "warning", message: "Very long unbroken text may wrap poorly in a printed PDF." });
+  if (/\S{120,}/.test(text))
+    issues.push({ level: "warning", message: "Very long unbroken text may wrap poorly in a printed PDF." });
   return issues;
 }
 

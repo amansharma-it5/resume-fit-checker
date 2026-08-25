@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { readFile } from "node:fs/promises";
 
 test("guest can edit, reorder, undo, save, and preview a structured resume", async ({ page }) => {
   await page.goto("/dashboard");
@@ -391,6 +392,66 @@ test("Copilot controls stay keyboard reachable and contained with long synthetic
     scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(measurement.scrollWidth <= measurement.viewport, JSON.stringify(measurement)).toBe(true);
+});
+
+test("exports a sanitized ATS-friendly plain-text resume without hidden sections", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  await page.getByLabel("Full name").fill("Avery Morgan");
+  await page.getByLabel("Email").fill("avery@example.test");
+  await page.getByRole("textbox", { name: /^Summary/ }).fill("This summary must remain hidden from the download.");
+  await page.getByRole("button", { name: "Add bullet" }).first().click();
+  await page.getByLabel("Bullet 1").fill("Improved release reliability across three services.");
+  await page
+    .locator(".section-editor", { hasText: "Professional Summary" })
+    .getByRole("button", { name: "Hide" })
+    .click();
+
+  const panel = page.locator(".export-panel");
+  await expect(panel.getByRole("heading", { name: "Export readiness" })).toBeVisible();
+  await panel.getByLabel("Filename").fill("../Avery: Resume.txt.txt");
+  const downloadPromise = page.waitForEvent("download");
+  await panel.getByRole("button", { name: "Download plain text" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("Avery Resume.txt");
+  const contents = await readFile((await download.path())!, "utf8");
+  expect(contents).toContain("Avery Morgan");
+  expect(contents).toContain("- Improved release reliability across three services.");
+  expect(contents).not.toContain("This summary must remain hidden");
+  expect(contents).not.toContain("<");
+  await expect(page.getByRole("status", { name: "Editor notifications" })).toContainText(
+    "Plain-text resume download started",
+  );
+});
+
+test("offers a contained resume-only print view with A4 and accessible controls", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  await page.getByLabel("Full name").fill("Avery Morgan");
+  const panel = page.locator(".export-panel");
+  await panel.getByLabel("PDF page size").selectOption("a4");
+  await expect(page.locator(".resume-preview")).toHaveAttribute("data-page-size", "a4");
+  await page.evaluate(() => {
+    window.print = () => document.documentElement.setAttribute("data-print-called", "true");
+  });
+  await panel.scrollIntoViewIfNeeded();
+  await panel.getByRole("button", { name: "Print / Save as PDF" }).click();
+  await expect.poll(() => page.locator("html").getAttribute("data-print-called")).toBe("true");
+  await expect(page.getByRole("status", { name: "Editor notifications" })).toContainText("Print view opened");
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".resume-preview")).toBeVisible();
+  const printLayout = await page.evaluate(() => ({
+    preview: getComputedStyle(document.querySelector(".resume-preview")!).visibility,
+    controls: getComputedStyle(document.querySelector(".preview-controls")!).display,
+    viewport: window.innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(printLayout.preview).toBe("visible");
+  expect(printLayout.controls).toBe("none");
+  expect(printLayout.scrollWidth <= printLayout.viewport, JSON.stringify(printLayout)).toBe(true);
 });
 
 for (const width of [320, 360, 390, 412, 768, 1024, 1280, 1440, 1920]) {
