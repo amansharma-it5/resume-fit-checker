@@ -21,7 +21,8 @@ const SAFE_LINK = /^(https?:\/\/|mailto:|tel:)/i;
 
 export function normalizeImportText(value: string) {
   return value
-    .replace(/\u0000/g, "")
+    .split("\0")
+    .join("")
     .replace(/[\u2010-\u2015]/g, "-")
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201C\u201D]/g, '"')
@@ -36,7 +37,7 @@ export function normalizeImportText(value: string) {
 }
 
 export function safeImportedLink(value: string) {
-  const cleaned = value.trim().replace(/[\u0000-\u001f]/g, "");
+  const cleaned = [...value.trim()].filter((character) => character.charCodeAt(0) >= 32).join("");
   if (!SAFE_LINK.test(cleaned)) return "";
   try {
     const url = new URL(cleaned, "https://resume-lab.local");
@@ -192,9 +193,10 @@ function docxXmlToText(xml: string) {
   return decodeXml(xml)
     .replace(/<w:tab[^>]*\/>/gi, "\t")
     .replace(/<w:br[^>]*\/>/gi, "\n")
+    .replace(/<\/w:p>\s*<\/w:tc>/gi, " | ")
     .replace(/<\/w:p>/gi, "\n")
     .replace(/<\/w:tr>/gi, "\n")
-    .replace(/<\/w:tc>/gi, " | ")
+    .replace(/<\/w:tc>/gi, "")
     .replace(/<[^>]+>/g, "");
 }
 function decodeXml(value: string) {

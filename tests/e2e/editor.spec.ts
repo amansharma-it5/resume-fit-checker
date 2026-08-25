@@ -2,6 +2,20 @@ import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
 
+function storedDocx(content: string) {
+  const name = Buffer.from("word/document.xml");
+  const data = Buffer.from(content);
+  const header = Buffer.alloc(30 + name.length + data.length);
+  header.writeUInt32LE(0x04034b50, 0);
+  header.writeUInt16LE(20, 4);
+  header.writeUInt32LE(data.length, 18);
+  header.writeUInt32LE(data.length, 22);
+  header.writeUInt16LE(name.length, 26);
+  name.copy(header, 30);
+  data.copy(header, 30 + name.length);
+  return header;
+}
+
 test("guest can edit, reorder, undo, save, and preview a structured resume", async ({ page }) => {
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Create resume" }).click();
@@ -461,6 +475,71 @@ test("offers a contained resume-only print view with A4 and accessible controls"
   expect(printLayout.preview).toBe("visible");
   expect(printLayout.controls).toBe("none");
   expect(printLayout.scrollWidth <= printLayout.viewport, JSON.stringify(printLayout)).toBe(true);
+});
+
+test("reviews TXT, PDF, and DOCX imports locally before explicit confirmation", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  const importer = page.getByText("Import document").locator("..");
+  const input = importer.getByLabel(/PDF, DOCX, TXT/);
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() !== "GET") requests.push(request.url());
+  });
+  await input.setInputFiles({
+    name: "avery.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from(
+      "Avery Morgan\nEXPERIENCE\nPlatform Engineer\nExample Systems\n- Built reliable APIs\nSKILLS\nTypeScript, SQL",
+    ),
+  });
+  await expect(page.getByRole("heading", { name: "Extraction review" })).toBeVisible();
+  await expect(page.getByText(/Source evidence/).first()).toBeVisible();
+  await expect(page.getByText("High").first()).toBeVisible();
+  await page.getByRole("button", { name: "Cancel import" }).click();
+  await expect(page.getByRole("heading", { name: "Extraction review" })).toHaveCount(0);
+  expect(requests).toEqual([]);
+
+  await input.setInputFiles({
+    name: "resume.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from(
+      "%PDF-1.7\n(Avery Morgan) Tj\n(EXPERIENCE) Tj\n(Platform Engineer) Tj\n(Example Systems) Tj\n(Built reliable APIs) Tj",
+    ),
+  });
+  await expect(page.getByRole("heading", { name: "Extraction review" })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel import" }).click();
+
+  await input.setInputFiles({
+    name: "resume.docx",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    buffer: storedDocx(
+      "<w:document><w:body><w:p><w:r><w:t>Avery Morgan</w:t></w:r></w:p><w:p><w:r><w:t>SKILLS</w:t></w:r></w:p><w:p><w:r><w:t>TypeScript</w:t></w:r></w:p></w:body></w:document>",
+    ),
+  });
+  await expect(page.getByRole("heading", { name: "Extraction review" })).toBeVisible();
+  await page.getByRole("button", { name: "Create new resume from reviewed sections" }).click();
+  await expect(page.getByRole("alertdialog", { name: "Create a new resume from reviewed sections?" })).toBeVisible();
+  await page.getByRole("button", { name: "Create imported resume" }).click();
+  await expect(page).toHaveURL(/\/resumes\/.*\/edit/);
+  await expect(page.getByLabel("Full name")).toHaveValue("Avery Morgan");
+});
+
+test("warns safely for an image-only PDF without changing the resume", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  const importer = page.getByText("Import document").locator("..");
+  await importer
+    .getByLabel(/PDF, DOCX, TXT/)
+    .setInputFiles({
+      name: "scan.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.7\nstream\nendstream"),
+    });
+  await expect(page.getByRole("alert")).toContainText("OCR is required");
+  await expect(page.getByRole("heading", { name: "Extraction review" })).toHaveCount(0);
 });
 
 for (const width of [320, 360, 390, 412, 768, 1024, 1280, 1440, 1920]) {

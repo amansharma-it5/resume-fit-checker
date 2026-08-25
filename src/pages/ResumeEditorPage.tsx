@@ -89,10 +89,16 @@ export function ResumeEditorPage() {
   const loadId = useRef(resumeId);
   const resumeRef = useRef(resume);
   const analysisRequest = useRef(0);
+  const importReviewRef = useRef<HTMLHeadingElement>(null);
 
   useLayoutEffect(() => {
     resumeRef.current = resume;
   }, [resume]);
+
+  useEffect(() => {
+    if (!extraction) return;
+    importReviewRef.current?.focus();
+  }, [extraction]);
 
   useEffect(() => {
     let active = true;
@@ -447,7 +453,7 @@ export function ResumeEditorPage() {
               ))}
             </div>
           </details>
-          <details className="editor-tool">
+          <details className="editor-tool" open={Boolean(extraction)}>
             <summary>Import document</summary>
             <label>
               PDF, DOCX, TXT, MD, or RTF (10 MB maximum)
@@ -482,7 +488,9 @@ export function ResumeEditorPage() {
             )}
             {extraction && (
               <div className="extraction-review" aria-labelledby="import-review-title">
-                <h3>Extraction review</h3>
+                <h3 ref={importReviewRef} tabIndex={-1}>
+                  Extraction review
+                </h3>
                 <p id="import-review-title">
                   Review source evidence and accept only mappings you want to add. Unaccepted content is not saved.
                 </p>
