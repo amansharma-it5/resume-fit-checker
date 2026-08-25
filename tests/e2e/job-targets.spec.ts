@@ -7,6 +7,7 @@ test("creates an isolated local job target with an explicit confirmation", async
   });
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Create resume" }).click();
+  await expect(page.locator(".document-row").first()).toBeVisible();
   await page.goto("/targets");
   await page.getByLabel("Company name").fill("Fictional Example Labs");
   await page.getByLabel("Role title").fill("Platform Engineer");
@@ -23,6 +24,7 @@ test("creates an isolated local job target with an explicit confirmation", async
 test("job target validation does not persist cancelled or incomplete forms", async ({ page }) => {
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Create resume" }).click();
+  await expect(page.locator(".document-row").first()).toBeVisible();
   await page.goto("/targets");
   await page.getByRole("button", { name: "Create tailored workspace" }).click();
   await expect(page.getByText("Company name is required.")).toBeVisible();
