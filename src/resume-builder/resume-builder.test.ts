@@ -66,7 +66,7 @@ describe("local resume import", () => {
       "Jane Doe\nEXPERIENCE\nEngineer\n- Improved reliability\nEDUCATION\nBSc Computer Science\nSKILLS\nReact, SQL",
     );
     expect(extracted.map((section) => section.type)).toEqual(["contact", "experience", "education", "skills"]);
-    expect(extracted[1].confidence).toBeGreaterThan(0.8);
+    expect(extracted[1].confidence).toBe("high");
     const resume = importExtractedResume("resume-5", "Imported", extracted);
     expect(resume.sourceText).toBeUndefined();
     expect(resumeToPlainText(resume)).toContain("Improved reliability");
@@ -75,7 +75,17 @@ describe("local resume import", () => {
   it("creates an import as a distinct structured document", () => {
     const source = createStructuredResume("existing-resume", "Existing resume");
     const imported = importExtractedResume("new-imported-resume", "Imported resume", [
-      { type: "summary", title: "Summary", text: "Imported professional summary", confidence: 0.9 },
+      {
+        id: "summary-document",
+        type: "summary",
+        title: "Summary",
+        text: "Imported professional summary",
+        confidence: "high",
+        confidenceReason: "Fixture evidence",
+        evidence: "Imported professional summary",
+        sourceRef: "document",
+        accepted: true,
+      },
     ]);
     expect(imported.id).not.toBe(source.id);
     expect(source.sections.map((section) => section.id)).not.toEqual(imported.sections.map((section) => section.id));

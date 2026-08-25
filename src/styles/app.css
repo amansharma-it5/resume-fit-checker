@@ -975,6 +975,36 @@ footer {
 .extraction-review {
   max-height: 620px;
   overflow: auto;
+  display: grid;
+  gap: 12px;
+  padding: 10px 0;
+}
+.import-candidate {
+  min-width: 0;
+  border: 1px solid var(--line);
+  padding: 12px;
+}
+.import-candidate legend {
+  padding: 0 5px;
+  font-weight: 700;
+}
+.import-accept,
+.import-review-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.import-evidence,
+.import-warning-list {
+  overflow-wrap: anywhere;
+}
+.import-evidence {
+  color: var(--muted);
+}
+.import-warning-list {
+  border-left: 3px solid #e9b84e;
+  padding-left: 24px;
 }
 .error-summary {
   border-color: var(--danger);
