@@ -7,7 +7,7 @@ function AuthFrame({ title, children }: { title: string; children: React.ReactNo
   return (
     <section className="auth-page">
       <div className="auth-panel">
-        <p className="eyebrow">Resume Lab account</p>
+        <p className="eyebrow">RecruitOS AI account</p>
         <h1>{title}</h1>
         {children}
       </div>

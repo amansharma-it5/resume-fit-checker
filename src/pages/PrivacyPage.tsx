@@ -13,7 +13,7 @@ export function PrivacyPage() {
         AI Rewrite is optional and requires unchecked, per-use consent. It sends only the selected bullet, target role,
         a limited relevant job-description excerpt, and context you explicitly approve to Groq through a same-origin
         Netlify Function. The complete resume is not sent. Provider retention depends on the site owner&apos;s
-        configured Groq terms; Resume Lab does not claim zero data retention.
+        configured Groq terms; RecruitOS AI does not claim zero data retention.
       </p>
       <h2>Accounts</h2>
       <p>

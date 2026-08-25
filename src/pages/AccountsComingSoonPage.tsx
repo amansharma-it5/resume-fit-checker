@@ -4,7 +4,7 @@ export function AccountsComingSoonPage() {
   return (
     <section className="auth-page">
       <div className="auth-panel">
-        <p className="eyebrow">Resume Lab</p>
+        <p className="eyebrow">RecruitOS AI</p>
         <span className="availability-label">Accounts coming soon</span>
         <h1>Continue privately in guest mode</h1>
         <p>

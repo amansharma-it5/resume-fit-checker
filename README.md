@@ -1,6 +1,6 @@
-# Resume Lab
+# RecruitOS AI
 
-Resume Lab is a privacy-first career workspace. Phase 3 adds deterministic ATS intelligence to the structured editor while preserving local file parsing, Smart Rewrite, and consent-gated Groq AI Rewrite with two-pass verification.
+RecruitOS AI is a privacy-first resume tailoring workspace with deterministic ATS analysis, local file parsing, Smart Rewrite, and consent-gated Groq AI Rewrite with two-pass verification.
 
 Phase 4 adds an opt-in Resume Copilot inside the editor. It can target a professional summary, one skill, one experience bullet, or a mapped ATS issue. It sends only the selected text, its local supporting evidence, target role, and a limited JD excerpt to Groq after consent; it does not send the complete resume or JD. ATS recommendation text is UI context, never resume evidence. It never auto-applies suggestions: users may edit, reject, regenerate, or accept a suggestion, and acceptance revalidates it before updating the editor through undo/redo and autosave.
 
@@ -52,7 +52,7 @@ The preview is a deterministic browser layout shared by the editor and export wo
 
 ## Resume import
 
-Resume Lab validates a file locally, extracts locally readable text, normalizes whitespace without rewriting facts, detects familiar sections, and proposes structured mappings with the exact source evidence and an understandable confidence state: **High**, **Needs review**, or **Unmapped**. Nothing is created or changed until the user accepts the wanted mappings and confirms **Create imported resume**. Cancelling discards the review session.
+RecruitOS AI validates a file locally, extracts locally readable text, normalizes whitespace without rewriting facts, detects familiar sections, and proposes structured mappings with the exact source evidence and an understandable confidence state: **High**, **Needs review**, or **Unmapped**. Nothing is created or changed until the user accepts the wanted mappings and confirms **Create imported resume**. Cancelling discards the review session.
 
 TXT, Markdown, and RTF are read as local text. Text-based PDFs are supported when text can be extracted; image-only, encrypted, malformed, or nearly empty PDFs report that OCR is required instead of producing a misleading resume. Genuine DOCX archives are read locally for document paragraphs and simple layout tables; malformed archives, macro-containing documents, unsafe archive paths, and unsupported content are rejected. OCR, cloud processing, macros, embedded objects, external resources, and document instructions are not used.
 
@@ -70,9 +70,13 @@ Guest Mode can create a browser-local job target from a base resume and a job de
 
 ## Resume export
 
-The editor can download a real UTF-8 `.txt` resume or open the browser's **Print / Save as PDF** flow. Both use the visible sections and ordered entries from the canonical structured resume; no resume text is sent to a server, Supabase, Groq, analytics, or a print service by Resume Lab.
+The editor can download a real UTF-8 `.txt` resume or open the browser's **Print / Save as PDF** flow. Both use the visible sections and ordered entries from the canonical structured resume; no resume text is sent to a server, Supabase, Groq, analytics, or a print service by RecruitOS AI.
 
-Plain-text download uses one sanitized `.txt` filename extension and an ATS-friendly linear reading order. Print / Save as PDF produces selectable browser text and hides the editor, ATS panel, Copilot, controls, and animations. Select US Letter or A4 before printing. Browser and printer drivers may paginate differently, so review the browser print preview before saving. DOCX is intentionally not included: Resume Lab does not rename HTML or text as a fake `.docx` file.
+Plain-text download uses one sanitized `.txt` filename extension and an ATS-friendly linear reading order. Print / Save as PDF produces selectable browser text and hides the editor, ATS panel, Copilot, controls, and animations. Select US Letter or A4 before printing. Browser and printer drivers may paginate differently, so review the browser print preview before saving. DOCX is intentionally not included: RecruitOS AI does not rename HTML or text as a fake `.docx` file.
+
+## Compatibility identifiers
+
+Some internal browser-storage keys and client identifiers still use the legacy `resume-lab` name. They are retained solely to preserve existing local Guest Mode data and compatibility; they are not public product branding.
 
 ## Copilot manual checks
 

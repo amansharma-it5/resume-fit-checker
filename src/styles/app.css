@@ -84,7 +84,7 @@ main {
   margin: 8px 0 16px;
   font-size: clamp(48px, 7vw, 102px);
   line-height: 0.88;
-  letter-spacing: -0.055em;
+  letter-spacing: 0;
 }
 .hero-copy p:not(.eyebrow) {
   max-width: 570px;
