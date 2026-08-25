@@ -80,6 +80,9 @@ main {
   align-items: center;
   min-height: 620px;
 }
+.hero-copy {
+  min-width: 0;
+}
 .hero-copy h1 {
   margin: 8px 0 16px;
   font-size: clamp(48px, 7vw, 102px);
@@ -577,6 +580,14 @@ footer {
   }
 }
 @media (max-width: 520px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .topbar nav {
+    width: 100%;
+    justify-content: space-between;
+  }
   main {
     width: calc(100vw - 24px);
   }
@@ -591,8 +602,14 @@ footer {
     padding-inline: 3px;
     font-size: 12px;
   }
+  .topbar .availability-label {
+    min-height: 0;
+    padding: 3px 4px;
+    font-size: 10px;
+  }
   .hero-copy h1 {
-    font-size: 56px;
+    font-size: clamp(42px, 13vw, 56px);
+    overflow-wrap: anywhere;
   }
   .lab-stage {
     width: calc(100% - 56px);
