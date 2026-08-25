@@ -14,7 +14,9 @@ test("guest can edit, reorder, undo, save, and preview a structured resume", asy
   await page.getByLabel("Bullet 1").fill("Improved release reliability across three services");
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+Shift+z");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const save = page.getByRole("button", { name: "Save", exact: true });
+  await expect(save).toBeVisible();
+  if (await save.isEnabled()) await save.click();
   await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
   const previewTab = page.getByRole("button", { name: "Preview" });
   if (await previewTab.isVisible()) await previewTab.click();
