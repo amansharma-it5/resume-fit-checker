@@ -103,13 +103,19 @@ test("Copilot cancels an in-flight response without changing the editor", async 
   await bullet.fill("Improved release reliability for the platform.");
   const panel = page.getByRole("region", { name: "Resume Copilot" });
   await panel.getByLabel(/Send only this selected text/).check();
+  let releaseResponse: (() => Promise<void>) | undefined;
   await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    await route.fulfill({ json: { rewrittenBullet: "Improved release reliability for the platform." } });
+    await new Promise<void>((resolve) => {
+      releaseResponse = async () => {
+        await route.fulfill({ json: { rewrittenBullet: "Improved release reliability for the platform." } });
+        resolve();
+      };
+    });
   });
   await panel.getByRole("button", { name: "Generate AI suggestion" }).click();
   await panel.getByRole("button", { name: "Cancel" }).click();
   await expect(panel.getByRole("status")).toContainText("Copilot request cancelled");
+  await releaseResponse?.();
   await expect(panel.getByRole("heading", { name: "AI-generated suggestion" })).toHaveCount(0);
   await expect(bullet).toHaveValue("Improved release reliability for the platform.");
 });
