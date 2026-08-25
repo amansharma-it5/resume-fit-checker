@@ -43,13 +43,15 @@ export function CopilotPanel({
     }
   }, [requestedTargetIndex]);
   const target = targets[targetIndex];
-  const generate = async () => {
-    if (!target?.text.trim() || busy) return;
+  const generate = async (regenerate = false) => {
+    if (!target?.text.trim() || (busy && !regenerate)) return;
     controller.current?.abort();
     const request = new AbortController();
     controller.current = request;
     setBusy(true);
-    setStatus("Generating an evidence-checked suggestion.");
+    setStatus(
+      regenerate ? "Regenerating an evidence-checked suggestion." : "Generating an evidence-checked suggestion.",
+    );
     try {
       const response = await fetch("/.netlify/functions/ai-rewrite", {
         method: "POST",
@@ -155,12 +157,25 @@ export function CopilotPanel({
             >
               Accept
             </button>
-            <button onClick={() => setSuggestion("")}>Reject</button>
-            <button onClick={() => void generate()}>Regenerate</button>
+            <button
+              onClick={() => {
+                setSuggestion("");
+                setStatus("Suggestion rejected. Your resume was not changed.");
+              }}
+            >
+              Reject
+            </button>
+            <button onClick={() => void generate(true)}>Regenerate</button>
           </div>
           <label>
             Edit suggestion
-            <textarea value={suggestion} onChange={(event) => setSuggestion(event.target.value)} />
+            <textarea
+              value={suggestion}
+              onChange={(event) => {
+                setSuggestion(event.target.value);
+                setStatus("Edited suggestion will be checked before acceptance.");
+              }}
+            />
           </label>
         </div>
       )}

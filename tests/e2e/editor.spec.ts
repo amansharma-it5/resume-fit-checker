@@ -160,6 +160,66 @@ test("Copilot sends only the selected summary, skill, or bullet target", async (
   ).toBe(true);
 });
 
+test("Copilot revalidates edits, rejects safely, and supersedes regenerated responses", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Add bullet" }).first().click();
+  const bullet = page.getByLabel("Bullet 1");
+  const original = "Improved release reliability for the platform.";
+  await bullet.fill(original);
+  const panel = page.getByRole("region", { name: "Resume Copilot" });
+  await panel.getByLabel(/Send only this selected text/).check();
+
+  const payloads: Array<{ bullet?: string; approvedContext?: string }> = [];
+  let delayedResponse: (() => Promise<void>) | undefined;
+  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+    payloads.push(JSON.parse(route.request().postData() || "{}"));
+    if (payloads.length === 3) {
+      await new Promise<void>((resolve) => {
+        delayedResponse = async () => {
+          await route.fulfill({ json: { rewrittenBullet: "Older response should never appear." } });
+          resolve();
+        };
+      });
+      return;
+    }
+    await route.fulfill({ json: { rewrittenBullet: original } });
+  });
+
+  await panel.getByRole("button", { name: "Generate AI suggestion" }).click();
+  await expect(panel.getByRole("heading", { name: "AI-generated suggestion" })).toBeVisible();
+  const edit = panel.getByLabel("Edit suggestion");
+  await edit.fill("Improved AWS release reliability by 40%.");
+  await expect(panel.getByRole("status")).toContainText("Edited suggestion will be checked");
+  await panel.getByRole("button", { name: "Accept" }).click();
+  await expect(panel.getByRole("status")).toContainText("More information required");
+  await expect(bullet).toHaveValue(original);
+
+  await edit.fill(original);
+  await panel.getByRole("button", { name: "Accept" }).click();
+  await expect(panel.getByRole("status")).toContainText("Suggestion accepted");
+  await expect(bullet).toHaveValue(original);
+
+  await panel.getByRole("button", { name: "Reject" }).click();
+  await expect(panel.getByRole("status")).toContainText("Suggestion rejected");
+  await expect(bullet).toHaveValue(original);
+
+  await panel.getByRole("button", { name: "Generate AI suggestion" }).click();
+  await expect(panel.getByRole("heading", { name: "AI-generated suggestion" })).toBeVisible();
+  await panel.getByRole("button", { name: "Regenerate" }).click();
+  await expect(panel.getByRole("status")).toContainText("Regenerating");
+  await expect.poll(() => payloads.length).toBe(3);
+  await panel.getByRole("button", { name: "Regenerate" }).click();
+  await expect.poll(() => payloads.length).toBe(4);
+  await expect(panel.getByRole("status")).toContainText("Review and confirm");
+  await delayedResponse?.();
+  await expect(panel.getByText("Older response should never appear.")).toHaveCount(0);
+  expect(
+    payloads.slice(2).every((payload) => payload.bullet === original && payload.approvedContext === original),
+  ).toBe(true);
+});
+
 for (const width of [320, 360, 390, 412, 768, 1024, 1280, 1440, 1920]) {
   test(`editor has no root overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
