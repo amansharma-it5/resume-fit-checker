@@ -345,6 +345,28 @@ function TargetLinks({
       <div>
         <p role="status">A linked resume is missing. Relink a local active resume before using this target.</p>
         <label>
+          Replacement base resume
+          <select
+            defaultValue=""
+            onChange={(event) => {
+              if (event.target.value)
+                void relinkGuestTarget(target.id, "base", event.target.value)
+                  .then(async () => {
+                    await onRelinked();
+                    onMessage("Base resume relinked locally.");
+                  })
+                  .catch(() => onMessage("That resume is no longer available."));
+            }}
+          >
+            <option value="">Choose a resume</option>
+            {resumes.map((resume) => (
+              <option key={resume.id} value={resume.id}>
+                {resume.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           Replacement tailored resume
           <select
             defaultValue=""
