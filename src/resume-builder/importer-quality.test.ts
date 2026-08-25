@@ -28,20 +28,38 @@ describe("privacy-safe import mapping", () => {
 
   it("maps heading variants with evidence, confidence, bullets, contact, and dates", () => {
     const sections = extractStructuredSections(source);
-    expect(sections.map((section) => section.type)).toEqual(["contact", "summary", "experience", "education", "skills"]);
+    expect(sections.map((section) => section.type)).toEqual([
+      "contact",
+      "summary",
+      "experience",
+      "education",
+      "skills",
+    ]);
     expect(sections.every((section) => section.evidence && section.sourceRef)).toBe(true);
     expect(sections.slice(1).every((section) => section.confidence === "high")).toBe(true);
     const resume = importExtractedResume("import-1", "Imported", sections);
-    expect(resume.sections.find((section) => section.type === "contact")?.entries[0].fields.email).toBe("avery@example.test");
-    expect(resume.sections.find((section) => section.type === "experience")?.entries[0].bullets[0].text).toContain("Improved release reliability");
-    expect(resume.sections.find((section) => section.type === "experience")?.entries[0].fields.startDate).toBe("Jan 2022");
+    expect(resume.sections.find((section) => section.type === "contact")?.entries[0].fields.email).toBe(
+      "avery@example.test",
+    );
+    expect(resume.sections.find((section) => section.type === "experience")?.entries[0].bullets[0].text).toContain(
+      "Improved release reliability",
+    );
+    expect(resume.sections.find((section) => section.type === "experience")?.entries[0].fields.startDate).toBe(
+      "Jan 2022",
+    );
   });
 
   it("never invents values and requires accepted mappings", () => {
     const sections = extractStructuredSections("EXPERIENCE\n- Supported releases");
     const experience = sections.find((section) => section.type === "experience");
     expect(experience?.text).not.toContain("AWS");
-    expect(() => importExtractedResume("import-2", "Rejected", sections.map((item) => ({ ...item, accepted: false })))).toThrow("Accept at least one");
+    expect(() =>
+      importExtractedResume(
+        "import-2",
+        "Rejected",
+        sections.map((item) => ({ ...item, accepted: false })),
+      ),
+    ).toThrow("Accept at least one");
   });
 
   it("permits only safe imported link protocols", () => {

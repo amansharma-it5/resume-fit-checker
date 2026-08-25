@@ -469,16 +469,23 @@ export function ResumeEditorPage() {
                 }}
               />
             </label>
-            <p>Parsing runs locally. Review every proposed section before creating a new resume; scans and complex columns may need manual correction.</p>
+            <p>
+              Parsing runs locally. Review every proposed section before creating a new resume; scans and complex
+              columns may need manual correction.
+            </p>
             {importWarnings.length > 0 && (
               <ul className="import-warning-list" role="status" aria-label="Import warnings">
-                {importWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+                {importWarnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
               </ul>
             )}
             {extraction && (
               <div className="extraction-review" aria-labelledby="import-review-title">
                 <h3>Extraction review</h3>
-                <p id="import-review-title">Review source evidence and accept only mappings you want to add. Unaccepted content is not saved.</p>
+                <p id="import-review-title">
+                  Review source evidence and accept only mappings you want to add. Unaccepted content is not saved.
+                </p>
                 {extraction.map((item, index) => (
                   <fieldset className="import-candidate" key={item.id}>
                     <legend>{item.title}</legend>
@@ -486,25 +493,70 @@ export function ResumeEditorPage() {
                       <input
                         type="checkbox"
                         checked={item.accepted}
-                        onChange={(event) => setExtraction(extraction.map((current, currentIndex) => currentIndex === index ? { ...current, accepted: event.target.checked } : current))}
+                        onChange={(event) =>
+                          setExtraction(
+                            extraction.map((current, currentIndex) =>
+                              currentIndex === index ? { ...current, accepted: event.target.checked } : current,
+                            ),
+                          )
+                        }
                       />
                       Include this proposed section
                     </label>
-                    <p><strong>{item.confidence === "high" ? "High" : item.confidence === "needs-review" ? "Needs review" : "Unmapped"}</strong> · {item.confidenceReason}</p>
-                    <p className="import-evidence"><strong>Source evidence ({item.sourceRef}):</strong> {item.evidence || "No source evidence"}</p>
+                    <p>
+                      <strong>
+                        {item.confidence === "high"
+                          ? "High"
+                          : item.confidence === "needs-review"
+                            ? "Needs review"
+                            : "Unmapped"}
+                      </strong>{" "}
+                      · {item.confidenceReason}
+                    </p>
+                    <p className="import-evidence">
+                      <strong>Source evidence ({item.sourceRef}):</strong> {item.evidence || "No source evidence"}
+                    </p>
                     <label>
                       Destination: {item.title}
                       <textarea
                         rows={5}
                         value={item.text}
-                        onChange={(event) => setExtraction(extraction.map((current, currentIndex) => currentIndex === index ? { ...current, text: event.target.value, evidence: event.target.value.slice(0, 280), confidence: "needs-review", confidenceReason: "This mapping was edited and needs your review." } : current))}
+                        onChange={(event) =>
+                          setExtraction(
+                            extraction.map((current, currentIndex) =>
+                              currentIndex === index
+                                ? {
+                                    ...current,
+                                    text: event.target.value,
+                                    evidence: event.target.value.slice(0, 280),
+                                    confidence: "needs-review",
+                                    confidenceReason: "This mapping was edited and needs your review.",
+                                  }
+                                : current,
+                            ),
+                          )
+                        }
                       />
                     </label>
                   </fieldset>
                 ))}
                 <div className="import-review-actions">
-                  <button onClick={() => { setExtraction(null); setImportWarnings([]); setAnalysisNotice("Import review cancelled. Nothing was saved."); }}>Cancel import</button>
-                  <button className="primary" onClick={() => setConfirmImport(true)} disabled={!extraction.some((item) => item.accepted && item.text.trim())}>Create new resume from reviewed sections</button>
+                  <button
+                    onClick={() => {
+                      setExtraction(null);
+                      setImportWarnings([]);
+                      setAnalysisNotice("Import review cancelled. Nothing was saved.");
+                    }}
+                  >
+                    Cancel import
+                  </button>
+                  <button
+                    className="primary"
+                    onClick={() => setConfirmImport(true)}
+                    disabled={!extraction.some((item) => item.accepted && item.text.trim())}
+                  >
+                    Create new resume from reviewed sections
+                  </button>
                 </div>
               </div>
             )}
@@ -844,7 +896,11 @@ export function ResumeEditorPage() {
           void (async () => {
             try {
               const imported = importExtractedResume(crypto.randomUUID(), `${resume.title} imported`, extraction);
-              const created = await createResumeFromStructuredData(account, imported.title, imported as unknown as Record<string, unknown>);
+              const created = await createResumeFromStructuredData(
+                account,
+                imported.title,
+                imported as unknown as Record<string, unknown>,
+              );
               await createResumeVersion(account, { ...imported, id: created.id, title: created.title });
               setConfirmImport(false);
               navigate(`/resumes/${created.id}/edit`);
