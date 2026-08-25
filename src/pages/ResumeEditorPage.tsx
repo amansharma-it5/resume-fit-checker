@@ -175,6 +175,11 @@ export function ResumeEditorPage() {
     try {
       const saved = await saveStructuredResume(account, resumeDocument, snapshot);
       setResumeDocument(saved);
+      if (!account && targetId)
+        void getGuestTarget(targetId).then((target) => {
+          if (target?.tailoredResumeId === saved.id && target.latestAnalysis)
+            void updateGuestTarget(targetId, { latestAnalysis: { ...target.latestAnalysis, stale: true } });
+        });
       if (saveSnapshotIsCurrent(resumeRef.current, snapshotJson)) setLastSavedJson(snapshotJson);
       setStatus("saved");
     } catch (cause) {
@@ -191,7 +196,7 @@ export function ResumeEditorPage() {
           : "Your changes remain in this tab. Retry when the connection is available.",
       );
     }
-  }, [account, dirty, resumeDocument, resume, status]);
+  }, [account, dirty, resumeDocument, resume, status, targetId]);
 
   useEffect(() => {
     if (!dirty || loading) return;
