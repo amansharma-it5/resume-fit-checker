@@ -108,6 +108,12 @@ export async function removeGuestTarget(id: string) {
   await deleteGuestTarget(id);
 }
 
+export async function relinkGuestTarget(id: string, kind: "base" | "tailored", resumeId: string) {
+  const resume = await getGuestResume(resumeId);
+  if (!resume || resume.status === "deleted") throw new Error("TARGET_RESUME_MISSING");
+  return updateGuestTarget(id, kind === "base" ? { baseResumeId: resume.id } : { tailoredResumeId: resume.id });
+}
+
 export async function resolveGuestTargetResumes(
   target: JobTarget,
 ): Promise<{ base?: ResumeDocument; tailored?: ResumeDocument }> {

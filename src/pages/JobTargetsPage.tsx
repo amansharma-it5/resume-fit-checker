@@ -6,6 +6,7 @@ import {
   createGuestTarget,
   listGuestTargets,
   removeGuestTarget,
+  relinkGuestTarget,
   resolveGuestTargetResumes,
   updateGuestTarget,
   validateTargetDraft,
@@ -34,6 +35,7 @@ export function JobTargetsPage() {
   const [confirmDelete, setConfirmDelete] = useState<JobTarget | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | JobTarget["status"]>("all");
+  const [sort, setSort] = useState<"updated" | "company" | "role" | "status">("updated");
   const [message, setMessage] = useState("");
 
   const load = async () => {
@@ -44,15 +46,18 @@ export function JobTargetsPage() {
   useEffect(() => {
     void load();
   }, []);
-  const shown = useMemo(
-    () =>
-      targets.filter(
-        (target) =>
-          (statusFilter === "all" || target.status === statusFilter) &&
-          `${target.company} ${target.role}`.toLowerCase().includes(query.trim().toLowerCase()),
-      ),
-    [query, statusFilter, targets],
-  );
+  const shown = useMemo(() => {
+    const filtered = targets.filter(
+      (target) =>
+        (statusFilter === "all" || target.status === statusFilter) &&
+        `${target.company} ${target.role}`.toLowerCase().includes(query.trim().toLowerCase()),
+    );
+    return filtered.sort((left, right) =>
+      sort === "updated"
+        ? right.updatedAt.localeCompare(left.updatedAt)
+        : String(left[sort]).localeCompare(String(right[sort])),
+    );
+  }, [query, sort, statusFilter, targets]);
   const selected = targets.find((target) => target.id === targetId);
 
   function updateDraft<K extends keyof JobTargetDraft>(key: K, value: JobTargetDraft[K]) {
@@ -120,7 +125,7 @@ export function JobTargetsPage() {
               ))}
             </select>
           </label>
-          <TargetLinks target={selected} onMessage={setMessage} />
+          <TargetLinks target={selected} resumes={resumes} onMessage={setMessage} onRelinked={load} />
           <p>
             <strong>ATS:</strong>{" "}
             {selected.latestAnalysis
@@ -252,6 +257,15 @@ export function JobTargetsPage() {
                   ))}
                 </select>
               </label>
+              <label>
+                Sort
+                <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)}>
+                  <option value="updated">Last updated</option>
+                  <option value="company">Company</option>
+                  <option value="role">Role</option>
+                  <option value="status">Status</option>
+                </select>
+              </label>
             </div>
             {!shown.length ? (
               <p>No local job targets yet.</p>
@@ -311,13 +325,49 @@ export function JobTargetsPage() {
   );
 }
 
-function TargetLinks({ target, onMessage }: { target: JobTarget; onMessage: (message: string) => void }) {
+function TargetLinks({
+  target,
+  resumes,
+  onMessage,
+  onRelinked,
+}: {
+  target: JobTarget;
+  resumes: ResumeDocument[];
+  onMessage: (message: string) => void;
+  onRelinked: () => Promise<void>;
+}) {
   const [missing, setMissing] = useState(false);
   useEffect(() => {
     void resolveGuestTargetResumes(target).then(({ base, tailored }) => setMissing(!base || !tailored));
   }, [target]);
   if (missing)
-    return <p role="status">A linked resume is missing. Relink or create a replacement before using this target.</p>;
+    return (
+      <div>
+        <p role="status">A linked resume is missing. Relink a local active resume before using this target.</p>
+        <label>
+          Replacement tailored resume
+          <select
+            defaultValue=""
+            onChange={(event) => {
+              if (event.target.value)
+                void relinkGuestTarget(target.id, "tailored", event.target.value)
+                  .then(async () => {
+                    await onRelinked();
+                    onMessage("Tailored resume relinked locally.");
+                  })
+                  .catch(() => onMessage("That resume is no longer available."));
+            }}
+          >
+            <option value="">Choose a resume</option>
+            {resumes.map((resume) => (
+              <option key={resume.id} value={resume.id}>
+                {resume.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    );
   return (
     <div className="button-row">
       <Link className="button-link" to={`/resumes/${target.tailoredResumeId}/edit?target=${target.id}`}>

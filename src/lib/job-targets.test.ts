@@ -5,6 +5,7 @@ import {
   getGuestTarget,
   hashJobDescription,
   removeGuestTarget,
+  relinkGuestTarget,
   safeTargetUrl,
   updateGuestTarget,
   validateTargetDraft,
@@ -58,5 +59,19 @@ describe.sequential("local job targets", () => {
     await removeGuestTarget(first.target.id);
     expect(await getGuestTarget(first.target.id)).toBeUndefined();
     expect(await getGuestResume(first.tailored.id)).toBeDefined();
+  });
+  it("relinks only the requested local resume relationship", async () => {
+    const base = await createGuestResume("Relink base");
+    const replacement = await createGuestResume("Replacement tailored");
+    const { target } = await createGuestTarget({
+      company: "Three",
+      role: "Engineer",
+      baseResumeId: base.id,
+      jobDescription: "TypeScript",
+    });
+    await relinkGuestTarget(target.id, "tailored", replacement.id);
+    const updated = await getGuestTarget(target.id);
+    expect(updated?.tailoredResumeId).toBe(replacement.id);
+    expect(updated?.baseResumeId).toBe(base.id);
   });
 });
