@@ -308,6 +308,85 @@ test("Copilot launches from a mapped ATS issue and safely rejects missing target
   expect(calls).toBe(1);
 });
 
+test("Copilot cancellation and target changes prevent stale responses from winning", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("textbox", { name: /^Summary/ }).fill("Reliable platform engineer.");
+  await page.getByRole("button", { name: "Add bullet" }).first().click();
+  const bullet = page.getByLabel("Bullet 1");
+  const bulletText = "Improved release reliability for the platform.";
+  await bullet.fill(bulletText);
+  const panel = page.getByRole("region", { name: "Resume Copilot" });
+  await panel.getByLabel(/Send only this selected text/).check();
+
+  const deferred: Array<() => Promise<void>> = [];
+  const payloads: Array<{ bullet?: string }> = [];
+  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+    payloads.push(JSON.parse(route.request().postData() || "{}"));
+    const request = payloads.length;
+    if (request === 1 || request === 3) {
+      await new Promise<void>((resolve) => {
+        deferred.push(async () => {
+          await route.fulfill({
+            json: { rewrittenBullet: request === 1 ? "Cancelled stale result." : "Old target result." },
+          });
+          resolve();
+        });
+      });
+      return;
+    }
+    await route.fulfill({ json: { rewrittenBullet: request === 2 ? bulletText : "Reliable platform engineer." } });
+  });
+
+  await panel.getByRole("button", { name: "Generate AI suggestion" }).click();
+  await expect(panel.getByRole("button", { name: "Cancel" })).toBeEnabled();
+  await panel.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("status", { name: "Editor notifications" })).toContainText("Copilot request cancelled");
+  await deferred[0]?.();
+  await expect(panel.getByText("Cancelled stale result.")).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "Cancel" })).toBeDisabled();
+
+  await panel.getByRole("button", { name: "Generate AI suggestion" }).click();
+  await expect(panel.getByRole("heading", { name: "AI-generated suggestion" })).toBeVisible();
+  await expect(page.getByRole("status", { name: "Editor notifications" })).toContainText("Review and confirm");
+  await panel.getByRole("button", { name: "Reject" }).click();
+
+  await panel.getByLabel("Improve").selectOption({ label: "Professional summary" });
+  await panel.getByRole("button", { name: "Generate AI suggestion" }).click();
+  await expect.poll(() => payloads.length).toBe(3);
+  await panel.getByLabel("Improve").selectOption({ label: "Work Experience bullet" });
+  await panel.getByRole("button", { name: "Generate AI suggestion" }).click();
+  await expect.poll(() => payloads.length).toBe(4);
+  await deferred[1]?.();
+  await expect(panel.getByText("Old target result.")).toHaveCount(0);
+  await expect(panel.getByRole("heading", { name: "AI-generated suggestion" })).toBeVisible();
+  await expect(bullet).toHaveValue(bulletText);
+});
+
+test("Copilot controls stay keyboard reachable and contained with long synthetic content", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Add bullet" }).first().click();
+  await page.getByLabel("Bullet 1").fill("Improved release reliability ".repeat(30));
+  const panel = page.getByRole("region", { name: "Resume Copilot" });
+  await page.route("**/.netlify/functions/ai-rewrite", (route) => route.abort("failed"));
+  await panel.scrollIntoViewIfNeeded();
+  await panel.getByLabel(/Send only this selected text/).focus();
+  await page.keyboard.press("Space");
+  await expect(panel.getByRole("button", { name: "Generate AI suggestion" })).toBeEnabled();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await expect(panel.getByRole("heading", { name: "Local Smart Rewrite fallback" })).toBeVisible();
+  const measurement = await page.evaluate(() => ({
+    viewport: window.innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(measurement.scrollWidth <= measurement.viewport, JSON.stringify(measurement)).toBe(true);
+});
+
 for (const width of [320, 360, 390, 412, 768, 1024, 1280, 1440, 1920]) {
   test(`editor has no root overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
