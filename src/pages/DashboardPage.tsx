@@ -130,6 +130,9 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
         <button className="primary" onClick={() => void action(() => createResume(account), "Resume created.")}>
           Create resume
         </button>
+        <Link className="button-link" to="/targets">
+          Job targets
+        </Link>
         {!account && authEnabled && (
           <Link className="button-link" to="/signup">
             Create an account

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { SAMPLE_JOB_DESCRIPTION } from "../onboarding/sample-data";
@@ -7,6 +7,7 @@ import { isMeaningfulEditorAction, markOnboardingStep } from "../onboarding/stat
 import { analyzeResumeFit, canCopyOrApply, sanitizeAnalysisForStorage, smartRewrite } from "../lib/analysis";
 import { extractResumeDocument } from "../lib/file-parser";
 import { getGuestResume, saveAnalysisSummary } from "../lib/guest-db";
+import { getGuestTarget, updateGuestTarget } from "../lib/job-targets";
 import {
   createResumeVersion,
   createResumeFromStructuredData,
@@ -56,6 +57,8 @@ function saveLabel(status: SaveStatus) {
 
 export function ResumeEditorPage() {
   const { resumeId = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  const targetId = searchParams.get("target");
   const navigate = useNavigate();
   const { user } = useAuth();
   const account = Boolean(user);
@@ -145,6 +148,19 @@ export function ResumeEditorPage() {
     };
   }, [account, resumeId]);
 
+  useEffect(() => {
+    if (account || !targetId) return;
+    void getGuestTarget(targetId).then((target) => {
+      if (!target || target.tailoredResumeId !== resumeId) {
+        setAnalysisNotice("This job target is no longer linked to this resume.");
+        return;
+      }
+      setTargetRole(target.role);
+      setJobDescription(target.jobDescription);
+      setAnalysisNotice(`Loaded local job target: ${target.role} at ${target.company}.`);
+    });
+  }, [account, resumeId, targetId]);
+
   const dirty = !loading && JSON.stringify(resume) !== lastSavedJson;
   const save = useCallback(async () => {
     if (!resumeDocument || !dirty || status === "saving") return;
@@ -159,6 +175,11 @@ export function ResumeEditorPage() {
     try {
       const saved = await saveStructuredResume(account, resumeDocument, snapshot);
       setResumeDocument(saved);
+      if (!account && targetId)
+        void getGuestTarget(targetId).then((target) => {
+          if (target?.tailoredResumeId === saved.id && target.latestAnalysis)
+            void updateGuestTarget(targetId, { latestAnalysis: { ...target.latestAnalysis, stale: true } });
+        });
       if (saveSnapshotIsCurrent(resumeRef.current, snapshotJson)) setLastSavedJson(snapshotJson);
       setStatus("saved");
     } catch (cause) {
@@ -175,7 +196,7 @@ export function ResumeEditorPage() {
           : "Your changes remain in this tab. Retry when the connection is available.",
       );
     }
-  }, [account, dirty, resumeDocument, resume, status]);
+  }, [account, dirty, resumeDocument, resume, status, targetId]);
 
   useEffect(() => {
     if (!dirty || loading) return;
@@ -296,6 +317,15 @@ export function ResumeEditorPage() {
       });
       if (request !== analysisRequest.current) return;
       setAnalysis(result);
+      if (!account && targetId)
+        void updateGuestTarget(targetId, {
+          latestAnalysis: {
+            overall: result.scores?.overall ?? null,
+            resumeVersion: resume.documentVersion,
+            calculatedAt: new Date().toISOString(),
+            stale: false,
+          },
+        });
       markOnboardingStep("ats");
       setAnalysisStatus("updated");
       setAnalysisNotice("ATS analysis updated.");
@@ -314,7 +344,7 @@ export function ResumeEditorPage() {
       setAnalysisStatus("error");
       setAnalysisNotice("ATS analysis could not be calculated. Your resume remains unchanged.");
     }
-  }, [account, jobDescription, resume, resumeDocument, targetRole]);
+  }, [account, jobDescription, resume, resumeDocument, targetId, targetRole]);
 
   useEffect(() => {
     if (!jobDescription.trim()) return;
@@ -819,6 +849,10 @@ export function ResumeEditorPage() {
                 value={jobDescription}
                 onChange={(event) => {
                   setJobDescription(event.target.value);
+                  if (!account && targetId)
+                    void updateGuestTarget(targetId, { jobDescription: event.target.value }).catch(() =>
+                      setAnalysisNotice("This target job description could not be saved."),
+                    );
                   if (event.target.value.trim()) markOnboardingStep("jobDescription");
                 }}
               />
