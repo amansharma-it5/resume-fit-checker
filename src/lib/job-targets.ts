@@ -87,10 +87,7 @@ export async function createGuestTarget(draft: JobTargetDraft) {
   return { target, tailored };
 }
 
-export async function updateGuestTarget(
-  id: string,
-  patch: Partial<JobTargetDraft> & Pick<Partial<JobTarget>, "status">,
-) {
+export async function updateGuestTarget(id: string, patch: Partial<JobTargetDraft> & Partial<JobTarget>) {
   const current = await getGuestTarget(id);
   if (!current) throw new Error("TARGET_MISSING");
   const next = { ...current, ...patch } as JobTarget;
@@ -124,4 +121,4 @@ export async function resolveGuestTargetResumes(
   };
 }
 
-export { listGuestTargets };
+export { getGuestTarget, listGuestTargets };

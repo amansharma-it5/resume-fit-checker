@@ -320,13 +320,13 @@ function TargetLinks({ target, onMessage }: { target: JobTarget; onMessage: (mes
     return <p role="status">A linked resume is missing. Relink or create a replacement before using this target.</p>;
   return (
     <div className="button-row">
-      <Link className="button-link" to={`/resumes/${target.tailoredResumeId}/edit`}>
+      <Link className="button-link" to={`/resumes/${target.tailoredResumeId}/edit?target=${target.id}`}>
         Open tailored resume
       </Link>
-      <Link className="button-link" to={`/resumes/${target.tailoredResumeId}/edit`}>
+      <Link className="button-link" to={`/resumes/${target.tailoredResumeId}/edit?target=${target.id}`}>
         Run or review ATS
       </Link>
-      <Link className="button-link" to={`/resumes/${target.tailoredResumeId}/edit`}>
+      <Link className="button-link" to={`/resumes/${target.tailoredResumeId}/edit?target=${target.id}`}>
         Export tailored resume
       </Link>
       <button onClick={() => onMessage("Open the tailored resume to review local ATS evidence or export.")}>
