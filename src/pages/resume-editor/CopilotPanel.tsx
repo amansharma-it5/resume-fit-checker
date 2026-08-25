@@ -127,10 +127,7 @@ export function CopilotPanel({
         <button disabled={!consent || !target?.text.trim() || busy} onClick={() => void generate()}>
           {busy ? "Generating..." : "Generate AI suggestion"}
         </button>
-        <button
-          disabled={!busy}
-          onClick={() => cancelRequest()}
-        >
+        <button disabled={!busy} onClick={() => cancelRequest()}>
           Cancel
         </button>
       </div>
