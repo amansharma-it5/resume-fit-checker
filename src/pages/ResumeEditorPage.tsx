@@ -399,7 +399,7 @@ export function ResumeEditorPage() {
           <p>{error}</p>
         </div>
       )}
-      <p className="sr-only" role="status" aria-live="polite">
+      <p className="sr-only" role="status" aria-live="polite" aria-label="Editor notifications">
         {analysisNotice}
       </p>
       {issues.length > 0 && (
@@ -513,6 +513,7 @@ export function ResumeEditorPage() {
             role={targetRole}
             jd={jobDescription}
             requestedTargetIndex={copilotTargetIndex}
+            onAnnouncement={setAnalysisNotice}
           />
           <details className="editor-tool">
             <summary>Templates and layout</summary>

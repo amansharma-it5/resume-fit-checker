@@ -220,6 +220,48 @@ test("Copilot revalidates edits, rejects safely, and supersedes regenerated resp
   ).toBe(true);
 });
 
+test("Copilot safely falls back and retries after provider failures", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Add bullet" }).first().click();
+  const bullet = page.getByLabel("Bullet 1");
+  const original = "Improved release reliability for the platform.";
+  await bullet.fill(original);
+  const panel = page.getByRole("region", { name: "Resume Copilot" });
+  await panel.getByLabel(/Send only this selected text/).check();
+  const payloads: Array<{ bullet?: string; approvedContext?: string }> = [];
+  const failures = ["network", "timeout", "rate-limit", "provider", "malformed", "empty"];
+  let requestIndex = 0;
+  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+    payloads.push(JSON.parse(route.request().postData() || "{}"));
+    const failure = failures[requestIndex++];
+    if (failure === "network" || failure === "timeout")
+      return route.abort(failure === "timeout" ? "timedout" : "failed");
+    if (failure === "rate-limit") return route.fulfill({ status: 429, json: { code: "GROQ_RATE_LIMITED" } });
+    if (failure === "provider") return route.fulfill({ status: 500, json: { code: "GROQ_REJECTED" } });
+    if (failure === "malformed") return route.fulfill({ contentType: "application/json", body: "not-json" });
+    if (failure === "empty") return route.fulfill({ json: { rewrittenBullet: "" } });
+    return route.fulfill({ json: { rewrittenBullet: original, verificationStatus: "FACT_CHECKED" } });
+  });
+
+  for (const failure of failures) {
+    await panel
+      .getByRole("button", { name: failure === "network" ? "Generate AI suggestion" : "Retry AI suggestion" })
+      .click();
+    await expect(panel.getByRole("heading", { name: "Local Smart Rewrite fallback" })).toBeVisible();
+    await expect(panel.getByRole("status")).toContainText("AI is unavailable");
+    await expect(page.getByRole("status", { name: "Editor notifications" })).toContainText("AI is unavailable");
+    await expect(bullet).toHaveValue(original);
+  }
+
+  await panel.getByRole("button", { name: "Retry AI suggestion" }).click();
+  await expect(panel.getByRole("heading", { name: "AI-generated suggestion" })).toBeVisible();
+  await expect(bullet).toHaveValue(original);
+  expect(payloads).toHaveLength(7);
+  expect(payloads.every((payload) => payload.bullet === original && payload.approvedContext === original)).toBe(true);
+});
+
 for (const width of [320, 360, 390, 412, 768, 1024, 1280, 1440, 1920]) {
   test(`editor has no root overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });

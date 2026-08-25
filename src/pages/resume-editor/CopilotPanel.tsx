@@ -15,11 +15,13 @@ export function CopilotPanel({
   role,
   jd,
   requestedTargetIndex,
+  onAnnouncement,
 }: {
   targets: CopilotTarget[];
   role: string;
   jd: string;
   requestedTargetIndex?: number;
+  onAnnouncement?: (message: string) => void;
 }) {
   const [targetIndex, setTargetIndex] = useState(0);
   const [consent, setConsent] = useState(false);
@@ -27,18 +29,24 @@ export function CopilotPanel({
   const [original, setOriginal] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [source, setSource] = useState<"ai" | "fallback">("ai");
   const controller = useRef<AbortController | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
+  const announce = (message: string) => {
+    setStatus(message);
+    onAnnouncement?.(message);
+  };
   const cancelRequest = (message = "Copilot request cancelled.") => {
     controller.current?.abort();
     controller.current = null;
     setBusy(false);
-    setStatus(message);
+    announce(message);
   };
   useEffect(() => {
     if (requestedTargetIndex !== undefined) {
       setTargetIndex(requestedTargetIndex);
       setSuggestion("");
+      setSource("ai");
       panelRef.current?.focus({ preventScroll: true });
     }
   }, [requestedTargetIndex]);
@@ -49,7 +57,7 @@ export function CopilotPanel({
     const request = new AbortController();
     controller.current = request;
     setBusy(true);
-    setStatus(
+    announce(
       regenerate ? "Regenerating an evidence-checked suggestion." : "Generating an evidence-checked suggestion.",
     );
     try {
@@ -64,19 +72,26 @@ export function CopilotPanel({
           approvedContext: target.evidence.slice(0, 2000),
         }),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.code || "GROQ_REJECTED");
+      const payload: unknown = await response.json();
+      if (!payload || typeof payload !== "object" || !("rewrittenBullet" in payload))
+        throw new Error("MALFORMED_RESPONSE");
+      const responsePayload = payload as { rewrittenBullet?: unknown; code?: unknown; verificationStatus?: unknown };
+      const rewrittenBullet = responsePayload.rewrittenBullet;
+      if (typeof rewrittenBullet !== "string" || !rewrittenBullet.trim()) throw new Error("MALFORMED_RESPONSE");
+      if (!response.ok)
+        throw new Error(typeof responsePayload.code === "string" ? responsePayload.code : "GROQ_REJECTED");
       if (request !== controller.current) return;
-      const checked = validateCopilotSuggestion(payload.rewrittenBullet || "", `${target.text}\n${target.evidence}`);
+      const checked = validateCopilotSuggestion(rewrittenBullet, `${target.text}\n${target.evidence}`);
       if (!checked.ok) {
         setSuggestion("");
-        setStatus(`More information required: ${checked.unsupported.join(", ")}.`);
+        announce(`More information required: ${checked.unsupported.join(", ")}.`);
         return;
       }
       setOriginal(target.text);
-      setSuggestion(payload.rewrittenBullet || "");
-      setStatus(
-        payload.verificationStatus === "FACT_CHECKED"
+      setSuggestion(rewrittenBullet);
+      setSource("ai");
+      announce(
+        responsePayload.verificationStatus === "FACT_CHECKED"
           ? "AI suggestion is fact-checked."
           : "Review and confirm the AI suggestion before applying.",
       );
@@ -85,7 +100,8 @@ export function CopilotPanel({
       const local = smartRewrite(target.text);
       setOriginal(target.text);
       setSuggestion(local.after);
-      setStatus("AI is unavailable. Showing a local Smart Rewrite instead.");
+      setSource("fallback");
+      announce("AI is unavailable. Showing a local Smart Rewrite fallback instead.");
     } finally {
       if (request === controller.current) setBusy(false);
     }
@@ -109,6 +125,7 @@ export function CopilotPanel({
             cancelRequest("Copilot target changed. Any earlier request was cancelled.");
             setTargetIndex(Number(event.target.value));
             setSuggestion("");
+            setSource("ai");
           }}
         >
           {targets.map((item, index) => (
@@ -138,7 +155,7 @@ export function CopilotPanel({
       </p>
       {suggestion && (
         <div className="copilot-result">
-          <h3>AI-generated suggestion</h3>
+          <h3>{source === "fallback" ? "Local Smart Rewrite fallback" : "AI-generated suggestion"}</h3>
           <div className="copilot-diff">
             <del>{original}</del>
             <ins>{suggestion}</ins>
@@ -148,11 +165,11 @@ export function CopilotPanel({
               onClick={() => {
                 const checked = validateCopilotSuggestion(suggestion, `${target?.text}\n${target?.evidence}`);
                 if (!checked.ok) {
-                  setStatus(`More information required: ${checked.unsupported.join(", ")}.`);
+                  announce(`More information required: ${checked.unsupported.join(", ")}.`);
                   return;
                 }
                 target?.apply(suggestion);
-                setStatus("Suggestion accepted. Undo is available.");
+                announce("Suggestion accepted. Undo is available.");
               }}
             >
               Accept
@@ -160,12 +177,13 @@ export function CopilotPanel({
             <button
               onClick={() => {
                 setSuggestion("");
-                setStatus("Suggestion rejected. Your resume was not changed.");
+                announce("Suggestion rejected. Your resume was not changed.");
               }}
             >
               Reject
             </button>
             <button onClick={() => void generate(true)}>Regenerate</button>
+            {source === "fallback" && <button onClick={() => void generate()}>Retry AI suggestion</button>}
           </div>
           <label>
             Edit suggestion
@@ -173,7 +191,7 @@ export function CopilotPanel({
               value={suggestion}
               onChange={(event) => {
                 setSuggestion(event.target.value);
-                setStatus("Edited suggestion will be checked before acceptance.");
+                announce("Edited suggestion will be checked before acceptance.");
               }}
             />
           </label>
