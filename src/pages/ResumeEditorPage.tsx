@@ -307,8 +307,9 @@ export function ResumeEditorPage() {
       return;
     }
     setCopilotTargetIndex(index);
-    document.getElementById("copilot-panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    window.setTimeout(() => document.getElementById("copilot-panel")?.focus(), 0);
+    const panel = document.getElementById("copilot-panel");
+    panel?.scrollIntoView({ behavior: "smooth", block: "center" });
+    panel?.focus({ preventScroll: true });
     setAnalysisNotice(`Copilot opened for: ${issueText}`);
   }
 
@@ -399,6 +400,9 @@ export function ResumeEditorPage() {
           <p>{error}</p>
         </div>
       )}
+      <p className="sr-only" role="status" aria-live="polite">
+        {analysisNotice}
+      </p>
       {issues.length > 0 && (
         <aside className="validation-summary" aria-labelledby="validation-title">
           <h2 id="validation-title">Validation</h2>
@@ -425,7 +429,7 @@ export function ResumeEditorPage() {
         </button>
       </div>
       <div className="editor-workspace">
-        <main id="resume-fields" className={`editor-pane ${view === "edit" ? "mobile-active" : ""}`}>
+        <section id="resume-fields" className={`editor-pane ${view === "edit" ? "mobile-active" : ""}`}>
           <section className="editor-metrics" aria-label="Document metrics">
             <span>{words} words</span>
             <span>{estimatePageCount(resume)} estimated pages</span>
@@ -714,9 +718,6 @@ export function ResumeEditorPage() {
             <button className="primary" onClick={analyze}>
               Analyze structured resume
             </button>
-            <p role="status" aria-live="polite">
-              {analysisNotice}
-            </p>
             {analysis && (
               <div className="ats-editor-results" role="status">
                 <h3>ATS result: {analysis.scores?.overall ?? "Insufficient JD detail"}</h3>
@@ -799,7 +800,7 @@ export function ResumeEditorPage() {
               )}
             </section>
           )}
-        </main>
+        </section>
         <aside className={`preview-pane ${view === "preview" ? "mobile-active" : ""}`}>
           <div className="preview-controls" aria-label="Preview zoom">
             <button onClick={() => setZoom((value) => Math.max(0.45, value - 0.1))}>Zoom out</button>

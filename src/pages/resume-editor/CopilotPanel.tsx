@@ -22,10 +22,12 @@ export function CopilotPanel({
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (requestedTargetIndex !== undefined) {
       setTargetIndex(requestedTargetIndex);
       setSuggestion("");
+      panelRef.current?.focus({ preventScroll: true });
     }
   }, [requestedTargetIndex]);
   const target = targets[targetIndex];
@@ -77,6 +79,7 @@ export function CopilotPanel({
   return (
     <section
       className="editor-tool copilot-panel"
+      ref={panelRef}
       id="copilot-panel"
       tabIndex={-1}
       role="region"

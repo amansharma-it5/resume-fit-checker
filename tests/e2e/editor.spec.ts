@@ -54,6 +54,46 @@ test("Copilot requires consent and keeps an accepted suggestion undoable", async
   await page.getByRole("button", { name: "Undo" }).click();
 });
 
+test("Copilot blocks fabricated responses and supports reject, edit, regenerate, and ATS launch", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  await expect(page.getByRole("button", { name: "Fix with Copilot" }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Fix with Copilot" }).first().click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "This issue no longer has an editable Copilot target." }),
+  ).toContainText("This issue no longer has an editable Copilot target.");
+  await page.getByRole("button", { name: "Add bullet" }).first().click();
+  await page.getByLabel("Bullet 1").fill("Improved release reliability for the platform.");
+  const panel = page.getByRole("region", { name: "Resume Copilot" });
+  await panel.scrollIntoViewIfNeeded();
+  await panel.getByLabel(/Send only this selected text/).check();
+  let calls = 0;
+  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+    calls += 1;
+    await route.fulfill({
+      json: {
+        rewrittenBullet:
+          calls === 1 ? "Improved AWS reliability by 40% in 2025." : "Improved release reliability for the platform.",
+        verificationStatus: "FACT_CHECKED",
+      },
+    });
+  });
+  await panel.getByRole("button", { name: "Generate AI suggestion" }).click();
+  await expect(panel.getByRole("status")).toContainText("More information required");
+  await expect(panel.getByRole("heading", { name: "AI-generated suggestion" })).toHaveCount(0);
+  await panel.getByRole("button", { name: "Generate AI suggestion" }).click();
+  await expect(panel.getByRole("heading", { name: "AI-generated suggestion" })).toBeVisible();
+  await panel.getByLabel("Edit suggestion").fill("Improved AWS reliability by 40%.");
+  await panel.getByRole("button", { name: "Accept" }).click();
+  await expect(panel.getByRole("status")).toContainText("More information required");
+  await panel.getByRole("button", { name: "Reject" }).click();
+  await expect(panel.getByRole("heading", { name: "AI-generated suggestion" })).toHaveCount(0);
+  await panel.getByRole("button", { name: "Generate AI suggestion" }).click();
+  await panel.getByRole("button", { name: "Regenerate" }).click();
+  expect(calls).toBeGreaterThanOrEqual(4);
+});
+
 for (const width of [320, 360, 390, 412, 768, 1024, 1280, 1440, 1920]) {
   test(`editor has no root overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
