@@ -202,12 +202,18 @@ export function CheckerPage() {
         {" "}
         <div className="hero-copy">
           {" "}
-          <p className="eyebrow">Free, private ATS analysis</p> <h1>Resume Lab</h1>{" "}
+          <p className="eyebrow">AI recruiter operating system</p>{" "}
+          <h1>Your resume must impress both ATS systems and human recruiters.</h1>{" "}
           <p>
             {" "}
-            Test resume evidence against a real role with deterministic scoring. Local analysis never sends your resume
-            over the network.{" "}
+            RecruitOS AI analyzes role evidence, ATS structure, recruiter skimmability, and rewrite opportunities with
+            privacy-first local parsing.{" "}
           </p>{" "}
+          <div className="hero-badges" aria-label="Trust badges">
+            <span>100% local resume parsing</span>
+            <span>Recruiter-grade evidence</span>
+            <span>No raw resume storage</span>
+          </div>
         </div>{" "}
         <div className="lab-stage-viewport" aria-hidden="true">
           {" "}
@@ -226,7 +232,7 @@ export function CheckerPage() {
         {" "}
         <div className="section-heading">
           {" "}
-          <p className="eyebrow">Local workbench</p> <h2 id="checker-title">Run a fit check</h2>{" "}
+          <p className="eyebrow">Live analysis workspace</p> <h2 id="checker-title">Run recruiter intelligence</h2>{" "}
         </div>{" "}
         <div className="input-grid">
           {" "}
@@ -274,15 +280,15 @@ export function CheckerPage() {
         )}
         <button className="primary" onClick={() => void runAnalysis()}>
           {" "}
-          Analyze locally{" "}
+          Analyze resume{" "}
         </button>{" "}
         <StatusMessage message={status} error={error} />{" "}
       </section>{" "}
       {displayAnalysis && (
         <section className="results" aria-labelledby="results-title">
           {" "}
-          <h2 id="results-title">Evidence dashboard</h2>{" "}
-          <p>This score explains deterministic signals; it does not predict hiring decisions.</p>{" "}
+          <h2 id="results-title">Recruiter intelligence dashboard</h2>{" "}
+          <p>This score explains deterministic ATS and recruiter signals; it does not guarantee hiring decisions.</p>{" "}
           <div className="score-grid">
             {" "}
             {scoreRows.map(([label, score]) => (
@@ -530,7 +536,7 @@ export function CheckerPage() {
       )}{" "}
       <section className="rewrite-lab" aria-labelledby="rewrite-title">
         {" "}
-        <h2 id="rewrite-title">Rewrite lab</h2>{" "}
+        <h2 id="rewrite-title">AI rewrite studio</h2>{" "}
         <div className="rewrite-grid">
           {" "}
           <div>

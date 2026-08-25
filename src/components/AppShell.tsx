@@ -9,17 +9,17 @@ export function AppShell({ authEnabled }: { authEnabled: boolean }) {
         Skip to main content
       </a>
       <header className="topbar">
-        <NavLink className="brand" to="/" aria-label="Resume Lab home">
+        <NavLink className="brand" to="/" aria-label="RecruitOS AI home">
           <span className="brand-mark" aria-hidden="true">
-            RL
+            RO
           </span>
           <span>
-            <strong>Resume Lab</strong>
-            <small>Private career workspace</small>
+            <strong>RecruitOS AI</strong>
+            <small>Private recruiter intelligence</small>
           </span>
         </NavLink>
         <nav aria-label="Primary navigation">
-          <NavLink to="/checker">Checker</NavLink>
+          <NavLink to="/checker">Analyzer</NavLink>
           <NavLink to="/dashboard">Dashboard</NavLink>
           <NavLink to="/targets">Job targets</NavLink>
           <NavLink to="/settings">Settings</NavLink>
@@ -38,7 +38,7 @@ export function AppShell({ authEnabled }: { authEnabled: boolean }) {
         <Outlet />
       </main>
       <footer>
-        <span>Resume Lab</span>
+        <span>RecruitOS AI</span>
         <nav aria-label="Footer">
           <NavLink to="/privacy">Privacy</NavLink>
         </nav>
