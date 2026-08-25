@@ -252,11 +252,26 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
                 <section className="onboarding-checklist" aria-labelledby="onboarding-title">
                   <h3 id="onboarding-title">Get started</h3>
                   <ol>
-                    <li>{onboarding.steps.resume ? "Done: resume open" : "Create, import, or open a sample resume"}</li>
-                    <li>Review your profile and experience</li>
-                    <li>Add a job description, then review ATS evidence</li>
-                    <li>Optionally try local Smart Rewrite or inspect Copilot</li>
-                    <li>Export as TXT or Print / Save as PDF</li>
+                    <li>
+                      {onboarding.steps.resume
+                        ? "Done: resume created or opened"
+                        : "Create, import, or open a sample resume"}
+                    </li>
+                    <li>
+                      {onboarding.steps.edited ? "Done: resume content reviewed" : "Review or edit resume content"}
+                    </li>
+                    <li>
+                      {onboarding.steps.jobDescription
+                        ? "Done: job description added"
+                        : "Add or load a job description"}
+                    </li>
+                    <li>{onboarding.steps.ats ? "Done: ATS analysis reviewed" : "Review ATS results and evidence"}</li>
+                    <li>
+                      {onboarding.steps.rewrite
+                        ? "Done: rewrite area used"
+                        : "Optionally try local Smart Rewrite or inspect Copilot"}
+                    </li>
+                    <li>{onboarding.steps.export ? "Done: export started" : "Export as TXT or Print / Save as PDF"}</li>
                   </ol>
                   <button onClick={() => updateOnboarding({ ...onboarding, dismissed: true })}>
                     Dismiss onboarding

@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { SAMPLE_JOB_DESCRIPTION } from "../onboarding/sample-data";
+import { markOnboardingStep } from "../onboarding/state";
 import { analyzeResumeFit, canCopyOrApply, sanitizeAnalysisForStorage, smartRewrite } from "../lib/analysis";
 import { extractResumeDocument } from "../lib/file-parser";
 import { getGuestResume, saveAnalysisSummary } from "../lib/guest-db";
@@ -272,6 +273,7 @@ export function ResumeEditorPage() {
       });
       if (request !== analysisRequest.current) return;
       setAnalysis(result);
+      markOnboardingStep("ats");
       setAnalysisStatus("updated");
       setAnalysisNotice("ATS analysis updated.");
       if (!account && resumeDocument) {
@@ -782,13 +784,21 @@ export function ResumeEditorPage() {
             </label>
             <label>
               Job description
-              <textarea rows={8} value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} />
+              <textarea
+                rows={8}
+                value={jobDescription}
+                onChange={(event) => {
+                  setJobDescription(event.target.value);
+                  if (event.target.value.trim()) markOnboardingStep("jobDescription");
+                }}
+              />
             </label>
             <button
               onClick={() => {
                 if (jobDescription.trim()) setConfirmSampleJD(true);
                 else {
                   setJobDescription(SAMPLE_JOB_DESCRIPTION);
+                  markOnboardingStep("jobDescription");
                   setAnalysisNotice("Fictional sample job description loaded locally.");
                 }
               }}
@@ -900,6 +910,7 @@ export function ResumeEditorPage() {
         onConfirm={() => {
           setConfirmSampleJD(false);
           setJobDescription(SAMPLE_JOB_DESCRIPTION);
+          markOnboardingStep("jobDescription");
           setAnalysisNotice("Fictional sample job description loaded locally.");
         }}
       >

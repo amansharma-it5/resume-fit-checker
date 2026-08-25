@@ -21,3 +21,8 @@ export function writeOnboardingState(next: OnboardingState) {
 export function resetOnboardingState() {
   writeOnboardingState(initial());
 }
+export type OnboardingStep = "resume" | "edited" | "jobDescription" | "ats" | "rewrite" | "export";
+export function markOnboardingStep(step: OnboardingStep) {
+  const state = readOnboardingState();
+  writeOnboardingState({ ...state, steps: { ...state.steps, [step]: true } });
+}
