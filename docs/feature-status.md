@@ -31,3 +31,9 @@ Limitations: the deterministic guard is deliberately conservative and recognizes
 Implemented: browser-local ATS-friendly UTF-8 `.txt` export, deterministic export readiness checks, sanitized filenames, and selectable-text **Print / Save as PDF** output from the canonical structured resume. The print view uses existing template and US Letter/A4 layout settings while excluding editor chrome and interactive product surfaces.
 
 Limitations: browser print dialogs and printer drivers control final pagination; users must review the native print preview. DOCX is deliberately not included, and no automatic PDF download is claimed. Export remains local and does not provide universal ATS compatibility guarantees.
+
+# Phase 6 status
+
+Implemented: deterministic, browser-local TXT/PDF/DOCX/Markdown/RTF import validation; normalized intermediate extraction; expanded heading and field mapping; evidence snippets with High/Needs review/Unmapped confidence states; individual acceptance/editing; explicit confirmation; and privacy-safe malformed, macro, archive-path, and image-only-file handling.
+
+Limitations: there is no OCR, cloud processing, or perfect column reconstruction. Text-based PDF extraction is conservative, complex multi-column or graphical files need manual correction, and the supported DOCX path is intentionally limited to safe paragraph and simple table text. Import creates a reviewed new resume rather than silently merging over a populated one.
