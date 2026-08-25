@@ -19,7 +19,7 @@ The Copilot treats resume and JD text as untrusted data. Deterministic validatio
 - Guest/account dashboard lifecycle and explicit retry-safe guest import
 - JSON, CSV, and print/PDF analysis export
 - Structured guest and account resume editor with every core section, keyboard reordering, undo/redo, validation, debounced autosave, and manual save
-- Local extraction review for PDF, DOCX, TXT, Markdown, and RTF imports; source text is not stored in the structured document
+- Local TXT, PDF, DOCX, Markdown, and RTF import review with source evidence, confidence reasons, explicit acceptance, and no source text stored in the structured document
 - Immutable, deduplicated version snapshots (latest 20 per resume) and deterministic live preview
 - Fifteen original ATS-safe templates: Clear, Essential, Classic, Executive, Corporate, Leadership, Horizon, Vector, Slate, Dense, Focus, One Page, Accent, Studio, and Portfolio
 - Local structured-resume export: ATS-friendly UTF-8 plain-text download and selectable-text browser **Print / Save as PDF**
@@ -49,6 +49,14 @@ Netlify publishes `dist` and deploys functions from `netlify/functions`. See [ar
 Guest resumes, structured content, and guest version snapshots remain in browser IndexedDB. Guest data is not uploaded automatically. Signed-in users save only through owner-scoped Supabase RLS policies; the editor uses an optimistic `editor_version` token and reports conflicts rather than overwriting a newer document.
 
 The preview is a deterministic browser layout shared by the editor and export workflow. Parsing is local and requires review for scans, complex columns, and unusual document structures.
+
+## Resume import
+
+Resume Lab validates a file locally, extracts locally readable text, normalizes whitespace without rewriting facts, detects familiar sections, and proposes structured mappings with the exact source evidence and an understandable confidence state: **High**, **Needs review**, or **Unmapped**. Nothing is created or changed until the user accepts the wanted mappings and confirms **Create imported resume**. Cancelling discards the review session.
+
+TXT, Markdown, and RTF are read as local text. Text-based PDFs are supported when text can be extracted; image-only, encrypted, malformed, or nearly empty PDFs report that OCR is required instead of producing a misleading resume. Genuine DOCX archives are read locally for document paragraphs and simple layout tables; malformed archives, macro-containing documents, unsafe archive paths, and unsupported content are rejected. OCR, cloud processing, macros, embedded objects, external resources, and document instructions are not used.
+
+Import files are limited to 10 MB and local extracted text is bounded. Heuristic parsing cannot perfectly reconstruct multi-column, graphical, or unusually designed resumes, so users must review every mapping. Parsed source content stays in the active import session and is not written to analysis history, analytics, logs, or the canonical structured resume.
 
 ## Resume export
 

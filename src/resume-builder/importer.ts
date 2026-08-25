@@ -39,6 +39,10 @@ function linesOf(text: string) {
 function headingFor(line: string) {
   return HEADINGS.find(([pattern]) => pattern.test(line.replace(/[:\-|]/g, "").trim()));
 }
+function looksLikeUnknownHeading(line: string) {
+  const cleaned = line.replace(/[:\-|]/g, "").trim();
+  return cleaned.length > 2 && cleaned.length < 56 && cleaned === cleaned.toUpperCase() && /[A-Z]/.test(cleaned);
+}
 function candidate(
   type: ResumeSectionType,
   title: string,
@@ -47,7 +51,13 @@ function candidate(
   hasHeading: boolean,
 ): ExtractionSection {
   const normalized = text.trim();
-  const confidence: ImportConfidence = !normalized ? "unmapped" : hasHeading ? "high" : "needs-review";
+  const confidence: ImportConfidence = !normalized
+    ? "unmapped"
+    : hasHeading
+      ? "high"
+      : type === "custom"
+        ? "unmapped"
+        : "needs-review";
   return {
     id: `${type}-${sourceRef.replace(/\W+/g, "-").toLowerCase()}`,
     type,
@@ -58,7 +68,9 @@ function candidate(
       ? "No usable value was found for this section."
       : hasHeading
         ? "A recognizable section heading and local source text were found."
-        : "The value was found without a clear section heading; review before importing.",
+        : type === "custom"
+          ? "This heading is not mapped automatically. Review or edit it before importing."
+          : "The value was found without a clear section heading; review before importing.",
     evidence: normalized.slice(0, 280),
     sourceRef,
     accepted: Boolean(normalized),
@@ -94,6 +106,13 @@ export function extractStructuredSections(textOrDocument: string | ExtractedResu
       content = [];
       start = index + 2;
       headed = true;
+    } else if (looksLikeUnknownHeading(line)) {
+      push();
+      type = "custom";
+      title = line.replace(/:$/, "").trim();
+      content = [];
+      start = index + 2;
+      headed = false;
     } else content.push(line);
   });
   push();

@@ -41,3 +41,7 @@ On desktop and at 320px/mobile width, use keyboard-only navigation through targe
 # Phase 5 export checks
 
 Use a synthetic structured resume. Download plain text and verify a real `.txt` file, one sanitized extension, UTF-8 content, visible section/entry order, bullets, and hidden-section exclusion. Confirm no network request contains resume or export text. Select US Letter and A4, then use **Print / Save as PDF**; browser print preview must contain selectable resume text only, with editor chrome, ATS, Copilot, dialogs, controls, 3D animation, and backgrounds omitted. At 320px and desktop widths, use the filename/page-size controls by keyboard, inspect export readiness, and confirm no horizontal overflow. Browser print engines and printer drivers can paginate differently; review the native preview before saving.
+
+# Phase 6 import checks
+
+Use only synthetic files. Upload UTF-8 TXT, text-based PDF, and genuine DOCX fixtures, then confirm the local review opens and receives focus, displays source evidence and High/Needs review/Unmapped confidence states, and changes nothing until explicit confirmation. Edit, reject, and accept proposals, then cancel a review and confirm no resume was created. Test malformed, renamed, oversized, macro-containing, and image-only files: image-only PDFs must report that OCR is required rather than create an empty resume. At 320px and desktop widths, use the complete flow by keyboard and verify no horizontal overflow, a clear page-level status, and no network request carrying resume content.

@@ -62,6 +62,13 @@ describe("privacy-safe import mapping", () => {
     ).toThrow("Accept at least one");
   });
 
+  it("keeps unknown heading content visibly unmapped instead of guessing a destination", () => {
+    const sections = extractStructuredSections("Avery Morgan\nSELECTED IMPACT\nReduced review friction");
+    const unmapped = sections.find((section) => section.title === "SELECTED IMPACT");
+    expect(unmapped).toMatchObject({ type: "custom", confidence: "unmapped", accepted: true });
+    expect(unmapped?.evidence).toContain("Reduced review friction");
+  });
+
   it("permits only safe imported link protocols", () => {
     expect(safeImportedLink("https://example.test/profile")).toBe("https://example.test/profile");
     expect(safeImportedLink("javascript:alert(1)")).toBe("");
