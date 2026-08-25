@@ -114,6 +114,52 @@ test("Copilot cancels an in-flight response without changing the editor", async 
   await expect(bullet).toHaveValue("Improved release reliability for the platform.");
 });
 
+test("Copilot sends only the selected summary, skill, or bullet target", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("textbox", { name: /^Summary/ }).fill("Platform engineer focused on reliable releases.");
+  await page.getByRole("textbox", { name: /^Skill/ }).fill("TypeScript");
+  await page.getByRole("button", { name: "Add bullet" }).first().click();
+  await page.getByLabel("Bullet 1").fill("Improved release reliability for the platform.");
+  const panel = page.getByRole("region", { name: "Resume Copilot" });
+  await panel.getByLabel(/Send only this selected text/).check();
+  const payloads: Array<{ bullet?: string; approvedContext?: string }> = [];
+  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+    payloads.push(JSON.parse(route.request().postData() || "{}"));
+    await route.fulfill({ json: { rewrittenBullet: route.request().postDataJSON().bullet } });
+  });
+  const target = panel.getByLabel("Improve");
+  for (const expected of [
+    "Platform engineer focused on reliable releases.",
+    "TypeScript",
+    "Improved release reliability for the platform.",
+  ]) {
+    await target.selectOption({
+      label:
+        expected === "TypeScript"
+          ? "Skill"
+          : expected.startsWith("Platform")
+            ? "Professional summary"
+            : "Work Experience bullet",
+    });
+    await panel.getByRole("button", { name: "Generate AI suggestion" }).click();
+    await expect(panel.getByRole("heading", { name: "AI-generated suggestion" })).toBeVisible();
+    await panel.getByRole("button", { name: "Reject" }).click();
+  }
+  expect(payloads.map((payload) => payload.bullet)).toEqual([
+    "Platform engineer focused on reliable releases.",
+    "TypeScript",
+    "Improved release reliability for the platform.",
+  ]);
+  expect(
+    payloads.every(
+      (payload) =>
+        !payload.approvedContext?.includes("Platform engineer focused") || payload.bullet?.includes("Platform"),
+    ),
+  ).toBe(true);
+});
+
 for (const width of [320, 360, 390, 412, 768, 1024, 1280, 1440, 1920]) {
   test(`editor has no root overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
