@@ -1,5 +1,5 @@
 import { deleteDB, openDB, type DBSchema } from "idb";
-import type { AnalysisSummary, ResumeDocument } from "../types";
+import type { AnalysisSummary, JobTarget, ResumeDocument } from "../types";
 import type { ResumeVersionSnapshot, StructuredResume } from "../resume-builder/types";
 
 const DB_NAME = "resume-lab-guest-v2";
@@ -14,10 +14,11 @@ interface GuestSchema extends DBSchema {
     value: ResumeVersionSnapshot;
     indexes: { "by-resume": string; "by-created": string };
   };
+  targets: { key: string; value: JobTarget; indexes: { "by-updated": string; "by-status": string } };
 }
 
 function db() {
-  return openDB<GuestSchema>(DB_NAME, 2, {
+  return openDB<GuestSchema>(DB_NAME, 3, {
     upgrade(database, oldVersion) {
       if (oldVersion < 1) {
         const resumes = database.createObjectStore("resumes", { keyPath: "id" });
@@ -31,6 +32,11 @@ function db() {
         const versions = database.createObjectStore("versions", { keyPath: "id" });
         versions.createIndex("by-resume", "resumeId");
         versions.createIndex("by-created", "createdAt");
+      }
+      if (oldVersion < 3) {
+        const targets = database.createObjectStore("targets", { keyPath: "id" });
+        targets.createIndex("by-updated", "updatedAt");
+        targets.createIndex("by-status", "status");
       }
     },
   });
@@ -178,6 +184,19 @@ export async function listAnalysisSummaries() {
 }
 export async function deleteAnalysisSummary(id: string) {
   await (await db()).delete("analyses", id);
+}
+export async function listGuestTargets() {
+  return (await (await db()).getAll("targets")).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+export async function getGuestTarget(id: string) {
+  return (await db()).get("targets", id);
+}
+export async function putGuestTarget(target: JobTarget) {
+  await (await db()).put("targets", target);
+  return target;
+}
+export async function deleteGuestTarget(id: string) {
+  await (await db()).delete("targets", id);
 }
 export async function getGuestAnalysisOverrides(key: string) {
   return (await (await db()).get("meta", `analysis-overrides:${key}`))?.value || [];

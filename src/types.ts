@@ -1,5 +1,36 @@
 export type ResumeStatus = "active" | "archived" | "deleted";
 
+export const JOB_TARGET_STATUSES = [
+  "Interested",
+  "Tailoring",
+  "Ready to apply",
+  "Applied",
+  "Interviewing",
+  "Offer",
+  "Closed",
+  "Archived",
+] as const;
+export type JobTargetStatus = (typeof JOB_TARGET_STATUSES)[number];
+
+/** Browser-local job-target metadata. Resume/JD bodies are never copied into analytics or onboarding state. */
+export interface JobTarget {
+  id: string;
+  schemaVersion: 1;
+  company: string;
+  role: string;
+  location?: string;
+  sourceUrl?: string;
+  status: JobTargetStatus;
+  baseResumeId: string;
+  tailoredResumeId: string;
+  jobDescription: string;
+  jobDescriptionHash: string;
+  createdAt: string;
+  updatedAt: string;
+  appliedAt?: string;
+  latestAnalysis?: { overall: number | null; resumeVersion: number; calculatedAt: string; stale: boolean };
+}
+
 export interface ResumeDocument {
   id: string;
   ownerId?: string;
