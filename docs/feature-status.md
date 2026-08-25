@@ -40,6 +40,6 @@ Limitations: there is no OCR, cloud processing, or perfect column reconstruction
 
 # Phase 7 status
 
-Implemented: optional Guest Mode onboarding, accessible empty-state choices, explicit fictional sample-resume confirmation, local duplicate protection, a sample job-description action with overwrite confirmation, and minimal browser-only dismissal/progress state.
+Implemented: optional Guest Mode onboarding, accessible empty-state choices, explicit fictional sample-resume confirmation, local duplicate protection, a sample job-description action with overwrite confirmation, contextual local-only guidance, and minimal browser-only dismissal/progress state. Progress is event-derived from real edits, JD work, ATS calculation, local rewrite/Copilot inspection, and initiated local export; it stores no resume, JD, evidence, rewrite, or export content.
 
 Limitations: onboarding is a compact checklist, not a coordinate-based product tour. Sample data is educational synthetic content, not professional advice; users must still review ATS and AI output themselves.

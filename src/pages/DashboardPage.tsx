@@ -16,7 +16,12 @@ import {
 } from "../lib/resume-service";
 import { listGuestResumes } from "../lib/guest-db";
 import type { ResumeDocument, ResumeStatus } from "../types";
-import { markOnboardingStep, readOnboardingState, resetOnboardingState, writeOnboardingState } from "../onboarding/state";
+import {
+  markOnboardingStep,
+  readOnboardingState,
+  resetOnboardingState,
+  writeOnboardingState,
+} from "../onboarding/state";
 
 export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
   const navigate = useNavigate();

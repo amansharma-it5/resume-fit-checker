@@ -70,6 +70,24 @@ test("onboarding progress follows explicit edit, local rewrite, and export actio
   expect(progress).not.toContain("Avery Example");
 });
 
+test("onboarding records explicit local JD and ATS actions without provider traffic", async ({ page }) => {
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() !== "GET") requests.push(request.url());
+  });
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Try a sample resume" }).click();
+  await page.getByRole("button", { name: "Create sample resume" }).click();
+  await page.getByRole("group").filter({ hasText: "ATS check" }).getByText("ATS check").click();
+  await page.getByRole("button", { name: "Load fictional sample job description" }).click();
+  await page.getByRole("button", { name: "Analyze structured resume" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "ATS result" })).toBeVisible();
+  const progress = await page.evaluate(() => localStorage.getItem("resume-lab.onboarding.v1"));
+  expect(progress).toContain('"jobDescription":true');
+  expect(progress).toContain('"ats":true');
+  expect(requests).toEqual([]);
+});
+
 test("editor is keyboard accessible and has no serious axe violations", async ({ page }) => {
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Create resume" }).click();

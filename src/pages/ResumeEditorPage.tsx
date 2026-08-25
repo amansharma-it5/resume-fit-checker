@@ -241,7 +241,13 @@ export function ResumeEditorPage() {
             text: entry.fields.text,
             evidence,
             apply: (text) =>
-              dispatchUserEdit({ type: "update-field", sectionId: section.id, entryId: entry.id, field: "text", value: text }),
+              dispatchUserEdit({
+                type: "update-field",
+                sectionId: section.id,
+                entryId: entry.id,
+                field: "text",
+                value: text,
+              }),
           });
         if (section.type === "skills" && typeof entry.fields.skill === "string")
           targets.push({
@@ -250,7 +256,13 @@ export function ResumeEditorPage() {
             text: entry.fields.skill,
             evidence,
             apply: (text) =>
-              dispatchUserEdit({ type: "update-field", sectionId: section.id, entryId: entry.id, field: "skill", value: text }),
+              dispatchUserEdit({
+                type: "update-field",
+                sectionId: section.id,
+                entryId: entry.id,
+                field: "skill",
+                value: text,
+              }),
           });
         for (const bullet of entry.bullets)
           targets.push({
@@ -259,7 +271,13 @@ export function ResumeEditorPage() {
             text: bullet.text,
             evidence,
             apply: (text) =>
-              dispatchUserEdit({ type: "update-bullet", sectionId: section.id, entryId: entry.id, bulletId: bullet.id, text }),
+              dispatchUserEdit({
+                type: "update-bullet",
+                sectionId: section.id,
+                entryId: entry.id,
+                bulletId: bullet.id,
+                text,
+              }),
           });
       }
     return targets.filter((target) => target.text.trim());
@@ -786,7 +804,9 @@ export function ResumeEditorPage() {
           <details className="editor-tool">
             <summary>ATS check</summary>
             {!jobDescription.trim() && (
-              <p className="guidance-note">Add a job description to compare evidence. The fictional sample is optional and stays local.</p>
+              <p className="guidance-note">
+                Add a job description to compare evidence. The fictional sample is optional and stays local.
+              </p>
             )}
             <label>
               Target role
@@ -841,7 +861,7 @@ export function ResumeEditorPage() {
                 <button
                   onClick={() => {
                     const result = smartRewrite(selectedBullet.text);
-                    markOnboardingStep("rewrite");
+                    if (selectedBullet.text.trim() && result.after.trim()) markOnboardingStep("rewrite");
                     setRewrite({
                       rewrittenBullet: result.after,
                       warnings: result.warnings,

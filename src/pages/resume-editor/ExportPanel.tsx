@@ -69,7 +69,9 @@ export function ExportPanel({
         Downloads stay on this device. Plain text is ATS-friendly; Print / Save as PDF uses your browser print dialog.
       </p>
       {readiness.length > 0 && (
-        <p className="guidance-note">Review these items if useful. Existing non-blocking warnings do not prevent local export.</p>
+        <p className="guidance-note">
+          Review these items if useful. Existing non-blocking warnings do not prevent local export.
+        </p>
       )}
       <div className="export-controls">
         <label>

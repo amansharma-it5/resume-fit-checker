@@ -62,7 +62,7 @@ Import files are limited to 10 MB and local extracted text is bounded. Heuristic
 
 New Guest Mode workspaces can create a blank resume, open the local import review, or explicitly create a fictional sample resume. The sample uses reserved `example.com` contact details and fictional employers; it is editable and deletable like any other guest document and is never created automatically. A fictional sample job description can be loaded only by an explicit editor action and the normal deterministic ATS engine calculates its results.
 
-Onboarding progress stores only a version, dismissal flag, and short completion flags in local browser storage. **Dismiss**, **Get started**, and **Restart onboarding** never modify resumes, versions, ATS history, or settings. The checklist is optional, does not preselect AI consent, and never sends sample or onboarding data to a provider.
+Onboarding progress stores only a version, dismissal flag, and short completion flags in local browser storage. It advances after an intentional resume edit, JD load/edit, completed local ATS analysis, local Smart Rewrite or Copilot inspection, and starting a local export. Passive rendering, autosave, imports, and provider calls do not complete checklist steps. **Dismiss**, **Get started**, and **Restart onboarding** never modify resumes, versions, ATS history, or settings. The checklist is optional, does not preselect AI consent, and never sends sample or onboarding data to a provider.
 
 ## Resume export
 

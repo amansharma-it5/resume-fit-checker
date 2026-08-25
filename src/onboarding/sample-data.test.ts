@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createSampleResume, SAMPLE_JOB_DESCRIPTION, SAMPLE_TITLE } from "./sample-data";
-import { isMeaningfulEditorAction, markOnboardingStep, readOnboardingState, resetOnboardingState, writeOnboardingState } from "./state";
+import {
+  isMeaningfulEditorAction,
+  markOnboardingStep,
+  readOnboardingState,
+  resetOnboardingState,
+  writeOnboardingState,
+} from "./state";
 
 describe("fictional onboarding samples", () => {
   it("creates deterministic fictional content without real contact domains", () => {

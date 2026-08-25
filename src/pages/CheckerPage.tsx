@@ -263,6 +263,15 @@ export function CheckerPage() {
             </label>{" "}
           </div>{" "}
         </div>{" "}
+        {(!resumeText.trim() || !jd.trim()) && (
+          <p className="guidance-note" role="status">
+            {!resumeText.trim() && !jd.trim()
+              ? "Add a resume and job description to calculate ATS results. Importing or trying a fictional sample is optional."
+              : !resumeText.trim()
+                ? "Add a resume before running the local comparison."
+                : "Add a job description to compare the resume evidence."}
+          </p>
+        )}
         <button className="primary" onClick={() => void runAnalysis()}>
           {" "}
           Analyze locally{" "}
