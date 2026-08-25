@@ -16,7 +16,8 @@ test("guest can edit, reorder, undo, save, and preview a structured resume", asy
   await page.keyboard.press("Control+Shift+z");
   const save = page.getByRole("button", { name: "Save", exact: true });
   await expect(save).toBeVisible();
-  if (await save.isEnabled()) await save.click();
+  // Autosave and an explicit save share the same persistence path. On mobile,
+  // autosave can finish between checking the button and an ordinary click.
   await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
   const previewTab = page.getByRole("button", { name: "Preview" });
   if (await previewTab.isVisible()) await previewTab.click();
