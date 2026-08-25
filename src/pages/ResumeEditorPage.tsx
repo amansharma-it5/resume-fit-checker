@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { SAMPLE_JOB_DESCRIPTION } from "../onboarding/sample-data";
 import { analyzeResumeFit, canCopyOrApply, sanitizeAnalysisForStorage, smartRewrite } from "../lib/analysis";
 import { extractResumeDocument } from "../lib/file-parser";
 import { getGuestResume, saveAnalysisSummary } from "../lib/guest-db";
@@ -76,6 +77,7 @@ export function ResumeEditorPage() {
   const [extraction, setExtraction] = useState<ExtractionSection[] | null>(null);
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const [confirmImport, setConfirmImport] = useState(false);
+  const [confirmSampleJD, setConfirmSampleJD] = useState(false);
   const [selectedBullet, setSelectedBullet] = useState<SelectedBullet | null>(null);
   const [targetRole, setTargetRole] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -782,6 +784,17 @@ export function ResumeEditorPage() {
               Job description
               <textarea rows={8} value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} />
             </label>
+            <button
+              onClick={() => {
+                if (jobDescription.trim()) setConfirmSampleJD(true);
+                else {
+                  setJobDescription(SAMPLE_JOB_DESCRIPTION);
+                  setAnalysisNotice("Fictional sample job description loaded locally.");
+                }
+              }}
+            >
+              Load fictional sample job description
+            </button>
             <button className="primary" onClick={analyze}>
               Analyze structured resume
             </button>
@@ -879,6 +892,22 @@ export function ResumeEditorPage() {
           <ResumePreview resume={resume} zoom={zoom} />
         </aside>
       </div>
+      <ConfirmDialog
+        open={confirmSampleJD}
+        title="Replace the current job description?"
+        confirmLabel="Load sample job description"
+        onCancel={() => setConfirmSampleJD(false)}
+        onConfirm={() => {
+          setConfirmSampleJD(false);
+          setJobDescription(SAMPLE_JOB_DESCRIPTION);
+          setAnalysisNotice("Fictional sample job description loaded locally.");
+        }}
+      >
+        <p>
+          This replaces the current local job description with fictional sample content. It does not send anything to an
+          AI provider.
+        </p>
+      </ConfirmDialog>
       <ConfirmDialog
         open={Boolean(deleteSection)}
         title="Delete section?"

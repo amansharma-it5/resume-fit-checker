@@ -38,6 +38,21 @@ test("guest can edit, reorder, undo, save, and preview a structured resume", asy
   await expect(page.getByRole("article", { name: /resume preview/ })).toContainText("Avery Morgan");
 });
 
+test("guest onboarding creates a confirmed fictional sample without provider traffic", async ({ page }) => {
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() !== "GET") requests.push(request.url());
+  });
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: "No resumes here" })).toBeVisible();
+  await page.getByRole("button", { name: "Try a sample resume" }).click();
+  await expect(page.getByRole("alertdialog", { name: "Create a fictional sample resume?" })).toBeVisible();
+  await page.getByRole("button", { name: "Create sample resume" }).click();
+  await expect(page).toHaveURL(/\/resumes\/.*\/edit/);
+  await expect(page.getByLabel("Full name")).toHaveValue("Avery Morgan");
+  expect(requests).toEqual([]);
+});
+
 test("editor is keyboard accessible and has no serious axe violations", async ({ page }) => {
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Create resume" }).click();
@@ -531,13 +546,11 @@ test("warns safely for an image-only PDF without changing the resume", async ({ 
   await page.getByRole("button", { name: "Create resume" }).click();
   await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
   const importer = page.getByText("Import document").locator("..");
-  await importer
-    .getByLabel(/PDF, DOCX, TXT/)
-    .setInputFiles({
-      name: "scan.pdf",
-      mimeType: "application/pdf",
-      buffer: Buffer.from("%PDF-1.7\nstream\nendstream"),
-    });
+  await importer.getByLabel(/PDF, DOCX, TXT/).setInputFiles({
+    name: "scan.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("%PDF-1.7\nstream\nendstream"),
+  });
   await expect(page.getByRole("alert")).toContainText("OCR is required");
   await expect(page.getByRole("heading", { name: "Extraction review" })).toHaveCount(0);
 });

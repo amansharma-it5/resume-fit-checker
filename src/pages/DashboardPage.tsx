@@ -16,7 +16,7 @@ import {
 } from "../lib/resume-service";
 import { listGuestResumes } from "../lib/guest-db";
 import type { ResumeDocument, ResumeStatus } from "../types";
-import { readOnboardingState, writeOnboardingState } from "../onboarding/state";
+import { readOnboardingState, resetOnboardingState, writeOnboardingState } from "../onboarding/state";
 
 export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
   const navigate = useNavigate();
@@ -104,6 +104,18 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
             ? "Documents are protected by your account and row-level security."
             : "Guest documents stay in IndexedDB on this device until you explicitly import them."}
         </p>
+        <div className="dashboard-actions">
+          <button onClick={() => updateOnboarding({ ...onboarding, dismissed: false })}>Get started</button>
+          <button
+            onClick={() => {
+              resetOnboardingState();
+              setOnboarding(readOnboardingState());
+              setMessage("Onboarding restarted. Your resumes were not changed.");
+            }}
+          >
+            Restart onboarding
+          </button>
+        </div>
       </header>
       <div className="dashboard-actions">
         <button className="primary" onClick={() => void action(() => createResume(account), "Resume created.")}>
