@@ -37,3 +37,9 @@ Limitations: browser print dialogs and printer drivers control final pagination;
 Implemented: deterministic, browser-local TXT/PDF/DOCX/Markdown/RTF import validation; normalized intermediate extraction; expanded heading and field mapping; evidence snippets with High/Needs review/Unmapped confidence states; individual acceptance/editing; explicit confirmation; and privacy-safe malformed, macro, archive-path, and image-only-file handling.
 
 Limitations: there is no OCR, cloud processing, or perfect column reconstruction. Text-based PDF extraction is conservative, complex multi-column or graphical files need manual correction, and the supported DOCX path is intentionally limited to safe paragraph and simple table text. Import creates a reviewed new resume rather than silently merging over a populated one.
+
+# Phase 7 status
+
+Implemented: optional Guest Mode onboarding, accessible empty-state choices, explicit fictional sample-resume confirmation, local duplicate protection, a sample job-description action with overwrite confirmation, and minimal browser-only dismissal/progress state.
+
+Limitations: onboarding is a compact checklist, not a coordinate-based product tour. Sample data is educational synthetic content, not professional advice; users must still review ATS and AI output themselves.
