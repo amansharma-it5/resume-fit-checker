@@ -210,6 +210,10 @@ export function validateResume(resume: StructuredResume) {
       issues.push({ sectionId: section.id, message: `${section.title} is visible but empty.` });
     }
   }
+  const summary = resume.sections.find((section) => section.type === "summary");
+  const summaryText = String(summary?.entries[0]?.fields.text || "").trim();
+  if (summary?.visible && summaryText && summaryText.length < 40)
+    issues.push({ sectionId: summary.id, message: "Professional Summary needs more detail." });
   return issues;
 }
 

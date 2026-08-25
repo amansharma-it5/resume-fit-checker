@@ -31,3 +31,9 @@ pgTAP is deferred when Docker is unavailable; do not start Docker solely to run 
 # External Playwright targets
 
 External runs must declare their expected account mode: set `PLAYWRIGHT_EXPECT_AUTH_ENABLED=true` for an auth-enabled Deploy Preview and `PLAYWRIGHT_EXPECT_AUTH_ENABLED=false` for production. `PLAYWRIGHT_BASE_URL` only selects the target; it never implies that authentication is enabled.
+
+# Phase 4 Copilot checks
+
+Use synthetic resumes and intercepted provider responses for Copilot testing; never send a real resume or JD to a provider. Verify summary, skill, bullet, and mapped ATS targets; consent before any request; the selected-field-only payload; diff, edit, reject, regenerate, retry, cancel, and explicit accept. Unsupported metrics, dates, employers, titles, technologies, credentials, degrees, durations, and business-outcome claims must show **More information required** before display or acceptance. Prompt-like resume/JD text is untrusted and cannot authorize a claim.
+
+On desktop and at 320px/mobile width, use keyboard-only navigation through target selection, consent, actions, and editable suggestions. Confirm page-level **Editor notifications** announces missing targets, loading, validation rejection, cancellation, fallback, retry, and acceptance. Verify a cancelled or stale response cannot change the diff, editor, undo history, or autosave state. Provider failures must show the clearly labeled local Smart Rewrite fallback; it remains deterministic, evidence-limited, and requires explicit acceptance.

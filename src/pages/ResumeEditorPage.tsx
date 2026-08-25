@@ -36,6 +36,7 @@ import type { ResumeDocument } from "../types";
 import { ResumePreview } from "./resume-editor/ResumePreview";
 import { SectionEditor } from "./resume-editor/SectionEditor";
 import { TemplateGallery } from "./resume-editor/TemplateGallery";
+import { CopilotPanel, type CopilotTarget } from "./resume-editor/CopilotPanel";
 
 type SelectedBullet = { sectionId: string; entryId: string; bulletId: string; text: string };
 
@@ -78,6 +79,7 @@ export function ResumeEditorPage() {
   const [analysis, setAnalysis] = useState<any>(null);
   const [analysisStatus, setAnalysisStatus] = useState<"idle" | "calculating" | "updated" | "error">("idle");
   const [analysisNotice, setAnalysisNotice] = useState("");
+  const [copilotTargetIndex, setCopilotTargetIndex] = useState<number | undefined>();
   const [rewrite, setRewrite] = useState<any>(null);
   const [rewriteLoading, setRewriteLoading] = useState(false);
   const [consent, setConsent] = useState(false);
@@ -203,6 +205,48 @@ export function ResumeEditorPage() {
     const text = resumeToPlainText(resume);
     return text ? text.split(/\s+/).length : 0;
   }, [resume]);
+  const copilotTargets = useMemo<CopilotTarget[]>(() => {
+    const targets: CopilotTarget[] = [];
+    for (const section of resume.sections)
+      for (const entry of section.entries) {
+        const evidence = [
+          entry.fields.employer,
+          entry.fields.jobTitle,
+          entry.fields.skill,
+          ...entry.bullets.map((bullet) => bullet.text),
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        if (section.type === "summary" && typeof entry.fields.text === "string")
+          targets.push({
+            sectionId: section.id,
+            label: "Professional summary",
+            text: entry.fields.text,
+            evidence,
+            apply: (text) =>
+              dispatch({ type: "update-field", sectionId: section.id, entryId: entry.id, field: "text", value: text }),
+          });
+        if (section.type === "skills" && typeof entry.fields.skill === "string")
+          targets.push({
+            sectionId: section.id,
+            label: "Skill",
+            text: entry.fields.skill,
+            evidence,
+            apply: (text) =>
+              dispatch({ type: "update-field", sectionId: section.id, entryId: entry.id, field: "skill", value: text }),
+          });
+        for (const bullet of entry.bullets)
+          targets.push({
+            sectionId: section.id,
+            label: `${section.title} bullet`,
+            text: bullet.text,
+            evidence,
+            apply: (text) =>
+              dispatch({ type: "update-bullet", sectionId: section.id, entryId: entry.id, bulletId: bullet.id, text }),
+          });
+      }
+    return targets.filter((target) => target.text.trim());
+  }, [resume]);
 
   const analyze = useCallback(() => {
     const request = ++analysisRequest.current;
@@ -254,6 +298,18 @@ export function ResumeEditorPage() {
     target.classList.add("ats-field-highlight");
     window.setTimeout(() => target.classList.remove("ats-field-highlight"), 2200);
     setAnalysisNotice("Opened the relevant resume section.");
+  }
+  function fixIssueWithCopilot(sectionId: string, issueText: string) {
+    const index = copilotTargets.findIndex((item) => item.sectionId === sectionId);
+    if (index < 0) {
+      setAnalysisNotice("This issue no longer has an editable Copilot target.");
+      return;
+    }
+    setCopilotTargetIndex(index);
+    const panel = document.getElementById("copilot-panel");
+    panel?.scrollIntoView({ behavior: "smooth", block: "center" });
+    panel?.focus({ preventScroll: true });
+    setAnalysisNotice(`Copilot opened for: ${issueText}`);
   }
 
   function applyRewrite(text: string) {
@@ -343,6 +399,9 @@ export function ResumeEditorPage() {
           <p>{error}</p>
         </div>
       )}
+      <p className="sr-only" role="status" aria-live="polite" aria-label="Editor notifications">
+        {analysisNotice}
+      </p>
       {issues.length > 0 && (
         <aside className="validation-summary" aria-labelledby="validation-title">
           <h2 id="validation-title">Validation</h2>
@@ -351,6 +410,9 @@ export function ResumeEditorPage() {
               <li key={`${issue.sectionId}-${index}`}>
                 <button type="button" className="issue-link" onClick={() => focusIssue(issue.sectionId)}>
                   {issue.message}
+                </button>
+                <button type="button" onClick={() => fixIssueWithCopilot(issue.sectionId, issue.message)}>
+                  Fix with Copilot
                 </button>
               </li>
             ))}
@@ -366,7 +428,7 @@ export function ResumeEditorPage() {
         </button>
       </div>
       <div className="editor-workspace">
-        <main id="resume-fields" className={`editor-pane ${view === "edit" ? "mobile-active" : ""}`}>
+        <section id="resume-fields" className={`editor-pane ${view === "edit" ? "mobile-active" : ""}`}>
           <section className="editor-metrics" aria-label="Document metrics">
             <span>{words} words</span>
             <span>{estimatePageCount(resume)} estimated pages</span>
@@ -446,6 +508,13 @@ export function ResumeEditorPage() {
               </div>
             )}
           </details>
+          <CopilotPanel
+            targets={copilotTargets}
+            role={targetRole}
+            jd={jobDescription}
+            requestedTargetIndex={copilotTargetIndex}
+            onAnnouncement={setAnalysisNotice}
+          />
           <details className="editor-tool">
             <summary>Templates and layout</summary>
             <TemplateGallery
@@ -649,9 +718,6 @@ export function ResumeEditorPage() {
             <button className="primary" onClick={analyze}>
               Analyze structured resume
             </button>
-            <p role="status" aria-live="polite">
-              {analysisNotice}
-            </p>
             {analysis && (
               <div className="ats-editor-results" role="status">
                 <h3>ATS result: {analysis.scores?.overall ?? "Insufficient JD detail"}</h3>
@@ -734,7 +800,7 @@ export function ResumeEditorPage() {
               )}
             </section>
           )}
-        </main>
+        </section>
         <aside className={`preview-pane ${view === "preview" ? "mobile-active" : ""}`}>
           <div className="preview-controls" aria-label="Preview zoom">
             <button onClick={() => setZoom((value) => Math.max(0.45, value - 0.1))}>Zoom out</button>
