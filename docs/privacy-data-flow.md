@@ -9,3 +9,5 @@ AI Rewrite and the editor Copilot require unchecked user consent. The Copilot se
 Resume and JD text are untrusted data, not instructions. Prompt-like text is excluded from evidence authorization, and a deterministic guard checks suggestions before display and again before acceptance. Provider errors, timeouts, malformed results, cancellation, and stale results are surfaced with safe messages; the local Smart Rewrite fallback remains entirely in the browser.
 
 No analytics or tracker is enabled. Application code does not log resume, JD, prompt, model output, credentials, or PII.
+
+Structured-resume `.txt` downloads and Print / Save as PDF are browser-only. The export serializer receives the structured resume in memory, creates a temporary Blob only for text download, and does not call Supabase, a Netlify Function, Groq, analytics, or a third-party endpoint. Export text, filenames, readiness warnings, and print output are not added to ATS history, logs, or storage. Unsafe URL protocols are not rendered as links and filenames are stripped of path/traversal characters.

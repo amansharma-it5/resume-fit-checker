@@ -18,10 +18,16 @@
 
 Implemented: structured resume data model; guest and account persistence; optimistic autosave; manual save; undo/redo; version history; local import review; live preview; layout controls; deterministic Auto-Adjust; ATS analysis from the structured document; and 15 original ATS-safe templates.
 
-Deferred: real resume PDF/DOCX export, advanced scoring expansion, conversational copilot, cover letters, interviews, jobs, team review, and enterprise features. These remain future phases and are not represented as completed UI functionality.
+Deferred: DOCX resume export, expanded conversational copilot, cover letters, interviews, jobs, team review, and enterprise features. These remain future phases and are not represented as completed UI functionality.
 
 # Phase 4 status
 
 Implemented: a consent-gated editor Copilot for summary, skill, bullet, and mapped issue targets; minimum-data same-origin provider requests; evidence display; deterministic fabrication checks before display and acceptance; diff, edit, reject, regenerate, cancellation, stale-result protection, undo/redo and autosave integration; and local Smart Rewrite fallback.
 
 Limitations: the deterministic guard is deliberately conservative and recognizes a limited set of factual claim patterns. AI availability still depends on the existing server-side provider configuration and consent. The Copilot is not a guarantee of factual accuracy; users must verify and approve all changes. Conversational history, cover letters, interview preparation, and other later-phase Copilot features are not included.
+
+# Phase 5 status
+
+Implemented: browser-local ATS-friendly UTF-8 `.txt` export, deterministic export readiness checks, sanitized filenames, and selectable-text **Print / Save as PDF** output from the canonical structured resume. The print view uses existing template and US Letter/A4 layout settings while excluding editor chrome and interactive product surfaces.
+
+Limitations: browser print dialogs and printer drivers control final pagination; users must review the native print preview. DOCX is deliberately not included, and no automatic PDF download is claimed. Export remains local and does not provide universal ATS compatibility guarantees.

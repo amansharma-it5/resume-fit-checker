@@ -2,10 +2,17 @@ import { memo } from "react";
 import { estimatePageCount } from "../../resume-builder/model";
 import { getTemplate } from "../../resume-builder/templates";
 import type { ResumeEntry, ResumeSection, StructuredResume } from "../../resume-builder/types";
+import { safeExportUrl } from "../../resume-builder/export";
 
 function value(entry: ResumeEntry, key: string) {
   const raw = entry.fields[key];
   return Array.isArray(raw) ? raw.join(" · ") : typeof raw === "string" ? raw : "";
+}
+
+function contactHref(key: string, value: string) {
+  if (key === "email" && /^[^\s@]+@[^\s@]+$/.test(value)) return `mailto:${value}`;
+  if (key === "phone" && /^[+()\d\s.-]{5,}$/.test(value)) return `tel:${value.replace(/[^+\d]/g, "")}`;
+  return safeExportUrl(value) ? (value.includes(":") ? value : `https://${value}`) : "";
 }
 
 function EntryPreview({ section, entry }: { section: ResumeSection; entry: ResumeEntry }) {
@@ -38,10 +45,17 @@ function EntryPreview({ section, entry }: { section: ResumeSection; entry: Resum
         <h1>{value(entry, "fullName") || "Your Name"}</h1>
         <p className="preview-role">{value(entry, "professionalTitle")}</p>
         <p>
-          {["email", "phone", "location", "linkedin", "portfolio", "website"]
-            .map((key) => value(entry, key))
-            .filter(Boolean)
-            .join(" · ")}
+          {["email", "phone", "location", "linkedin", "portfolio", "website"].map((key, index) => {
+            const text = value(entry, key);
+            const href = contactHref(key, text);
+            if (!text) return null;
+            return (
+              <span key={key}>
+                {index > 0 && " · "}
+                {href ? <a href={href}>{text}</a> : text}
+              </span>
+            );
+          })}
         </p>
       </div>
     );
@@ -91,6 +105,7 @@ export const ResumePreview = memo(function ResumePreview({ resume, zoom }: { res
       </div>
       <article
         className={`resume-preview ${template.className} heading-${layout.headingStyle} density-${layout.density} ${layout.showDividers ? "with-dividers" : ""}`}
+        data-page-size={layout.pageSize}
         style={style}
         aria-label={`${template.name} resume preview`}
       >

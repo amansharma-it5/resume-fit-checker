@@ -13,7 +13,7 @@ Netlify Functions hold Groq and Supabase service credentials. `ai-rewrite` makes
 3. AI Rewrite: selected bullet, role, limited JD excerpt, and explicitly approved context to a same-origin function, then Groq.
 4. Administrative data work: Netlify Function using the server-only service role after authentication and confirmation.
 
-The Phase 2 structured editor and template system are implemented. Export generation remains deliberately deferred to Phase 5.
+The Phase 2 structured editor and template system are implemented.
 
 # Phase 2 resume builder
 
@@ -21,4 +21,10 @@ The resume builder keeps a canonical `StructuredResume` JSON document in `resume
 
 Guest documents and version snapshots use IndexedDB. Signed-in staging users call `save_resume_document`, which updates only an owned resume with the expected optimistic `editor_version`. `create_resume_version` snapshots the canonical document only when it differs from the last snapshot and retains the newest 20 snapshots. The server remains the authorization boundary through RLS and owner checks.
 
-The live preview uses the same structured document and template layout tokens as the editor. All templates use a single semantic reading order and original CSS token combinations; no external font or runtime CDN is used. PDF/DOCX resume generation is deliberately deferred to Phase 5.
+The live preview uses the same structured document and template layout tokens as the editor. All templates use a single semantic reading order and original CSS token combinations; no external font or runtime CDN is used.
+
+# Phase 5 export foundation
+
+`src/resume-builder/export.ts` is a deterministic browser-only export boundary. Its semantic order is visible section order, visible entry order, defined section field order, then bullet order. It serializes the canonical `StructuredResume`, excludes hidden or empty sections, and does not mutate editor state, versions, or storage.
+
+Plain-text export creates a UTF-8 Blob locally and revokes its object URL after download. Print / Save as PDF uses the preview DOM and print CSS to expose only semantic resume content with selectable text. It is intentionally a browser print workflow, not an automatic PDF downloader. DOCX remains out of scope because no standards-compliant generator has been selected or approved.

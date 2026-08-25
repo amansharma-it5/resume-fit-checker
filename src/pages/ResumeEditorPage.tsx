@@ -37,6 +37,7 @@ import { ResumePreview } from "./resume-editor/ResumePreview";
 import { SectionEditor } from "./resume-editor/SectionEditor";
 import { TemplateGallery } from "./resume-editor/TemplateGallery";
 import { CopilotPanel, type CopilotTarget } from "./resume-editor/CopilotPanel";
+import { ExportPanel } from "./resume-editor/ExportPanel";
 
 type SelectedBullet = { sectionId: string; entryId: string; bulletId: string; text: string };
 
@@ -508,6 +509,12 @@ export function ResumeEditorPage() {
               </div>
             )}
           </details>
+          <ExportPanel
+            resume={resume}
+            onPageSize={(pageSize) => dispatch({ type: "update-layout", patch: { pageSize } })}
+            onFocusSection={focusIssue}
+            onAnnouncement={setAnalysisNotice}
+          />
           <CopilotPanel
             targets={copilotTargets}
             role={targetRole}
