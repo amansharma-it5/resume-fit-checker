@@ -2,7 +2,9 @@
 
 Resume Lab is a privacy-first career workspace. Phase 3 adds deterministic ATS intelligence to the structured editor while preserving local file parsing, Smart Rewrite, and consent-gated Groq AI Rewrite with two-pass verification.
 
-Phase 4 foundation adds an opt-in Resume Copilot. It sends only the selected resume field, local supporting evidence, target role, and a limited JD excerpt to Groq after consent. It never auto-applies suggestions. Suggestions are checked before display and again before acceptance; unsupported metrics, dates, credentials, and selected technology claims are blocked with a request for more verified information. Provider failure falls back to local Smart Rewrite. The current guard is conservative and does not replace user review or the existing Groq fact-check flow.
+Phase 4 adds an opt-in Resume Copilot inside the editor. It can target a professional summary, one skill, one experience bullet, or a mapped ATS issue. It sends only the selected text, its local supporting evidence, target role, and a limited JD excerpt to Groq after consent; it does not send the complete resume or JD. ATS recommendation text is UI context, never resume evidence. It never auto-applies suggestions: users may edit, reject, regenerate, or accept a suggestion, and acceptance revalidates it before updating the editor through undo/redo and autosave.
+
+The Copilot treats resume and JD text as untrusted data. Deterministic validation runs before display and again before acceptance. It blocks unsupported numbers, percentages, dates, credentials, and selected technologies, then explains that more verified information is needed. An aborted, stale, malformed, rate-limited, timed-out, or failed request cannot overwrite newer content; failure offers the deterministic local Smart Rewrite fallback. Prompts, model outputs, and raw resume/JD content are not written to analytics or analysis history. This guard is intentionally conservative, does not replace user review, and does not guarantee that every normal-language claim can be mechanically verified.
 
 ## Current capabilities
 
@@ -11,6 +13,7 @@ Phase 4 foundation adds an opt-in Resume Copilot. It sends only the selected res
 - Structured-editor ATS checks debounce for 500 ms, announce calculation state, and never replace a newer result with an older request. Guest history stores only version-linked score summaries, requirement terms, counts, and recommendations in IndexedDB; it never stores resume or job-description text.
 - The evidence matrix keeps engine findings separate from local user overrides. A match can be confirmed only when it already has resume evidence; rejected, added, removed, and ignored requirements never change resume content or fabricate evidence. Local overrides are isolated with an opaque per-analysis key and are never uploaded automatically.
 - Local Smart Rewrite and optional same-origin Groq AI Rewrite
+- Consent-gated Resume Copilot with evidence display, diff, Accept/Edit/Reject/Regenerate, cancellation, stale-request protection, and deterministic local fallback
 - IndexedDB guest resumes and privacy-safe analysis summaries; no silent guest upload
 - Supabase email/password, magic-link, verification, reset, session restoration, and protected routes
 - Guest/account dashboard lifecycle and explicit retry-safe guest import
@@ -45,3 +48,13 @@ Netlify publishes `dist` and deploys functions from `netlify/functions`. See [ar
 Guest resumes, structured content, and guest version snapshots remain in browser IndexedDB. Guest data is not uploaded automatically. Signed-in users save only through owner-scoped Supabase RLS policies; the editor uses an optimistic `editor_version` token and reports conflicts rather than overwriting a newer document.
 
 The preview is a deterministic browser layout shared by the editor and future export work. PDF and DOCX resume export intentionally remains Phase 5 work, so this release does not pretend that a browser preview is an exported file. Parsing is local and requires review for scans, complex columns, and unusual document structures.
+
+## Copilot manual checks
+
+1. In Guest Mode, create a synthetic resume and open its editor.
+2. Select a summary, skill, or bullet in Resume Copilot; verify the evidence shown is limited to that selection.
+3. Confirm **Generate AI suggestion** remains disabled until the external-provider consent checkbox is selected.
+4. Use a mocked or configured preview provider response. Check the original/suggested diff, then reject, edit, regenerate, and accept a supported suggestion. Undo and redo the accepted change.
+5. Try a suggestion with a new metric, date, credential, or technology. It must show a more-information-required state and must not be applied.
+6. Launch Copilot from an ATS issue. A mapped target should focus the panel; an absent target must announce a safe missing-target message and make no provider request.
+7. Cancel a pending request, then verify a late response cannot change the editor. Test at 320px and desktop widths with keyboard navigation.
