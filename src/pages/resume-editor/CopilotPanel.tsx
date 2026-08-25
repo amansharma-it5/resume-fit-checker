@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { smartRewrite } from "../../lib/analysis";
 import { validateCopilotSuggestion } from "../../lib/copilot-safety";
 
-export type CopilotTarget = { label: string; text: string; evidence: string; apply: (text: string) => void };
+export type CopilotTarget = {
+  sectionId: string;
+  label: string;
+  text: string;
+  evidence: string;
+  apply: (text: string) => void;
+};
 
 export function CopilotPanel({
   targets,
@@ -23,6 +29,12 @@ export function CopilotPanel({
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
+  const cancelRequest = (message = "Copilot request cancelled.") => {
+    controller.current?.abort();
+    controller.current = null;
+    setBusy(false);
+    setStatus(message);
+  };
   useEffect(() => {
     if (requestedTargetIndex !== undefined) {
       setTargetIndex(requestedTargetIndex);
@@ -92,6 +104,7 @@ export function CopilotPanel({
         <select
           value={targetIndex}
           onChange={(event) => {
+            cancelRequest("Copilot target changed. Any earlier request was cancelled.");
             setTargetIndex(Number(event.target.value));
             setSuggestion("");
           }}
@@ -114,7 +127,10 @@ export function CopilotPanel({
         <button disabled={!consent || !target?.text.trim() || busy} onClick={() => void generate()}>
           {busy ? "Generating..." : "Generate AI suggestion"}
         </button>
-        <button disabled={!busy} onClick={() => controller.current?.abort()}>
+        <button
+          disabled={!busy}
+          onClick={() => cancelRequest()}
+        >
           Cancel
         </button>
       </div>

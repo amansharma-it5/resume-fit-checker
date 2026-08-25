@@ -219,6 +219,7 @@ export function ResumeEditorPage() {
           .join(" · ");
         if (section.type === "summary" && typeof entry.fields.text === "string")
           targets.push({
+            sectionId: section.id,
             label: "Professional summary",
             text: entry.fields.text,
             evidence,
@@ -227,6 +228,7 @@ export function ResumeEditorPage() {
           });
         if (section.type === "skills" && typeof entry.fields.skill === "string")
           targets.push({
+            sectionId: section.id,
             label: "Skill",
             text: entry.fields.skill,
             evidence,
@@ -235,6 +237,7 @@ export function ResumeEditorPage() {
           });
         for (const bullet of entry.bullets)
           targets.push({
+            sectionId: section.id,
             label: `${section.title} bullet`,
             text: bullet.text,
             evidence,
@@ -297,11 +300,7 @@ export function ResumeEditorPage() {
     setAnalysisNotice("Opened the relevant resume section.");
   }
   function fixIssueWithCopilot(sectionId: string, issueText: string) {
-    const index = copilotTargets.findIndex((item) =>
-      item.label
-        .toLowerCase()
-        .includes(resume.sections.find((section) => section.id === sectionId)?.title.toLowerCase() || ""),
-    );
+    const index = copilotTargets.findIndex((item) => item.sectionId === sectionId);
     if (index < 0) {
       setAnalysisNotice("This issue no longer has an editable Copilot target.");
       return;
