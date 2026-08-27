@@ -2,6 +2,7 @@ import type { CoverLetterDocument, ResumeDocument } from "../types";
 import { resumeToPlainText } from "../resume-builder/model";
 import { isStructuredResume } from "../resume-builder/model";
 import { sanitizeExportFilename } from "../resume-builder/export";
+import { validateCopilotSuggestion } from "./copilot-safety";
 
 const clean = (value: string, maximum = 4000) => value.replace(/\s+/g, " ").trim().slice(0, maximum);
 
@@ -57,6 +58,24 @@ export function localEvidenceDraft(letter: CoverLetterDocument, resumeText: stri
     experience: evidence,
     roleFit: "My resume evidence above is the basis for this draft.",
   };
+}
+
+/** Job-description text is deliberately excluded from evidence: it can guide wording, never authorize candidate facts. */
+export function validateCoverLetterSuggestion(suggestion: string, resumeEvidence: string) {
+  const trimmed = suggestion.trim();
+  if (!trimmed)
+    return {
+      ok: false,
+      unsupported: ["empty suggestion"],
+      message: "More information required: add text before accepting.",
+    };
+  const result = validateCopilotSuggestion(trimmed, resumeEvidence);
+  return result.ok
+    ? { ...result, message: "Evidence-backed suggestion ready for review." }
+    : {
+        ...result,
+        message: `More information required: unsupported claim${result.unsupported.length === 1 ? "" : "s"}: ${result.unsupported.join(", ")}.`,
+      };
 }
 
 export function serializeCoverLetterPlainText(letter: CoverLetterDocument) {
