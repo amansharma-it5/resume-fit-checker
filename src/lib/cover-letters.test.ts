@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   coverLetterFilename,
   createCoverLetter,
+  downloadCoverLetterPlainText,
   localEvidenceDraft,
   serializeCoverLetterPlainText,
   validateCoverLetterSuggestion,
@@ -89,5 +90,34 @@ describe("local cover letters", () => {
     const evidence = "Built TypeScript services for Example Labs.";
     expect(validateCoverLetterSuggestion("Built TypeScript services for Example Labs.", evidence).ok).toBe(true);
     expect(validateCoverLetterSuggestion("Increased revenue by 45% with AWS certification.", evidence).ok).toBe(false);
+  });
+  it("uses and revokes a local object URL for UTF-8 text export", () => {
+    vi.useFakeTimers();
+    const letter = createCoverLetter({
+      resume: resume(),
+      company: "Example Labs",
+      role: "Engineer",
+      jobDescription: "Use TypeScript.",
+    });
+    letter.opening = "Supported opening.";
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    const create = vi.fn(() => "blob:cover-letter");
+    const revoke = vi.fn();
+    const click = vi.fn();
+    URL.createObjectURL = create;
+    URL.revokeObjectURL = revoke;
+    HTMLAnchorElement.prototype.click = click;
+    const result = downloadCoverLetterPlainText(letter);
+    expect(result.filename).toMatch(/\.txt$/);
+    expect(create).toHaveBeenCalledWith(expect.any(Blob));
+    expect(click).toHaveBeenCalled();
+    vi.runAllTimers();
+    expect(revoke).toHaveBeenCalledWith("blob:cover-letter");
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+    HTMLAnchorElement.prototype.click = originalClick;
+    vi.useRealTimers();
   });
 });
