@@ -219,6 +219,11 @@ export async function putGuestCoverLetter(letter: CoverLetterDocument, expectedV
   const current = await tx.store.get(letter.id);
   if (expectedVersion !== undefined && current && current.editorVersion !== expectedVersion) {
     tx.abort();
+    try {
+      await tx.done;
+    } catch {
+      // The deliberate abort is the optimistic-concurrency conflict signal.
+    }
     throw new Error("SAVE_CONFLICT");
   }
   const saved = {

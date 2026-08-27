@@ -9,6 +9,7 @@ import {
 } from "./cover-letters";
 import { createStructuredResume } from "../resume-builder/model";
 import type { ResumeDocument } from "../types";
+import { getGuestCoverLetter, putGuestCoverLetter } from "./guest-db";
 
 const resume = (): ResumeDocument => {
   const structured = createStructuredResume("resume-a", "Synthetic resume");
@@ -119,5 +120,20 @@ describe("local cover letters", () => {
     URL.revokeObjectURL = originalRevoke;
     HTMLAnchorElement.prototype.click = originalClick;
     vi.useRealTimers();
+  });
+  it("rejects a stale local editor version without overwriting a newer cover letter", async () => {
+    const letter = createCoverLetter({
+      resume: resume(),
+      company: "Example Labs",
+      role: "Engineer",
+      jobDescription: "Use TypeScript.",
+    });
+    const first = await putGuestCoverLetter(letter);
+    const newer = await putGuestCoverLetter({ ...first, opening: "Newer local text." }, first.editorVersion);
+    await expect(putGuestCoverLetter({ ...first, opening: "Stale text." }, first.editorVersion)).rejects.toThrow(
+      "SAVE_CONFLICT",
+    );
+    expect((await getGuestCoverLetter(letter.id))?.opening).toBe("Newer local text.");
+    expect(newer.editorVersion).toBeGreaterThan(first.editorVersion);
   });
 });
