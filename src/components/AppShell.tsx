@@ -15,7 +15,7 @@ export function AppShell({ authEnabled }: { authEnabled: boolean }) {
           </span>
           <span>
             <strong>RecruitOS AI</strong>
-            <small>Private recruiter intelligence</small>
+            <small>Private resume workspace</small>
           </span>
         </NavLink>
         <nav aria-label="Primary navigation">

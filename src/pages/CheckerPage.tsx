@@ -202,17 +202,17 @@ export function CheckerPage() {
         {" "}
         <div className="hero-copy">
           {" "}
-          <p className="eyebrow">AI recruiter operating system</p>{" "}
-          <h1>Your resume must impress both ATS systems and human recruiters.</h1>{" "}
+          <p className="eyebrow">Privacy-first resume tailoring workspace</p>{" "}
+          <h1>Tailor your resume with transparent ATS evidence.</h1>{" "}
           <p>
             {" "}
-            RecruitOS AI analyzes role evidence, ATS structure, recruiter skimmability, and rewrite opportunities with
-            privacy-first local parsing.{" "}
+            RecruitOS AI compares your resume with a role using deterministic ATS signals, local parsing, and optional
+            rewrite tools.{" "}
           </p>{" "}
           <div className="hero-badges" aria-label="Trust badges">
-            <span>100% local resume parsing</span>
-            <span>Recruiter-grade evidence</span>
-            <span>No raw resume storage</span>
+            <span>Local resume parsing</span>
+            <span>Transparent evidence-based ATS analysis</span>
+            <span>Guest data stays in your browser</span>
           </div>
         </div>{" "}
         <div className="lab-stage-viewport" aria-hidden="true">
@@ -232,7 +232,7 @@ export function CheckerPage() {
         {" "}
         <div className="section-heading">
           {" "}
-          <p className="eyebrow">Live analysis workspace</p> <h2 id="checker-title">Run recruiter intelligence</h2>{" "}
+          <p className="eyebrow">Live analysis workspace</p> <h2 id="checker-title">Run ATS analysis</h2>{" "}
         </div>{" "}
         <div className="input-grid">
           {" "}
@@ -287,8 +287,8 @@ export function CheckerPage() {
       {displayAnalysis && (
         <section className="results" aria-labelledby="results-title">
           {" "}
-          <h2 id="results-title">Recruiter intelligence dashboard</h2>{" "}
-          <p>This score explains deterministic ATS and recruiter signals; it does not guarantee hiring decisions.</p>{" "}
+          <h2 id="results-title">ATS evidence dashboard</h2>{" "}
+          <p>This score explains deterministic ATS signals; it does not predict hiring decisions.</p>{" "}
           <div className="score-grid">
             {" "}
             {scoreRows.map(([label, score]) => (
@@ -536,7 +536,7 @@ export function CheckerPage() {
       )}{" "}
       <section className="rewrite-lab" aria-labelledby="rewrite-title">
         {" "}
-        <h2 id="rewrite-title">AI rewrite studio</h2>{" "}
+        <h2 id="rewrite-title">Rewrite studio</h2>{" "}
         <div className="rewrite-grid">
           {" "}
           <div>

@@ -94,22 +94,22 @@ async function fillAndAnalyze(page: import("@playwright/test").Page) {
     );
   await page.getByLabel("Target role").fill("Senior Frontend Engineer");
   await page.getByLabel("Job description").fill("Required Qualifications\n- React\n- TypeScript\n- SQL");
-  const analyzeButton = page.getByRole("button", { name: "Analyze locally" });
+  const analyzeButton = page.getByRole("button", { name: "Analyze resume" });
   await analyzeButton.focus();
   await analyzeButton.press("Enter");
-  await expect(page.getByRole("heading", { name: "Evidence dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "ATS evidence dashboard" })).toBeVisible();
 }
 
 test("guest checker and dashboard critical flow", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Resume Lab" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tailor your resume with transparent ATS evidence." })).toBeVisible();
   await page
     .getByLabel("Or paste resume text")
     .fill(
       "Jane Candidate jane@example.com Experience Senior Engineer 2020-2025 Built React applications and improved release time by 20 percent. Skills React TypeScript SQL Education Bachelor of Science",
     );
-  await page.getByRole("button", { name: "Analyze locally" }).click();
-  await expect(page.getByRole("heading", { name: "Evidence dashboard" })).toBeVisible();
+  await page.getByRole("button", { name: "Analyze resume" }).click();
+  await expect(page.getByRole("heading", { name: "ATS evidence dashboard" })).toBeVisible();
   await page.getByRole("link", { name: "Dashboard" }).click();
   await page.getByRole("button", { name: "Create resume" }).click();
   await expect(page.getByText("Untitled resume")).toBeVisible();
@@ -232,7 +232,7 @@ test("mobile dialogs, upload controls, ATS results, and rewrite sections stay co
   await page.getByLabel("Send this selected text to Groq AI for rewriting.").check();
   await expect(aiRewrite).toBeEnabled();
 
-  const analyzeButton = page.getByRole("button", { name: "Analyze locally" });
+  const analyzeButton = page.getByRole("button", { name: "Analyze resume" });
   await page.keyboard.press("Tab");
   await analyzeButton.focus();
   const focusStyle = await analyzeButton.evaluate((element) => {
