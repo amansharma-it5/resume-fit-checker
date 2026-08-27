@@ -1,5 +1,5 @@
 import { deleteDB, openDB, type DBSchema } from "idb";
-import type { AnalysisSummary, JobTarget, ResumeDocument } from "../types";
+import type { AnalysisSummary, CoverLetterDocument, JobTarget, ResumeDocument } from "../types";
 import type { ResumeVersionSnapshot, StructuredResume } from "../resume-builder/types";
 
 const DB_NAME = "resume-lab-guest-v2";
@@ -15,10 +15,11 @@ interface GuestSchema extends DBSchema {
     indexes: { "by-resume": string; "by-created": string };
   };
   targets: { key: string; value: JobTarget; indexes: { "by-updated": string; "by-status": string } };
+  coverLetters: { key: string; value: CoverLetterDocument; indexes: { "by-updated": string; "by-resume": string } };
 }
 
 function db() {
-  return openDB<GuestSchema>(DB_NAME, 3, {
+  return openDB<GuestSchema>(DB_NAME, 4, {
     upgrade(database, oldVersion) {
       if (oldVersion < 1) {
         const resumes = database.createObjectStore("resumes", { keyPath: "id" });
@@ -37,6 +38,11 @@ function db() {
         const targets = database.createObjectStore("targets", { keyPath: "id" });
         targets.createIndex("by-updated", "updatedAt");
         targets.createIndex("by-status", "status");
+      }
+      if (oldVersion < 4) {
+        const letters = database.createObjectStore("coverLetters", { keyPath: "id" });
+        letters.createIndex("by-updated", "updatedAt");
+        letters.createIndex("by-resume", "resumeId");
       }
     },
   });
@@ -197,6 +203,32 @@ export async function putGuestTarget(target: JobTarget) {
 }
 export async function deleteGuestTarget(id: string) {
   await (await db()).delete("targets", id);
+}
+
+export async function listGuestCoverLetters() {
+  return (await (await db()).getAll("coverLetters")).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getGuestCoverLetter(id: string) {
+  return (await db()).get("coverLetters", id);
+}
+
+export async function putGuestCoverLetter(letter: CoverLetterDocument, expectedVersion?: number) {
+  const database = await db();
+  const tx = database.transaction("coverLetters", "readwrite");
+  const current = await tx.store.get(letter.id);
+  if (expectedVersion !== undefined && current && current.editorVersion !== expectedVersion) {
+    tx.abort();
+    throw new Error("SAVE_CONFLICT");
+  }
+  const saved = { ...letter, editorVersion: (current?.editorVersion ?? letter.editorVersion) + 1, updatedAt: new Date().toISOString() };
+  await tx.store.put(saved);
+  await tx.done;
+  return saved;
+}
+
+export async function deleteGuestCoverLetter(id: string) {
+  await (await db()).delete("coverLetters", id);
 }
 export async function getGuestAnalysisOverrides(key: string) {
   return (await (await db()).get("meta", `analysis-overrides:${key}`))?.value || [];

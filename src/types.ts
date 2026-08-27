@@ -31,6 +31,29 @@ export interface JobTarget {
   latestAnalysis?: { overall: number | null; resumeVersion: number; calculatedAt: string; stale: boolean };
 }
 
+/** A browser-local, independently editable career document. */
+export interface CoverLetterDocument {
+  id: string;
+  schemaVersion: 1;
+  title: string;
+  resumeId: string;
+  jobTargetId?: string;
+  company: string;
+  role: string;
+  jobDescription: string;
+  sender: { name: string; email: string; phone: string; location: string };
+  recipient: { name: string; company: string; address: string };
+  greeting: string;
+  opening: string;
+  experience: string[];
+  roleFit: string;
+  closing: string;
+  signOff: string;
+  createdAt: string;
+  updatedAt: string;
+  editorVersion: number;
+}
+
 export interface ResumeDocument {
   id: string;
   ownerId?: string;
