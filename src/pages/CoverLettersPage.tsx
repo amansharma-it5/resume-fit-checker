@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { downloadCoverLetterPlainText, createCoverLetter, localEvidenceDraft } from "../lib/cover-letters";
 import { getGuestTarget, listGuestCoverLetters, listGuestResumes, putGuestCoverLetter } from "../lib/guest-db";
@@ -18,11 +18,15 @@ export function CoverLettersPage() {
   const [letter, setLetter] = useState<CoverLetterDocument | null>(null);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [history, setHistory] = useState<CoverLetterDocument[]>([]);
+  const [future, setFuture] = useState<CoverLetterDocument[]>([]);
+  const autosave = useRef<number | undefined>(undefined);
   const load = async () => {
     setResumes((await listGuestResumes()).filter((item) => item.status === "active"));
     setLetters(await listGuestCoverLetters());
   };
   const targetId = params.get("target");
+  // save is intentionally read at schedule time so only the newest document snapshot is persisted.
   useEffect(() => {
     void load();
     if (targetId)
@@ -67,8 +71,21 @@ export function CoverLettersPage() {
       setSaving(false);
     }
   }
-  const update = (key: keyof CoverLetterDocument, value: string) =>
-    setLetter((current) => (current ? { ...current, [key]: value } : current));
+  const change = (next: CoverLetterDocument) => {
+    if (letter) setHistory((items) => [...items.slice(-19), letter]);
+    setFuture([]);
+    setLetter(next);
+  };
+  const update = (key: keyof CoverLetterDocument, value: string) => {
+    if (letter) change({ ...letter, [key]: value });
+  };
+  useEffect(() => {
+    if (!letter) return;
+    window.clearTimeout(autosave.current);
+    autosave.current = window.setTimeout(() => void save(), 700);
+    return () => window.clearTimeout(autosave.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [letter]);
   return (
     <section className="dashboard-page" aria-labelledby="cover-letters-title">
       <p className="eyebrow">Local career documents</p>
@@ -149,6 +166,30 @@ export function CoverLettersPage() {
               {saving ? "Saving…" : "Save"}
             </button>
             <button
+              disabled={!history.length}
+              onClick={() => {
+                if (!letter) return;
+                const previous = history.at(-1)!;
+                setHistory((items) => items.slice(0, -1));
+                setFuture((items) => [letter, ...items]);
+                setLetter(previous);
+              }}
+            >
+              Undo
+            </button>
+            <button
+              disabled={!future.length}
+              onClick={() => {
+                if (!letter) return;
+                const next = future[0]!;
+                setFuture((items) => items.slice(1));
+                setHistory((items) => [...items, letter]);
+                setLetter(next);
+              }}
+            >
+              Redo
+            </button>
+            <button
               onClick={() => {
                 try {
                   const result = downloadCoverLetterPlainText(letter);
@@ -178,9 +219,7 @@ export function CoverLettersPage() {
               rows={6}
               value={letter.experience.join("\n\n")}
               onChange={(e) =>
-                setLetter((current) =>
-                  current ? { ...current, experience: e.target.value.split(/\n\s*\n/).filter(Boolean) } : current,
-                )
+                letter && change({ ...letter, experience: e.target.value.split(/\n\s*\n/).filter(Boolean) })
               }
             />
           </label>
@@ -211,8 +250,7 @@ export function CoverLettersPage() {
                   : "";
               const draft = localEvidenceDraft(letter, text);
               if (draft.status === "more-information") setMessage(draft.message);
-              else
-                setLetter({ ...letter, opening: draft.opening, experience: draft.experience, roleFit: draft.roleFit });
+              else change({ ...letter, opening: draft.opening, experience: draft.experience, roleFit: draft.roleFit });
             }}
           >
             Create evidence-based local draft
