@@ -88,3 +88,28 @@ test("creates a letter from an isolated job target and keeps prompt-like JD text
   await page.getByRole("button", { name: "Create evidence-based local draft" }).click();
   await expect(page.getByText(/More information required/)).toBeVisible();
 });
+
+test("cancels a delayed cover-letter suggestion without changing the editor", async ({ page }) => {
+  let release: (() => void) | undefined;
+  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ rewrittenBullet: "I am writing to apply for the Engineer role at Example Labs." }),
+    });
+  });
+  await createLetter(page);
+  await page.getByLabel("Opening").fill("I am writing to apply for the Engineer role at Example Labs.");
+  await page.getByLabel(/consent to send/i).check();
+  await page.getByRole("button", { name: "Generate suggestion" }).click();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.locator(".dashboard-page > [role='status']")).toHaveText("Suggestion request cancelled.");
+  await expect(page.locator("[role='status']").filter({ hasText: "Suggestion request cancelled." })).toHaveCount(1);
+  await expect(page.locator(".assistant-feedback")).toHaveText("Suggestion request cancelled.");
+  release?.();
+  await expect(page.getByRole("button", { name: "Accept" })).toHaveCount(0);
+  await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
+  await expect(page.getByRole("button", { name: "Generate suggestion" })).toBeEnabled();
+});

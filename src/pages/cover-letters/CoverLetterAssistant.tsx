@@ -101,9 +101,7 @@ export function CoverLetterAssistant({
           Cancel
         </button>
       </div>
-      <p role="status" aria-live="polite">
-        {status}
-      </p>
+      <p className="assistant-feedback">{status}</p>
       {suggestion && (
         <>
           <div className="copilot-diff">
