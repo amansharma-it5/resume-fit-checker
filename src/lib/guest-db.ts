@@ -221,7 +221,11 @@ export async function putGuestCoverLetter(letter: CoverLetterDocument, expectedV
     tx.abort();
     throw new Error("SAVE_CONFLICT");
   }
-  const saved = { ...letter, editorVersion: (current?.editorVersion ?? letter.editorVersion) + 1, updatedAt: new Date().toISOString() };
+  const saved = {
+    ...letter,
+    editorVersion: (current?.editorVersion ?? letter.editorVersion) + 1,
+    updatedAt: new Date().toISOString(),
+  };
   await tx.store.put(saved);
   await tx.done;
   return saved;
