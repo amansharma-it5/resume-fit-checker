@@ -1166,12 +1166,47 @@ footer {
   .preview-section {
     break-inside: avoid;
   }
+  .cover-letter-print,
+  .cover-letter-print * {
+    visibility: visible !important;
+  }
+  .cover-letter-print {
+    position: static !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+  .cover-letter-controls,
+  .cover-letter-print .copilot-panel,
+  .cover-letter-print button,
+  .cover-letter-print label {
+    display: none !important;
+  }
 }
 .empty-state-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
   margin-top: 1rem;
+}
+.cover-letter-print-content {
+  display: none;
+}
+@media print {
+  .cover-letter-print-content {
+    display: block !important;
+  }
+  .cover-letter-print > h2,
+  .cover-letter-print > p {
+    display: none !important;
+  }
+  .cover-letter-print-content p {
+    break-inside: avoid;
+    white-space: pre-wrap;
+  }
 }
 .onboarding-checklist {
   margin-top: 1.25rem;

@@ -152,8 +152,8 @@ export function CoverLettersPage() {
           </section>
         </>
       ) : (
-        <section className="target-create" aria-labelledby="letter-editor-title">
-          <div className="button-row">
+        <section className="target-create cover-letter-print" aria-labelledby="letter-editor-title">
+          <div className="button-row cover-letter-controls">
             <button
               onClick={() => {
                 setLetter(null);
@@ -204,6 +204,22 @@ export function CoverLettersPage() {
             <button onClick={() => window.print()}>Print / Save as PDF</button>
           </div>
           <h2 id="letter-editor-title">{letter.title}</h2>
+          <article className="cover-letter-print-content" aria-label="Printable cover letter">
+            <p>{letter.sender.name}</p>
+            <p>{letter.sender.email}</p>
+            <p>{letter.sender.phone}</p>
+            <p>{letter.sender.location}</p>
+            <p>{letter.recipient.name || "Hiring Team"}</p>
+            <p>{letter.recipient.company || letter.company}</p>
+            <p>{letter.greeting}</p>
+            <p>{letter.opening}</p>
+            {letter.experience.map((paragraph, index) => (
+              <p key={index}>{paragraph}</p>
+            ))}
+            <p>{letter.roleFit}</p>
+            <p>{letter.closing}</p>
+            <p>{letter.signOff}</p>
+          </article>
           <p>Use only facts you can support in your resume. Local drafting never invents evidence.</p>
           <label>
             Greeting
