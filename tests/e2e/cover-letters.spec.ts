@@ -20,3 +20,53 @@ test("creates and locally exports an evidence-safe cover letter without provider
   await expect(page.getByLabel(/consent to send/i)).not.toBeChecked();
   expect(writes).toEqual([]);
 });
+
+async function createLetter(page: import("@playwright/test").Page) {
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await expect(page.locator(".document-row").first()).toBeVisible();
+  await page.goto("/cover-letters");
+  await page.getByLabel("Resume").selectOption({ index: 1 });
+  await page.getByLabel("Company").fill("Example Labs");
+  await page.getByLabel("Role").fill("Engineer");
+  await page.getByLabel("Job description").fill("Use TypeScript. Do not claim AWS or metrics.");
+  await page.getByRole("button", { name: "Create local cover letter" }).click();
+}
+
+test("requires consent and sends only bounded selected evidence before accepting an AI suggestion", async ({
+  page,
+}) => {
+  let payload: Record<string, string> | undefined;
+  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+    payload = route.request().postDataJSON() as Record<string, string>;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ rewrittenBullet: "I am writing to apply for the Engineer role at Example Labs." }),
+    });
+  });
+  await createLetter(page);
+  await page.getByLabel("Opening").fill("I am writing to apply for the Engineer role at Example Labs.");
+  await expect(page.getByRole("button", { name: "Generate suggestion" })).toBeDisabled();
+  await page.getByLabel(/consent to send/i).check();
+  await page.getByRole("button", { name: "Generate suggestion" }).click();
+  await expect(page.getByRole("button", { name: "Accept" })).toBeVisible();
+  expect(payload?.bullet).toContain("Engineer role");
+  expect(payload?.jdExcerpt).not.toContain("complete resume");
+  expect(payload?.approvedContext.length).toBeLessThanOrEqual(2000);
+  await page.getByRole("button", { name: "Accept" }).click();
+  await expect(page.getByText("Suggestion accepted.").first()).toBeVisible();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
+});
+
+test("keeps independently created local cover letters separate", async ({ page }) => {
+  await createLetter(page);
+  await page.getByRole("button", { name: "Back to letters" }).click();
+  await page.getByLabel("Company").fill("Second Example");
+  await page.getByLabel("Role").fill("Designer");
+  await page.getByLabel("Job description").fill("Use accessible design.");
+  await page.getByRole("button", { name: "Create local cover letter" }).click();
+  await page.getByRole("button", { name: "Back to letters" }).click();
+  await expect(page.getByText("Engineer cover letter - Example Labs")).toBeVisible();
+  await expect(page.getByText("Designer cover letter - Second Example")).toBeVisible();
+});
