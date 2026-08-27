@@ -87,8 +87,8 @@ export function CoverLetterAssistant({
         minimum selected context to Groq AI.
       </label>
       <div className="button-row">
-        <button disabled={!consent || !text.trim() || busy} onClick={() => void generate()}>
-          {busy ? "Generating…" : "Generate suggestion"}
+        <button disabled={!consent || !text.trim()} onClick={() => void generate()}>
+          {busy ? "Replace request" : "Generate suggestion"}
         </button>
         <button
           disabled={!busy}
