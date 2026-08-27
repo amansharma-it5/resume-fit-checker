@@ -4,6 +4,7 @@ import { downloadCoverLetterPlainText, createCoverLetter, localEvidenceDraft } f
 import { getGuestTarget, listGuestCoverLetters, listGuestResumes, putGuestCoverLetter } from "../lib/guest-db";
 import { isStructuredResume, resumeToPlainText } from "../resume-builder/model";
 import type { CoverLetterDocument, ResumeDocument } from "../types";
+import { CoverLetterAssistant } from "./cover-letters/CoverLetterAssistant";
 
 export function CoverLettersPage() {
   const [params] = useSearchParams();
@@ -191,6 +192,17 @@ export function CoverLettersPage() {
             Closing
             <textarea rows={3} value={letter.closing} onChange={(e) => update("closing", e.target.value)} />
           </label>
+          <CoverLetterAssistant
+            text={letter.opening}
+            evidence={
+              selected && isStructuredResume(selected.structuredData) ? resumeToPlainText(selected.structuredData) : ""
+            }
+            company={letter.company}
+            role={letter.role}
+            jd={letter.jobDescription}
+            onAnnouncement={setMessage}
+            onAccept={(value) => update("opening", value)}
+          />
           <button
             onClick={() => {
               const text =
