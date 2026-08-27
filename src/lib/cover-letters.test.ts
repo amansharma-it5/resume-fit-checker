@@ -70,4 +70,24 @@ describe("local cover letters", () => {
       "More information required",
     );
   });
+  it("keeps deterministic output in semantic paragraph order and strips unsafe filename segments", () => {
+    const letter = createCoverLetter({
+      resume: resume(),
+      company: "Example Labs",
+      role: "Engineer",
+      jobDescription: "Use TypeScript.",
+    });
+    letter.opening = "Opening supported by evidence.";
+    letter.experience = ["First supported paragraph.", "Second supported paragraph."];
+    letter.closing = "Closing.";
+    const text = serializeCoverLetterPlainText(letter);
+    expect(text.indexOf("Opening")).toBeLessThan(text.indexOf("First supported"));
+    expect(text.indexOf("First supported")).toBeLessThan(text.indexOf("Second supported"));
+    expect(coverLetterFilename({ ...letter, title: "../../Taylor:Example.txt.txt" })).toBe("Taylor Example.txt");
+  });
+  it("blocks fabricated edited values immediately before acceptance", () => {
+    const evidence = "Built TypeScript services for Example Labs.";
+    expect(validateCoverLetterSuggestion("Built TypeScript services for Example Labs.", evidence).ok).toBe(true);
+    expect(validateCoverLetterSuggestion("Increased revenue by 45% with AWS certification.", evidence).ok).toBe(false);
+  });
 });
