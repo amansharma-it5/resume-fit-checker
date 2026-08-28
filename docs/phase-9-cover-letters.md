@@ -8,12 +8,14 @@ Local drafts and AI suggestions use selected resume evidence as the only authori
 
 ## Editing and export
 
-Edits use local optimistic IndexedDB versions, debounced autosave, manual save, and bounded undo/redo. Suggestions are revalidated before display and before acceptance. TXT downloads are UTF-8 and local. Print / Save as PDF uses the browser's selectable-text print surface with A4 or Letter chosen in the native dialog; DOCX is deliberately not offered.
+Edits use local optimistic IndexedDB versions, debounced autosave, manual save, and bounded undo/redo. Saving, saved, recoverable storage-error, and stale-version conflict messages use the page-level status region; an error leaves the current text intact and the normal Save action retries it. Delayed saves cannot replace a newer in-memory edit. Suggestions are revalidated before display and before acceptance; editing a suggestion does not bypass that check. Replacing or cancelling a request aborts the older request, and only the newest request can remain actionable.
+
+TXT downloads are UTF-8 and local, with a sanitized single `.txt` filename and an ephemeral object URL. Print / Save as PDF uses a selectable-text, cover-letter-only browser print surface. The page exposes US Letter and A4 print sizing, but the browser and printer engine control final pagination; review native print preview before saving. DOCX is deliberately not offered.
 
 ## Privacy, accessibility, limitations
 
-No cover-letter content is uploaded without explicit provider consent. Keyboard controls, live status messages, responsive layouts, and print-only content are provided. Users should review browser print pagination and every factual statement. The feature does not research companies, infer motivation, or guarantee hiring outcomes.
+No cover-letter content is uploaded without explicit provider consent. Provider failures, malformed responses, and rate limits use a deterministic local fallback only when that fallback also passes evidence validation; it is never auto-applied. Provider error bodies, stacks, and keys are not shown. Keyboard controls, live status messages, cancellation focus restoration, responsive layouts, and print-only content are provided. Users should review browser print pagination and every factual statement. The feature does not research companies, infer motivation, or guarantee hiring outcomes.
 
 ## Synthetic manual check
 
-Create a letter from a synthetic resume, verify local draft evidence handling, leave AI consent unchecked, test Accept/Undo/Redo with a mocked response, download TXT, and inspect Print / Save as PDF at desktop and 320px widths.
+Create a letter from a synthetic resume, verify local draft evidence handling, leave AI consent unchecked, test Accept/Undo/Redo with a mocked response, cancel and replace a delayed mocked request, simulate a storage failure then use Save to recover, download TXT, and inspect the US Letter and A4 Print / Save as PDF surfaces at desktop and 320px widths.
