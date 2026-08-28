@@ -24,6 +24,7 @@ export function AppShell({ authEnabled }: { authEnabled: boolean }) {
           <NavLink to="/targets">Job targets</NavLink>
           <NavLink to="/cover-letters">Cover letters</NavLink>
           <NavLink to="/interview-practice">Interview practice</NavLink>
+          <NavLink to="/applications">Applications</NavLink>
           <NavLink to="/settings">Settings</NavLink>
           {authEnabled && user ? (
             <button className="text-button" onClick={() => void signOut()}>
