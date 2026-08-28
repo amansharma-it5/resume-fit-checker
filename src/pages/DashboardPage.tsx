@@ -208,6 +208,7 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
                     Edit
                   </Link>
                 )}
+                <button onClick={(event) => setPendingRename({ resume, trigger: event.currentTarget })}>Rename</button>
                 <div className="document-menu">
                   <button
                     type="button"
@@ -220,9 +221,6 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
                   </button>
                   {openMenuId === resume.id && (
                     <div role="menu" aria-label={`Actions for ${resume.title}`}>
-                      <button onClick={(event) => setPendingRename({ resume, trigger: event.currentTarget })}>
-                        Rename
-                      </button>
                       <button onClick={() => void action(() => duplicateResume(account, resume), "Resume duplicated.")}>
                         Duplicate
                       </button>

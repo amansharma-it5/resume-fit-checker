@@ -77,7 +77,7 @@ test("dashboard renders a compact resume row with a keyboard-accessible action m
   const menu = row.getByRole("button", { name: /More actions for Untitled resume/ });
   await menu.focus();
   await menu.press("Enter");
-  await expect(row.getByRole("button", { name: "Rename" })).toBeVisible();
+  await expect(row.getByRole("button", { name: "Duplicate" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 
