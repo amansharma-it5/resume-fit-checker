@@ -1,6 +1,7 @@
 import { deleteDB, openDB, type DBSchema } from "idb";
 import type {
   AnalysisSummary,
+  ApplicationRecord,
   CoverLetterDocument,
   InterviewPracticeSession,
   JobTarget,
@@ -27,10 +28,15 @@ interface GuestSchema extends DBSchema {
     value: InterviewPracticeSession;
     indexes: { "by-updated": string; "by-resume": string };
   };
+  applications: {
+    key: string;
+    value: ApplicationRecord;
+    indexes: { "by-updated": string; "by-status": string; "by-resume": string };
+  };
 }
 
 function db() {
-  return openDB<GuestSchema>(DB_NAME, 5, {
+  return openDB<GuestSchema>(DB_NAME, 6, {
     upgrade(database, oldVersion) {
       if (oldVersion < 1) {
         const resumes = database.createObjectStore("resumes", { keyPath: "id" });
@@ -59,6 +65,12 @@ function db() {
         const sessions = database.createObjectStore("interviewSessions", { keyPath: "id" });
         sessions.createIndex("by-updated", "updatedAt");
         sessions.createIndex("by-resume", "resumeId");
+      }
+      if (oldVersion < 6) {
+        const applications = database.createObjectStore("applications", { keyPath: "id" });
+        applications.createIndex("by-updated", "updatedAt");
+        applications.createIndex("by-status", "status");
+        applications.createIndex("by-resume", "resumeId");
       }
     },
   });
@@ -289,6 +301,41 @@ export async function putGuestInterviewSession(session: InterviewPracticeSession
 
 export async function deleteGuestInterviewSession(id: string) {
   await (await db()).delete("interviewSessions", id);
+}
+
+export async function listGuestApplications() {
+  return (await (await db()).getAll("applications")).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getGuestApplication(id: string) {
+  return (await db()).get("applications", id);
+}
+
+export async function putGuestApplication(application: ApplicationRecord, expectedVersion?: number) {
+  const database = await db();
+  const tx = database.transaction("applications", "readwrite");
+  const current = await tx.store.get(application.id);
+  if (expectedVersion !== undefined && current && current.editorVersion !== expectedVersion) {
+    tx.abort();
+    try {
+      await tx.done;
+    } catch {
+      // Deliberate optimistic-concurrency abort.
+    }
+    throw new Error("SAVE_CONFLICT");
+  }
+  const saved = {
+    ...application,
+    editorVersion: (current?.editorVersion ?? application.editorVersion) + 1,
+    updatedAt: new Date().toISOString(),
+  };
+  await tx.store.put(saved);
+  await tx.done;
+  return saved;
+}
+
+export async function deleteGuestApplication(id: string) {
+  await (await db()).delete("applications", id);
 }
 export async function getGuestAnalysisOverrides(key: string) {
   return (await (await db()).get("meta", `analysis-overrides:${key}`))?.value || [];

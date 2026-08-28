@@ -65,14 +65,17 @@ footer a {
 }
 main {
   padding-top: 100px;
+  min-width: 0;
 }
 .checker-page,
 .workspace-page,
 .prose-page,
 .not-found {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 32px;
   padding-bottom: 64px;
+  min-width: 0;
 }
 .lab-hero {
   display: grid;
@@ -203,6 +206,75 @@ main {
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(16, 20, 43, 0.82), rgba(16, 20, 43, 0.62));
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+}
+
+.application-list {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+.application-table {
+  display: grid;
+  gap: 0.5rem;
+}
+.application-card,
+.application-detail {
+  border: 1px solid var(--border);
+  padding: 1rem;
+  border-radius: 6px;
+  background: var(--surface);
+}
+.application-card h3,
+.application-detail h2 {
+  margin-top: 0;
+}
+.application-card label {
+  display: grid;
+  gap: 0.35rem;
+}
+.application-follow-ups,
+.application-activity {
+  padding-left: 1.25rem;
+}
+.application-follow-ups li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.5rem 0;
+}
+.workspace-status {
+  min-height: 1.5rem;
+}
+.section-heading-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.application-insights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 0.75rem 0;
+}
+.application-insights p {
+  margin: 0;
+}
+.view-toggle {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  border: 0;
+  padding: 0;
+}
+.view-toggle label {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+.application-print {
+  display: none;
 }
 .input-grid,
 .rewrite-grid,
@@ -587,6 +659,7 @@ footer {
   .topbar nav {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
   }
   main {
     width: calc(100vw - 24px);
@@ -606,6 +679,9 @@ footer {
     min-height: 0;
     padding: 3px 4px;
     font-size: 10px;
+  }
+  .filters label {
+    min-width: min(220px, 100%);
   }
   .hero-copy h1 {
     font-size: clamp(42px, 13vw, 56px);
@@ -1184,6 +1260,29 @@ footer {
   .cover-letter-print button,
   .cover-letter-print label {
     display: none !important;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .application-print,
+  .application-print * {
+    visibility: visible !important;
+  }
+  .application-print {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    color: #000;
+    background: #fff;
+    font-family: Arial, sans-serif;
+  }
+  .application-print article {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border-bottom: 1px solid #444;
   }
 }
 .empty-state-actions {

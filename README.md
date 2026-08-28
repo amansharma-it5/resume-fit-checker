@@ -68,6 +68,10 @@ Onboarding progress stores only a version, dismissal flag, and short completion 
 
 Guest Mode can create a browser-local job target from a base resume and a job description. Creating a target makes a separate tailored resume, so edits, versions, rewrites, and exports never flow back into the base document. Target JDs are isolated, and changing either the JD or tailored resume marks its stored score summary stale until the deterministic ATS check runs again. This is not cloud sync, a job-board integration, reminder system, or application CRM.
 
+## Local application tracker
+
+The **Applications** workspace keeps a private browser-local pipeline of application metadata, stable links to existing local career documents, status history, follow-ups, notes, and transparent local counts. It neither duplicates full resume/JD bodies into tracker records nor makes provider calls. CSV/JSON backups are local Blob downloads with sanitized filenames and spreadsheet-formula protection. Deleting an application preserves every linked resume, job target, cover letter, and interview session. The tracker does not provide cloud sync, external reminders, email/calendar integration, scraping, or automatic application submission.
+
 ## Resume export
 
 The editor can download a real UTF-8 `.txt` resume or open the browser's **Print / Save as PDF** flow. Both use the visible sections and ordered entries from the canonical structured resume; no resume text is sent to a server, Supabase, Groq, analytics, or a print service by RecruitOS AI.

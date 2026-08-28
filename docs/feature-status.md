@@ -55,3 +55,7 @@ Limitations: target relinking/replacing a missing tailored copy and richer multi
 # Interview Practice (Phase 10)
 
 Interview Practice is a browser-local, evidence-safe preparation workspace. It supports deterministic questions and feedback, optional consent-gated coaching with a local fallback, answer history, local TXT export, and a clean printable review. It does not record audio/video, make hiring decisions, or provide DOCX export.
+
+# Application Tracker (Phase 11)
+
+Application Tracker provides a browser-local pipeline for applications, status history, document links, follow-ups, local notes, deterministic counts, CSV/JSON backup, and print review. It preserves linked documents when an application is deleted and does not upload application, recruiter, resume, or job-description content. It is not cloud sync, a CRM, a reminder service, a job-board integration, or a hiring-decision system.

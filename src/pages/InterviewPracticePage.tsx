@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { createInterviewPracticeSession, feedbackForAnswer } from "../lib/interview-practice";
 import { downloadInterviewPracticePlainText } from "../lib/interview-practice-export";
 import {
@@ -429,6 +430,9 @@ export function InterviewPracticePage() {
                 >
                   Continue
                 </button>
+                <Link className="button-link" to={`/applications?session=${session.id}`}>
+                  Track application
+                </Link>
                 <button
                   onClick={() => {
                     const title = window.prompt("Rename this practice session", session.title);
