@@ -98,7 +98,10 @@ export function feedbackForAnswer(answer: string, evidence: string[]) {
   const value = answer.trim();
   if (!value)
     return { status: "more-information" as const, message: "More information required: add an answer to review." };
-  const source = evidence.filter((item) => !promptLike.test(item)).join("\n").toLowerCase();
+  const source = evidence
+    .filter((item) => !promptLike.test(item))
+    .join("\n")
+    .toLowerCase();
   const claims =
     value.match(
       /\b\d+(?:\.\d+)?%|\$\d[\d,]*|\b(?:19|20)\d{2}\b|\b\d+\s+(?:years?|months?)\b|\b(?:AWS|Azure|React|Python|SQL|Kubernetes|certified|degree|Bachelor|Master)\b|\b[A-Z][A-Za-z]+\s+(?:Inc\.?|Corp\.?|LLC|Ltd\.?|Company|Client)\b|\b(?:Senior|Junior|Lead|Principal|Staff)\s+(?:Software|Data|Product|Project|Engineering|Marketing)\s+(?:Engineer|Manager|Developer|Analyst|Designer)\b|\b(?:increased|reduced|generated|saved)\s+(?:revenue|costs?|sales|profit|conversion)\b/gi,
