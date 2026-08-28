@@ -36,6 +36,7 @@ export function BackupRecoveryPage() {
     broken: [],
   });
   const [replaceText, setReplaceText] = useState("");
+  const [repairText, setRepairText] = useState("");
   const [deleteText, setDeleteText] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -144,7 +145,12 @@ export function BackupRecoveryPage() {
     );
   }
   async function repairLinks() {
+    if (repairText !== "REPAIR") {
+      setError("Type REPAIR to confirm removing safely orphaned optional links.");
+      return;
+    }
     const repaired = await repairGuestWorkspaceLinks();
+    setRepairText("");
     setStatus(
       repaired ? `Removed ${repaired} safely orphaned optional links.` : "No safely removable orphan links were found.",
     );
@@ -291,9 +297,15 @@ export function BackupRecoveryPage() {
             : "No broken workspace links found."}
         </p>
         <button onClick={() => void refreshHealth()}>Run local integrity scan</button>
-        <button onClick={() => void repairLinks()} disabled={!health.broken.length}>
-          Repair safely removable links
-        </button>
+        {health.broken.length > 0 && (
+          <>
+            <label>
+              To remove safely orphaned optional links, type REPAIR
+              <input value={repairText} onChange={(event) => setRepairText(event.target.value)} />
+            </label>
+            <button onClick={() => void repairLinks()}>Repair safely removable links</button>
+          </>
+        )}
         <button onClick={() => void requestPersistentStorage()}>Request persistent browser storage</button>
         <p>
           Last successful backup:{" "}
