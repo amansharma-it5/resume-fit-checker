@@ -56,3 +56,24 @@ test("dashboard renders a compact resume row with a keyboard-accessible action m
   await expect(row.getByRole("button", { name: "Rename" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
+
+test("editor exposes section navigation and responsive review views without losing controls", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  const navigator = page.getByRole("complementary", { name: "Resume sections" });
+  await expect(navigator).toBeVisible();
+  await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(page.locator(".preview-pane")).toBeVisible();
+
+  await page.setViewportSize({ width: 320, height: 760 });
+  const editorViews = page.getByRole("group", { name: "Editor view" });
+  await editorViews.getByRole("button", { name: "Sections", exact: true }).click();
+  await expect(navigator).toBeVisible();
+  await editorViews.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.locator("#resume-fields")).toBeVisible();
+  await editorViews.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(page.locator(".preview-pane")).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});

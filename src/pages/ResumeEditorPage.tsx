@@ -77,7 +77,7 @@ export function ResumeEditorPage() {
   const [error, setError] = useState("");
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [lastSavedJson, setLastSavedJson] = useState("");
-  const [view, setView] = useState<"edit" | "preview">("edit");
+  const [view, setView] = useState<"sections" | "edit" | "preview">("edit");
   const [zoom, setZoom] = useState(0.82);
   const [deleteSection, setDeleteSection] = useState<ResumeSection | null>(null);
   const [versions, setVersions] = useState<ResumeVersionSnapshot[]>([]);
@@ -365,6 +365,10 @@ export function ResumeEditorPage() {
     window.setTimeout(() => target.classList.remove("ats-field-highlight"), 2200);
     setAnalysisNotice("Opened the relevant resume section.");
   }
+  function selectSection(sectionId: string) {
+    setView("edit");
+    window.setTimeout(() => document.getElementById(`section-${sectionId}`)?.focus(), 0);
+  }
   function fixIssueWithCopilot(sectionId: string, issueText: string) {
     const index = copilotTargets.findIndex((item) => item.sectionId === sectionId);
     if (index < 0) {
@@ -486,6 +490,9 @@ export function ResumeEditorPage() {
         </aside>
       )}
       <div className="mobile-view-tabs" role="group" aria-label="Editor view">
+        <button aria-pressed={view === "sections"} onClick={() => setView("sections")}>
+          Sections
+        </button>
         <button aria-pressed={view === "edit"} onClick={() => setView("edit")}>
           Edit
         </button>
@@ -494,6 +501,23 @@ export function ResumeEditorPage() {
         </button>
       </div>
       <div className="editor-workspace">
+        <aside
+          className={`section-navigator ${view === "sections" ? "mobile-active" : ""}`}
+          aria-label="Resume sections"
+        >
+          <p className="section-navigator-label">Resume sections</p>
+          <nav>
+            {resume.sections.map((section) => (
+              <button key={section.id} type="button" onClick={() => selectSection(section.id)}>
+                <span>{section.title}</span>
+                <small>
+                  {section.entries.length} {section.entries.length === 1 ? "entry" : "entries"}
+                </small>
+              </button>
+            ))}
+          </nav>
+          <p className="section-navigator-note">Use the editor to add, rename, reorder, or remove sections.</p>
+        </aside>
         <section id="resume-fields" className={`editor-pane ${view === "edit" ? "mobile-active" : ""}`}>
           <section className="editor-metrics" aria-label="Document metrics">
             <span>{words} words</span>
