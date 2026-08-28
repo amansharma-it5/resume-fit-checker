@@ -81,3 +81,30 @@ test("checks every coaching action without provider traffic until Generate", asy
   }
   await expect(page.getByLabel(/consent to send/i)).not.toBeChecked();
 });
+
+test("exports local practice text and keeps a semantic print-only review", async ({ page }) => {
+  await createSession(page);
+  await page.getByLabel("Your practice answer").fill("I can explain the synthetic local project clearly.");
+  const download = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Download practice text" }).click(),
+  ]).then(([item]) => item);
+  expect(download.suggestedFilename()).toMatch(/\.txt$/);
+  expect(
+    await download.createReadStream().then(async (stream) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream || []) chunks.push(chunk);
+      return Buffer.concat(chunks).toString("utf8");
+    }),
+  ).toContain("I can explain the synthetic local project clearly.");
+
+  await page.evaluate(() => {
+    window.print = () => document.documentElement.setAttribute("data-interview-print", "called");
+  });
+  await page.getByRole("button", { name: "Print / Save as PDF" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-interview-print", "called");
+  await page.emulateMedia({ media: "print" });
+  await expect(page.getByLabel("Printable interview practice review")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save" })).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
+});

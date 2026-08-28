@@ -1,38 +1,60 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createInterviewPracticeSession, feedbackForAnswer } from "../lib/interview-practice";
+import { downloadInterviewPracticePlainText } from "../lib/interview-practice-export";
 import {
   deleteGuestInterviewSession,
   listGuestInterviewSessions,
   listGuestResumes,
+  listGuestTargets,
   putGuestInterviewSession,
 } from "../lib/guest-db";
-import type { InterviewPracticeSession, ResumeDocument } from "../types";
+import type { InterviewPracticeQuestion, InterviewPracticeSession, JobTarget, ResumeDocument } from "../types";
 import { InterviewCoach } from "./interview-practice/InterviewCoach";
 
 export function InterviewPracticePage() {
   const [resumes, setResumes] = useState<ResumeDocument[]>([]);
   const [sessions, setSessions] = useState<InterviewPracticeSession[]>([]);
+  const [targets, setTargets] = useState<JobTarget[]>([]);
   const [current, setCurrent] = useState<InterviewPracticeSession | null>(null);
   const [resumeId, setResumeId] = useState("");
   const [company, setCompany] = useState("");
   const [role, setRole] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  const [targetId, setTargetId] = useState("");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [index, setIndex] = useState(0);
   const [history, setHistory] = useState<InterviewPracticeSession[]>([]);
   const [future, setFuture] = useState<InterviewPracticeSession[]>([]);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [versionIndex, setVersionIndex] = useState("");
+  const [customQuestion, setCustomQuestion] = useState("");
   const autosave = useRef<number | undefined>(undefined);
   const currentRef = useRef<InterviewPracticeSession | null>(null);
   const revision = useRef(0);
 
   const load = useCallback(async () => {
-    setResumes((await listGuestResumes()).filter((resume) => resume.status === "active"));
-    setSessions(await listGuestInterviewSessions());
+    const [nextResumes, nextSessions, nextTargets] = await Promise.all([
+      listGuestResumes(),
+      listGuestInterviewSessions(),
+      listGuestTargets(),
+    ]);
+    setResumes(nextResumes.filter((resume) => resume.status === "active"));
+    setSessions(nextSessions);
+    setTargets(nextTargets);
   }, []);
   useEffect(() => void load(), [load]);
   const selected = useMemo(() => resumes.find((resume) => resume.id === resumeId), [resumes, resumeId]);
   const activeQuestion = current?.questions[index];
+  const completedCount = current?.questions.filter((question) => question.completed).length || 0;
+  const skippedCount = current?.questions.filter((question) => question.skipped).length || 0;
+
+  useEffect(() => {
+    if (!timerRunning) return;
+    const timer = window.setInterval(() => setTimerSeconds((seconds) => seconds + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [timerRunning]);
 
   async function create() {
     if (!selected || !role.trim()) {
@@ -40,7 +62,13 @@ export function InterviewPracticePage() {
       return;
     }
     const saved = await putGuestInterviewSession(
-      createInterviewPracticeSession({ resume: selected, role, company, jobDescription }),
+      createInterviewPracticeSession({
+        resume: selected,
+        role,
+        company,
+        jobDescription,
+        jobTargetId: targetId || undefined,
+      }),
     );
     replace(saved);
     setIndex(0);
@@ -58,6 +86,23 @@ export function InterviewPracticePage() {
     setFuture([]);
     replace(next);
   };
+  function addCustomQuestion() {
+    if (!current || !customQuestion.trim()) return;
+    const question: InterviewPracticeQuestion = {
+      id: crypto.randomUUID(),
+      prompt: customQuestion.trim().slice(0, 1000),
+      category: "custom",
+      reason: "This is a user-created practice question.",
+      evidence: [],
+      answer: "",
+      answerVersions: [],
+      completed: false,
+      skipped: false,
+    };
+    change({ ...current, questions: [...current.questions, question] });
+    setCustomQuestion("");
+    setMessage("Custom question added locally.");
+  }
   async function save(next: InterviewPracticeSession) {
     const saveRevision = revision.current;
     setSaving(true);
@@ -96,6 +141,19 @@ export function InterviewPracticePage() {
         <p>
           Question {index + 1} of {current.questions.length}
         </p>
+        <p aria-label="Practice progress">
+          {completedCount} completed, {skippedCount} skipped, {current.questions.length - completedCount - skippedCount}{" "}
+          remaining
+        </p>
+        <div className="inline-form">
+          <label>
+            Custom question
+            <input value={customQuestion} onChange={(event) => setCustomQuestion(event.target.value)} />
+          </label>
+          <button type="button" onClick={addCustomQuestion} disabled={!customQuestion.trim()}>
+            Add custom question
+          </button>
+        </div>
         <article className="target-create">
           <h2>{activeQuestion.prompt}</h2>
           <p>
@@ -119,6 +177,20 @@ export function InterviewPracticePage() {
               }}
             />
           </label>
+          {activeQuestion.answerVersions.length > 0 && (
+            <label>
+              Compare an earlier answer
+              <select value={versionIndex} onChange={(event) => setVersionIndex(event.target.value)}>
+                <option value="">Choose an earlier version</option>
+                {activeQuestion.answerVersions.map((version, itemIndex) => (
+                  <option key={`${itemIndex}-${version}`} value={String(itemIndex)}>
+                    Version {itemIndex + 1}
+                  </option>
+                ))}
+              </select>
+              {versionIndex && <output>{activeQuestion.answerVersions[Number(versionIndex)]}</output>}
+            </label>
+          )}
           <p className={feedback.status === "review" ? "danger-text" : "privacy-note"}>{feedback.message}</p>
           <InterviewCoach
             question={activeQuestion.prompt}
@@ -204,6 +276,33 @@ export function InterviewPracticePage() {
             >
               Reset answer
             </button>
+            <button onClick={() => setTimerRunning((running) => !running)}>
+              {timerRunning ? "Pause timer" : "Start timer"}
+            </button>
+            <output aria-label="Practice timer">
+              {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, "0")}
+            </output>
+            <button
+              onClick={() => {
+                try {
+                  const exported = downloadInterviewPracticePlainText(current);
+                  setMessage(`Downloaded ${exported.filename} locally.`);
+                } catch (error) {
+                  setMessage(error instanceof Error ? error.message : "Export failed.");
+                }
+              }}
+            >
+              Download practice text
+            </button>
+            <button
+              onClick={(event) => {
+                window.print();
+                event.currentTarget.focus();
+                setMessage("Print / Save as PDF opened for this local practice session.");
+              }}
+            >
+              Print / Save as PDF
+            </button>
             <button
               onClick={() => {
                 replace(null);
@@ -213,6 +312,17 @@ export function InterviewPracticePage() {
               Back to sessions
             </button>
           </div>
+        </article>
+        <article className="interview-practice-print" aria-label="Printable interview practice review">
+          <h2>{current.title}</h2>
+          {current.questions.map((question, questionIndex) => (
+            <section key={question.id}>
+              <h3>Question {questionIndex + 1}</h3>
+              <p>{question.prompt}</p>
+              <p>{question.answer || "No answer recorded."}</p>
+              <p>{feedbackForAnswer(question.answer, question.evidence).message}</p>
+            </section>
+          ))}
         </article>
       </section>
     );
@@ -238,6 +348,29 @@ export function InterviewPracticePage() {
               {resumes.map((resume) => (
                 <option key={resume.id} value={resume.id}>
                   {resume.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Job target (optional)
+            <select
+              value={targetId}
+              onChange={(event) => {
+                const nextId = event.target.value;
+                const target = targets.find((item) => item.id === nextId);
+                setTargetId(nextId);
+                if (!target) return;
+                setResumeId(target.tailoredResumeId);
+                setCompany(target.company);
+                setRole(target.role);
+                setJobDescription(target.jobDescription);
+              }}
+            >
+              <option value="">No job target</option>
+              {targets.map((target) => (
+                <option key={target.id} value={target.id}>
+                  {target.company} - {target.role}
                 </option>
               ))}
             </select>
