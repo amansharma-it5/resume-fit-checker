@@ -9,7 +9,6 @@ import {
   repairGuestWorkspaceLinks,
   restoreWorkspace,
   type BackupPreview,
-  type WorkspaceBackup,
 } from "../lib/workspace-backup";
 
 const countLabels = {
@@ -28,6 +27,8 @@ export function BackupRecoveryPage() {
   const [encrypt, setEncrypt] = useState(false);
   const [preview, setPreview] = useState<BackupPreview | null>(null);
   const [restorePassphrase, setRestorePassphrase] = useState("");
+  const [pendingImportText, setPendingImportText] = useState("");
+  const [encryptedImport, setEncryptedImport] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [health, setHealth] = useState<{ counts: Record<string, number>; broken: string[]; usage?: string }>({ counts: {}, broken: [] });
@@ -35,7 +36,7 @@ export function BackupRecoveryPage() {
   const [deleteText, setDeleteText] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const encrypted = Boolean(preview?.manifest.encrypted);
+  const encrypted = encryptedImport || Boolean(preview?.manifest.encrypted);
   const previewCounts = useMemo(() => (preview ? Object.entries(preview.manifest.entityCounts) : []), [preview]);
   async function refreshHealth() {
     const workspace = await exportGuestWorkspaceData();
@@ -72,6 +73,19 @@ export function BackupRecoveryPage() {
     setError("");
     try {
       const text = await file.text();
+      setPendingImportText(text);
+      let encryptedFile = false;
+      try {
+        const container = JSON.parse(text) as { manifest?: { encrypted?: boolean } };
+        encryptedFile = Boolean(container.manifest?.encrypted);
+      } catch {
+        // The validated preflight below owns the safe user-facing parse error.
+      }
+      setEncryptedImport(encryptedFile);
+      if (encryptedFile && !restorePassphrase) {
+        setStatus("This encrypted backup needs its passphrase before it can be validated.");
+        return;
+      }
       const parsed = await preflightWorkspaceBackup(text, restorePassphrase);
       setPreview(parsed);
       setStatus("Backup validated. Review the restore plan before making any changes.");
@@ -80,9 +94,15 @@ export function BackupRecoveryPage() {
     }
   }
   async function retryPreflight() {
-    const file = fileInput.current?.files?.[0];
-    if (!file) return;
-    await inspectFile({ target: { files: [file] } } as unknown as ChangeEvent<HTMLInputElement>);
+    if (!pendingImportText) return;
+    setError("");
+    try {
+      const parsed = await preflightWorkspaceBackup(pendingImportText, restorePassphrase);
+      setPreview(parsed);
+      setStatus("Backup validated. Review the restore plan before making any changes.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "This backup could not be read safely.");
+    }
   }
   async function restore(mode: "merge" | "replace") {
     if (!preview) return;
@@ -95,6 +115,8 @@ export function BackupRecoveryPage() {
       const result = await restoreWorkspace(preview, mode);
       setStatus(`${mode === "replace" ? "Workspace replaced" : "Backup merged"}. Restored ${Object.values(result.restored).reduce((sum, value) => sum + value, 0)} records.`);
       setPreview(null);
+      setPendingImportText("");
+      setEncryptedImport(false);
       setReplaceText("");
       if (fileInput.current) fileInput.current.value = "";
       await refreshHealth();

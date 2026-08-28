@@ -291,7 +291,11 @@ export async function createSafeMergePlan(incoming: GuestWorkspaceData): Promise
     }
     workspace[store] = (workspace[store] as Array<Record<string, unknown>>)
       .filter((record) => !record.__skip)
-      .map(({ __skip: _skip, ...record }) => record) as never;
+      .map((record) => {
+        const clean = { ...record };
+        delete clean.__skip;
+        return clean;
+      }) as never;
   }
   const map = (id?: string) => (id ? remaps.get(id) || id : id);
   workspace.versions.forEach((item) => {

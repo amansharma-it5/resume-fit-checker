@@ -1,4 +1,4 @@
-import { deleteDB, openDB, type DBSchema } from "idb";
+import { openDB, type DBSchema } from "idb";
 import type {
   AnalysisSummary,
   ApplicationRecord,
@@ -369,8 +369,10 @@ export async function saveGuestAnalysisOverrides(key: string, value: unknown) {
   await (await db()).put("meta", { key: `analysis-overrides:${key}`, value });
 }
 export async function clearGuestData() {
-  (await db()).close();
-  await deleteDB(DB_NAME);
+  const database = await db();
+  const tx = database.transaction(WORKSPACE_STORES, "readwrite");
+  await Promise.all(WORKSPACE_STORES.map((store) => tx.objectStore(store).clear()));
+  await tx.done;
   localStorage.removeItem(LEGACY_KEY);
 }
 

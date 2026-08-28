@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { GuestWorkspaceData } from "./guest-db";
+import { clearGuestData, putGuestResume } from "./guest-db";
 import {
   BACKUP_SCHEMA_VERSION,
   createWorkspaceBackup,
+  createSafeMergePlan,
   preflightWorkspaceBackup,
   stableSerialize,
   workspaceBackupFilename,
@@ -54,5 +56,14 @@ describe("workspace backup", () => {
     const text = stableSerialize(backup);
     await expect(preflightWorkspaceBackup(text.replace('"schemaVersion":1', '"schemaVersion":99'))).rejects.toThrow(/newer/i);
     await expect(preflightWorkspaceBackup('{"__proto__":{"polluted":true}}')).rejects.toThrow(/safe/i);
+  });
+
+  it("plans collision-safe merges without replacing the current resume", async () => {
+    await clearGuestData();
+    await putGuestResume({ ...workspace.resumes[0], title: "Current synthetic resume" });
+    const plan = await createSafeMergePlan(workspace);
+    expect(plan.workspace.resumes[0].id).toBe("resume-1-restored");
+    expect(plan.remapped).toContain("resume-1 -> resume-1-restored");
+    await clearGuestData();
   });
 });
