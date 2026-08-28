@@ -1,4 +1,9 @@
-import { exportGuestWorkspaceData, type GuestWorkspaceData } from "./guest-db";
+import {
+  exportGuestWorkspaceData,
+  mergeGuestWorkspaceData,
+  replaceGuestWorkspaceData,
+  type GuestWorkspaceData,
+} from "./guest-db";
 import { sanitizeExportFilename } from "../resume-builder/export";
 
 export const BACKUP_FORMAT = "recruitos-ai.workspace-backup";
@@ -40,6 +45,12 @@ export type BackupPreview = {
   workspace: GuestWorkspaceData;
   brokenLinks: string[];
   warnings: string[];
+};
+export type RestorePlan = {
+  workspace: GuestWorkspaceData;
+  added: BackupCounts;
+  skipped: BackupCounts;
+  remapped: string[];
 };
 
 const SAFE_META_PREFIXES = ["analysis-overrides:", "legacy-summary-migrated", "workspace-backup:"];
@@ -238,6 +249,85 @@ export function findBrokenLinks(workspace: GuestWorkspaceData) {
     application.interviewSessionIds.forEach((id) => !sessions.has(id) && links.push(`Application ${application.id} has a missing interview session.`));
   });
   return links;
+}
+
+function recordKey(store: keyof GuestWorkspaceData, item: unknown): string {
+  const record = item as { id?: string; key?: string };
+  return store === "meta" ? record.key || "" : record.id || "";
+}
+
+function uniqueRestoredId(id: string, occupied: Set<string>) {
+  let attempt = `${id}-restored`;
+  let suffix = 2;
+  while (occupied.has(attempt)) attempt = `${id}-restored-${suffix++}`;
+  return attempt;
+}
+
+/** Plans a non-destructive restore. IDs are remapped before any relationship is written. */
+export async function createSafeMergePlan(incoming: GuestWorkspaceData): Promise<RestorePlan> {
+  const current = await exportGuestWorkspaceData();
+  const remaps = new Map<string, string>();
+  const added = Object.fromEntries(stores.map((store) => [store, 0])) as BackupCounts;
+  const skipped = Object.fromEntries(stores.map((store) => [store, 0])) as BackupCounts;
+  const workspace = structuredClone(cleanWorkspace(incoming));
+  for (const store of stores) {
+    const occupied = new Set(current[store].map((item) => recordKey(store, item)));
+    for (const record of workspace[store] as Array<Record<string, unknown>>) {
+      const key = recordKey(store, record);
+      const existing = (current[store] as unknown[]).find((item) => recordKey(store, item) === key);
+      if (existing && stableSerialize(existing) === stableSerialize(record)) {
+        record.__skip = true;
+        skipped[store]++;
+        continue;
+      }
+      if (existing) {
+        const replacement = uniqueRestoredId(key, occupied);
+        if (store === "meta") record.key = replacement;
+        else record.id = replacement;
+        remaps.set(key, replacement);
+        occupied.add(replacement);
+      } else occupied.add(key);
+      added[store]++;
+    }
+    workspace[store] = (workspace[store] as Array<Record<string, unknown>>)
+      .filter((record) => !record.__skip)
+      .map(({ __skip: _skip, ...record }) => record) as never;
+  }
+  const map = (id?: string) => (id ? remaps.get(id) || id : id);
+  workspace.versions.forEach((item) => {
+    item.resumeId = map(item.resumeId)!;
+    if (item.snapshot && typeof item.snapshot === "object") (item.snapshot as { id?: string }).id = map((item.snapshot as { id?: string }).id);
+  });
+  workspace.analyses.forEach((item) => (item.resumeId = map(item.resumeId)));
+  workspace.targets.forEach((item) => {
+    item.baseResumeId = map(item.baseResumeId)!;
+    item.tailoredResumeId = map(item.tailoredResumeId)!;
+  });
+  workspace.coverLetters.forEach((item) => {
+    item.resumeId = map(item.resumeId)!;
+    item.jobTargetId = map(item.jobTargetId);
+  });
+  workspace.interviewSessions.forEach((item) => {
+    item.resumeId = map(item.resumeId)!;
+    item.jobTargetId = map(item.jobTargetId);
+  });
+  workspace.applications.forEach((item) => {
+    item.resumeId = map(item.resumeId);
+    item.jobTargetId = map(item.jobTargetId);
+    item.coverLetterId = map(item.coverLetterId);
+    item.interviewSessionIds = item.interviewSessionIds.map((id) => map(id)!);
+  });
+  return { workspace, added, skipped, remapped: [...remaps.entries()].map(([from, to]) => `${from} -> ${to}`) };
+}
+
+export async function restoreWorkspace(preview: BackupPreview, mode: "merge" | "replace") {
+  if (mode === "replace") {
+    await replaceGuestWorkspaceData(preview.workspace);
+    return { restored: counts(preview.workspace), remapped: [] };
+  }
+  const plan = await createSafeMergePlan(preview.workspace);
+  await mergeGuestWorkspaceData(plan.workspace);
+  return { restored: plan.added, remapped: plan.remapped };
 }
 
 export function workspaceBackupFilename(now = new Date()) {

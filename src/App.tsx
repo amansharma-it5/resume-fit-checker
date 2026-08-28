@@ -14,6 +14,7 @@ import { JobTargetsPage } from "./pages/JobTargetsPage";
 import { CoverLettersPage } from "./pages/CoverLettersPage";
 import { InterviewPracticePage } from "./pages/InterviewPracticePage";
 import { ApplicationsPage } from "./pages/ApplicationsPage";
+import { BackupRecoveryPage } from "./pages/BackupRecoveryPage";
 import { authEnabled as configuredAuthEnabled } from "./lib/features";
 
 export function App() {
@@ -39,6 +40,7 @@ export function AppRoutes({ authEnabled }: { authEnabled: boolean }) {
         <Route path="interview-practice" element={<InterviewPracticePage />} />
         <Route path="applications" element={<ApplicationsPage />} />
         <Route path="applications/:applicationId" element={<ApplicationsPage />} />
+        <Route path="backup-recovery" element={<BackupRecoveryPage />} />
         <Route path="resumes/:resumeId/edit" element={<ResumeEditorPage />} />
         <Route path="settings" element={<SettingsPage authEnabled={authEnabled} />} />
         <Route path="privacy" element={<PrivacyPage />} />
