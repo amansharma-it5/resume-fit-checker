@@ -2333,6 +2333,61 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
   border-color: #fecdca;
   background: #fffbfa;
 }
+
+/* Guest entry and account-disabled surfaces share the same original light presentation. */
+.auth-page {
+  min-height: calc(100vh - 120px);
+  place-items: start center;
+  padding: clamp(44px, 9vh, 112px) 0 56px;
+}
+.auth-panel {
+  max-width: 500px;
+  padding: clamp(24px, 4vw, 40px);
+  border-color: var(--line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(16, 24, 40, 0.08);
+}
+.auth-panel h1 {
+  margin: 8px 0 12px;
+  color: #171923;
+  font-size: clamp(1.8rem, 3vw, 2.45rem);
+  line-height: 1.12;
+}
+.auth-panel > p:not(.eyebrow):not(.status-message) {
+  color: #667085;
+  line-height: 1.65;
+}
+.auth-panel .button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 6px;
+  border-color: var(--mint);
+  color: #fff;
+  background: var(--mint);
+}
+.auth-panel .button-link:hover {
+  border-color: var(--mint2);
+  color: #fff;
+  background: var(--mint2);
+}
+.availability-label {
+  border-color: #d9e3ff;
+  border-radius: 999px;
+  color: #3b4fc4;
+  background: #f2f4ff;
+  font-weight: 700;
+}
+.dashboard-page > .eyebrow,
+.workspace-page > .eyebrow,
+.auth-panel > .eyebrow {
+  color: #475467;
+  font-size: 0.72rem;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .privacy-note,
 .notice,
 .section-navigator-note {

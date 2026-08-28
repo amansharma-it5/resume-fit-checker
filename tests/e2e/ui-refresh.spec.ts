@@ -21,6 +21,17 @@ test("light workspace shell keeps desktop navigation visible and distinct", asyn
   await expectNoHorizontalOverflow(page);
 });
 
+test("authentication-disabled entry retains a clear light guest-mode surface", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/login");
+
+  const panel = page.locator(".auth-panel");
+  await expect(page.getByRole("heading", { name: "Continue privately in guest mode" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open guest workspace" })).toBeVisible();
+  await expect(panel).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expectNoHorizontalOverflow(page);
+});
+
 test("mobile navigation uses an accessible drawer with escape and focus restoration", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 760 });
   await page.goto("/dashboard");
