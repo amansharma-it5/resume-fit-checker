@@ -7,6 +7,7 @@ import {
   putGuestInterviewSession,
 } from "../lib/guest-db";
 import type { InterviewPracticeSession, ResumeDocument } from "../types";
+import { InterviewCoach } from "./interview-practice/InterviewCoach";
 
 export function InterviewPracticePage() {
   const [resumes, setResumes] = useState<ResumeDocument[]>([]);
@@ -119,6 +120,23 @@ export function InterviewPracticePage() {
             />
           </label>
           <p className={feedback.status === "review" ? "danger-text" : "privacy-note"}>{feedback.message}</p>
+          <InterviewCoach
+            question={activeQuestion.prompt}
+            answer={activeQuestion.answer}
+            evidence={activeQuestion.evidence}
+            role={current.role}
+            company={current.company}
+            jd={current.jobDescription}
+            onAnnouncement={setMessage}
+            onAccept={(value) => {
+              const questions = current.questions.map((item, itemIndex) =>
+                itemIndex === index
+                  ? { ...item, answerVersions: [...item.answerVersions, item.answer], answer: value }
+                  : item,
+              );
+              change({ ...current, questions });
+            }}
+          />
           <div className="button-row">
             <button onClick={() => void save(current)} disabled={saving}>
               {saving ? "Saving…" : "Save"}
