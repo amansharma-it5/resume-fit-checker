@@ -401,6 +401,9 @@ function TargetLinks({
       <Link className="button-link" to={`/resumes/${target.tailoredResumeId}/edit?target=${target.id}`}>
         Export tailored resume
       </Link>
+      <Link className="button-link" to={`/cover-letters?target=${target.id}`}>
+        Create cover letter
+      </Link>
       <button onClick={() => onMessage("Open the tailored resume to review local ATS evidence or export.")}>
         How to continue
       </button>
