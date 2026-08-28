@@ -54,6 +54,34 @@ export interface CoverLetterDocument {
   editorVersion: number;
 }
 
+/** A browser-local practice session. Answers and feedback never leave Guest Mode unless the user separately consents. */
+export interface InterviewPracticeQuestion {
+  id: string;
+  prompt: string;
+  category: "introduction" | "resume" | "behavioral" | "job" | "skills" | "custom";
+  reason: string;
+  evidence: string[];
+  answer: string;
+  answerVersions: string[];
+  completed: boolean;
+  skipped: boolean;
+}
+
+export interface InterviewPracticeSession {
+  id: string;
+  schemaVersion: 1;
+  title: string;
+  resumeId: string;
+  jobTargetId?: string;
+  company: string;
+  role: string;
+  jobDescription: string;
+  questions: InterviewPracticeQuestion[];
+  createdAt: string;
+  updatedAt: string;
+  editorVersion: number;
+}
+
 export interface ResumeDocument {
   id: string;
   ownerId?: string;
