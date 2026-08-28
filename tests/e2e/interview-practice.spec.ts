@@ -45,3 +45,39 @@ test("sends bounded coaching context and requires explicit acceptance", async ({
   await page.getByRole("button", { name: "Reject" }).click();
   await expect(page.getByLabel("Your practice answer")).toHaveValue("I can explain my approach clearly.");
 });
+
+test("accepts only a supported selected-answer suggestion and restores it through undo and redo", async ({ page }) => {
+  await page.route("**/.netlify/functions/ai-rewrite", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ rewrittenBullet: "I can clearly explain my approach." }),
+    }),
+  );
+  await createSession(page);
+  await page.getByLabel("Your practice answer").fill("I can explain my approach clearly.");
+  await page.getByLabel(/consent to send/i).check();
+  await page.getByRole("button", { name: "Generate coaching" }).click();
+  await page.getByRole("button", { name: "Accept" }).click();
+  await expect(page.locator(".dashboard-page > [role='status']")).toHaveText("Coaching suggestion accepted.");
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByLabel("Your practice answer")).toHaveValue("I can explain my approach clearly.");
+  await page.getByRole("button", { name: "Redo" }).click();
+  await expect(page.getByLabel("Your practice answer")).toHaveValue("I can clearly explain my approach.");
+});
+
+test("checks every coaching action without provider traffic until Generate", async ({ page }) => {
+  await createSession(page);
+  const action = page.getByLabel("Coaching action");
+  for (const value of [
+    "Improve structure",
+    "Improve clarity",
+    "Make concise",
+    "Organize as STAR",
+    "Identify missing information",
+    "Generate a relevant follow-up question",
+  ]) {
+    await action.selectOption({ label: value });
+    await expect(action).toHaveValue(value);
+  }
+  await expect(page.getByLabel(/consent to send/i)).not.toBeChecked();
+});
