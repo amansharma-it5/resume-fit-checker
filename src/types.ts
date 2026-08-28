@@ -82,6 +82,68 @@ export interface InterviewPracticeSession {
   editorVersion: number;
 }
 
+export const APPLICATION_STATUSES = [
+  "Saved",
+  "Preparing",
+  "Applied",
+  "Screening",
+  "Interviewing",
+  "Offer",
+  "Rejected",
+  "Withdrawn",
+  "Archived",
+] as const;
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
+
+export type ApplicationActivityKind = "created" | "updated" | "status" | "follow-up" | "note";
+
+/** A privacy-safe timeline entry. It never stores resume or job-description bodies. */
+export interface ApplicationActivity {
+  id: string;
+  kind: ApplicationActivityKind;
+  message: string;
+  createdAt: string;
+}
+
+export interface ApplicationFollowUp {
+  id: string;
+  title: string;
+  notes?: string;
+  dueDate?: string;
+  completed: boolean;
+  createdAt: string;
+  completedAt?: string;
+}
+
+/** Browser-local application metadata. Linked documents remain in their own stores. */
+export interface ApplicationRecord {
+  id: string;
+  schemaVersion: 1;
+  company: string;
+  role: string;
+  location?: string;
+  workArrangement?: string;
+  source?: string;
+  sourceUrl?: string;
+  status: ApplicationStatus;
+  resumeId?: string;
+  jobTargetId?: string;
+  coverLetterId?: string;
+  interviewSessionIds: string[];
+  contactName?: string;
+  contactEmail?: string;
+  notes?: string;
+  nextAction?: string;
+  dueDate?: string;
+  appliedAt?: string;
+  closedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  editorVersion: number;
+  activities: ApplicationActivity[];
+  followUps: ApplicationFollowUp[];
+}
+
 export interface ResumeDocument {
   id: string;
   ownerId?: string;
