@@ -12,6 +12,31 @@ import type { ResumeVersionSnapshot, StructuredResume } from "../resume-builder/
 const DB_NAME = "resume-lab-guest-v2";
 const LEGACY_KEY = "resumeLabAnalysesV1";
 
+/** The complete app-owned IndexedDB surface.  Kept explicit for backup/restore. */
+export interface GuestWorkspaceData {
+  resumes: ResumeDocument[];
+  analyses: AnalysisSummary[];
+  versions: ResumeVersionSnapshot[];
+  targets: JobTarget[];
+  coverLetters: CoverLetterDocument[];
+  interviewSessions: InterviewPracticeSession[];
+  applications: ApplicationRecord[];
+  /** Only app-owned, non-secret metadata is included by the backup service. */
+  meta: Array<{ key: string; value: unknown }>;
+}
+
+export type GuestWorkspaceStore = keyof GuestWorkspaceData;
+const WORKSPACE_STORES: GuestWorkspaceStore[] = [
+  "resumes",
+  "analyses",
+  "versions",
+  "targets",
+  "coverLetters",
+  "interviewSessions",
+  "applications",
+  "meta",
+];
+
 interface GuestSchema extends DBSchema {
   resumes: { key: string; value: ResumeDocument; indexes: { "by-updated": string; "by-status": string } };
   analyses: { key: string; value: AnalysisSummary; indexes: { "by-timestamp": string } };
@@ -347,4 +372,48 @@ export async function clearGuestData() {
   (await db()).close();
   await deleteDB(DB_NAME);
   localStorage.removeItem(LEGACY_KEY);
+}
+
+/** Reads all application-owned stores in one stable, read-only snapshot. */
+export async function exportGuestWorkspaceData(): Promise<GuestWorkspaceData> {
+  const database = await db();
+  const tx = database.transaction(WORKSPACE_STORES, "readonly");
+  const [resumes, analyses, versions, targets, coverLetters, interviewSessions, applications, meta] = await Promise.all(
+    WORKSPACE_STORES.map((store) => tx.objectStore(store).getAll()),
+  );
+  await tx.done;
+  return {
+    resumes: resumes as ResumeDocument[],
+    analyses: analyses as AnalysisSummary[],
+    versions: versions as ResumeVersionSnapshot[],
+    targets: targets as JobTarget[],
+    coverLetters: coverLetters as CoverLetterDocument[],
+    interviewSessions: interviewSessions as InterviewPracticeSession[],
+    applications: applications as ApplicationRecord[],
+    meta: meta as Array<{ key: string; value: unknown }>,
+  };
+}
+
+/**
+ * Replaces only this application's IndexedDB records. The single transaction means
+ * callers never observe a partially restored workspace after a write failure.
+ */
+export async function replaceGuestWorkspaceData(workspace: GuestWorkspaceData) {
+  const database = await db();
+  const tx = database.transaction(WORKSPACE_STORES, "readwrite");
+  await Promise.all(WORKSPACE_STORES.map((store) => tx.objectStore(store).clear()));
+  for (const store of WORKSPACE_STORES) {
+    for (const item of workspace[store]) await tx.objectStore(store).put(item as never);
+  }
+  await tx.done;
+}
+
+/** Atomically adds an already planned, collision-free backup merge. */
+export async function mergeGuestWorkspaceData(workspace: GuestWorkspaceData) {
+  const database = await db();
+  const tx = database.transaction(WORKSPACE_STORES, "readwrite");
+  for (const store of WORKSPACE_STORES) {
+    for (const item of workspace[store]) await tx.objectStore(store).put(item as never);
+  }
+  await tx.done;
 }
