@@ -49,6 +49,8 @@ export function InterviewPracticePage() {
   const activeQuestion = current?.questions[index];
   const completedCount = current?.questions.filter((question) => question.completed).length || 0;
   const skippedCount = current?.questions.filter((question) => question.skipped).length || 0;
+  const missingResume = Boolean(current && !resumes.some((resume) => resume.id === current.resumeId));
+  const missingTarget = Boolean(current?.jobTargetId && !targets.some((target) => target.id === current.jobTargetId));
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -145,6 +147,23 @@ export function InterviewPracticePage() {
           {completedCount} completed, {skippedCount} skipped, {current.questions.length - completedCount - skippedCount}{" "}
           remaining
         </p>
+        {(missingResume || missingTarget) && (
+          <p className="danger-text" role="alert">
+            {missingResume
+              ? "The linked resume is no longer available. Existing answers remain local, but do not treat the missing resume as evidence."
+              : "The linked job target is no longer available. Existing answers remain local."}
+          </p>
+        )}
+        <aside className="target-create" aria-label="Session summary">
+          <h2>Session summary</h2>
+          <p>
+            {completedCount} completed, {skippedCount} skipped,{" "}
+            {current.questions.length - completedCount - skippedCount} still to practice.
+          </p>
+          <p>
+            Feedback is deterministic unless a separately consented coaching request is clearly labeled AI-generated.
+          </p>
+        </aside>
         <div className="inline-form">
           <label>
             Custom question
