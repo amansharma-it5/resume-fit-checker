@@ -98,17 +98,35 @@ export function feedbackForAnswer(answer: string, evidence: string[]) {
   const value = answer.trim();
   if (!value)
     return { status: "more-information" as const, message: "More information required: add an answer to review." };
-  const unsupportedMetric = /\b\d+(?:\.\d+)?%|\$\d[\d,]*/.test(value) && !evidence.some((item) => value.includes(item));
-  if (unsupportedMetric)
+  const source = evidence.join("\n").replace(promptLike, "").toLowerCase();
+  const claims =
+    value.match(
+      /\b\d+(?:\.\d+)?%|\$\d[\d,]*|\b(?:19|20)\d{2}\b|\b\d+\s+(?:years?|months?)\b|\b(?:AWS|Azure|React|Python|SQL|Kubernetes|certified|degree|Bachelor|Master)\b|\b[A-Z][A-Za-z]+\s+(?:Inc\.?|Corp\.?|LLC|Ltd\.?|Company|Client)\b|\b(?:Senior|Junior|Lead|Principal|Staff)\s+(?:Software|Data|Product|Project|Engineering|Marketing)\s+(?:Engineer|Manager|Developer|Analyst|Designer)\b|\b(?:increased|reduced|generated|saved)\s+(?:revenue|costs?|sales|profit|conversion)\b/gi,
+    ) || [];
+  const unsupported = [...new Set(claims.filter((claim) => !source.includes(claim.toLowerCase())))];
+  if (unsupported.length)
     return {
       status: "review" as const,
-      message: "Review this answer: the metric is not supported by selected resume evidence.",
+      unsupported,
+      message: `Review this answer: unsupported claim${unsupported.length === 1 ? "" : "s"}: ${unsupported.join(", ")}. Add resume evidence or remove the claim.`,
     };
+  const star = /\b(situation|task|action|result)\b/i.test(value);
+  const feedback = [
+    value.length < 40 ? "Add a concrete example for completeness." : "Answer has enough detail to practice.",
+    star ? "STAR structure is visible." : "For a behavioral answer, consider naming the situation, action, and result.",
+    evidence.length
+      ? "Candidate-specific details were checked against selected resume evidence."
+      : "Keep candidate-specific claims tied to your resume evidence.",
+  ];
   return {
     status: "ready" as const,
-    message:
-      value.length < 40
-        ? "Add a concrete, evidence-backed example for a fuller answer."
-        : "Answer is ready for practice review.",
+    message: feedback.join(" "),
+    rubric: {
+      relevance: "review",
+      star: star ? "present" : "consider",
+      clarity: "review",
+      conciseness: "review",
+      evidence: "supported",
+    },
   };
 }
