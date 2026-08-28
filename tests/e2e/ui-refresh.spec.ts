@@ -32,6 +32,19 @@ test("authentication-disabled entry retains a clear light guest-mode surface", a
   await expectNoHorizontalOverflow(page);
 });
 
+test("operational routes retain the light workspace without desktop or mobile overflow", async ({ page }) => {
+  const routes = ["/targets", "/cover-letters", "/interview-practice", "/applications", "/backup-recovery"];
+  for (const width of [1440, 320]) {
+    await page.setViewportSize({ width, height: 820 });
+    for (const route of routes) {
+      await page.goto(route);
+      await expect(page.locator(".app-content")).toBeVisible();
+      await expect(page.locator("body")).toHaveCSS("background-color", "rgb(246, 247, 251)");
+      await expectNoHorizontalOverflow(page);
+    }
+  }
+});
+
 test("mobile navigation uses an accessible drawer with escape and focus restoration", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 760 });
   await page.goto("/dashboard");
@@ -66,6 +79,23 @@ test("dashboard renders a compact resume row with a keyboard-accessible action m
   await menu.press("Enter");
   await expect(row.getByRole("button", { name: "Rename" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
+});
+
+test("rename dialog keeps a visible focus path and restores the invoking action", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  const row = page.locator(".document-row").first();
+  const menu = row.getByRole("button", { name: /More actions for Untitled resume/ });
+  await menu.click();
+  const rename = row.getByRole("button", { name: "Rename" });
+  await rename.click();
+  const dialog = page.getByRole("dialog", { name: "Rename resume" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Resume name")).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(rename).toBeFocused();
 });
 
 test("editor exposes section navigation and responsive review views without losing controls", async ({ page }) => {
