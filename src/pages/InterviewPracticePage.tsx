@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createInterviewPracticeSession, feedbackForAnswer } from "../lib/interview-practice";
 import {
   deleteGuestInterviewSession,
@@ -17,13 +17,19 @@ export function InterviewPracticePage() {
   const [role, setRole] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
   const [index, setIndex] = useState(0);
+  const [history, setHistory] = useState<InterviewPracticeSession[]>([]);
+  const [future, setFuture] = useState<InterviewPracticeSession[]>([]);
+  const autosave = useRef<number | undefined>(undefined);
+  const currentRef = useRef<InterviewPracticeSession | null>(null);
+  const revision = useRef(0);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setResumes((await listGuestResumes()).filter((resume) => resume.status === "active"));
     setSessions(await listGuestInterviewSessions());
-  };
-  useEffect(() => void load(), []);
+  }, []);
+  useEffect(() => void load(), [load]);
   const selected = useMemo(() => resumes.find((resume) => resume.id === resumeId), [resumes, resumeId]);
   const activeQuestion = current?.questions[index];
 
@@ -35,22 +41,46 @@ export function InterviewPracticePage() {
     const saved = await putGuestInterviewSession(
       createInterviewPracticeSession({ resume: selected, role, company, jobDescription }),
     );
-    setCurrent(saved);
+    replace(saved);
     setIndex(0);
     setMessage("Interview practice session created locally.");
     await load();
   }
 
+  const replace = (next: InterviewPracticeSession | null) => {
+    revision.current += 1;
+    currentRef.current = next;
+    setCurrent(next);
+  };
+  const change = (next: InterviewPracticeSession) => {
+    if (current) setHistory((items) => [...items.slice(-19), current]);
+    setFuture([]);
+    replace(next);
+  };
   async function save(next: InterviewPracticeSession) {
+    const saveRevision = revision.current;
+    setSaving(true);
+    setMessage("Saving practice locally.");
     try {
       const saved = await putGuestInterviewSession(next, next.editorVersion);
-      setCurrent(saved);
+      const latest = currentRef.current;
+      if (latest?.id === next.id && revision.current === saveRevision) replace(saved);
+      else if (latest?.id === next.id) replace({ ...latest, editorVersion: saved.editorVersion });
       setMessage("Practice saved locally.");
       await load();
     } catch {
-      setMessage("Practice save conflict. Your current answer is still visible; retry save.");
+      setMessage("Practice could not be saved locally. Your current answer is still visible; retry save.");
+    } finally {
+      setSaving(false);
     }
   }
+  useEffect(() => {
+    if (!current) return;
+    window.clearTimeout(autosave.current);
+    autosave.current = window.setTimeout(() => void save(current), 700);
+    return () => window.clearTimeout(autosave.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current]);
 
   if (current && activeQuestion) {
     const feedback = feedbackForAnswer(activeQuestion.answer, activeQuestion.evidence);
@@ -84,13 +114,39 @@ export function InterviewPracticePage() {
                 const questions = current.questions.map((question, questionIndex) =>
                   questionIndex === index ? { ...question, answer: event.target.value } : question,
                 );
-                setCurrent({ ...current, questions });
+                change({ ...current, questions });
               }}
             />
           </label>
           <p className={feedback.status === "review" ? "danger-text" : "privacy-note"}>{feedback.message}</p>
           <div className="button-row">
-            <button onClick={() => void save(current)}>Save</button>
+            <button onClick={() => void save(current)} disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button
+              disabled={!history.length}
+              onClick={() => {
+                const previous = history.at(-1);
+                if (!previous || !current) return;
+                setHistory((items) => items.slice(0, -1));
+                setFuture((items) => [current, ...items]);
+                replace(previous);
+              }}
+            >
+              Undo
+            </button>
+            <button
+              disabled={!future.length}
+              onClick={() => {
+                const next = future[0];
+                if (!next || !current) return;
+                setFuture((items) => items.slice(1));
+                setHistory((items) => [...items, current]);
+                replace(next);
+              }}
+            >
+              Redo
+            </button>
             <button disabled={index === 0} onClick={() => setIndex((value) => value - 1)}>
               Previous
             </button>
@@ -102,14 +158,14 @@ export function InterviewPracticePage() {
                 const questions = current.questions.map((question, questionIndex) =>
                   questionIndex === index ? { ...question, completed: true } : question,
                 );
-                void save({ ...current, questions });
+                change({ ...current, questions });
               }}
             >
               Mark complete
             </button>
             <button
               onClick={() => {
-                setCurrent(null);
+                replace(null);
                 void load();
               }}
             >
@@ -174,7 +230,7 @@ export function InterviewPracticePage() {
                 </div>
                 <button
                   onClick={() => {
-                    setCurrent(session);
+                    replace(session);
                     setIndex(0);
                   }}
                 >
