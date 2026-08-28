@@ -263,6 +263,15 @@ export function ApplicationsPage() {
     );
     setMessage("JSON backup download started locally.");
   }
+  function printPipeline() {
+    const title = document.title;
+    document.title = "applications";
+    window.print();
+    window.setTimeout(() => {
+      document.title = title;
+    }, 0);
+    setMessage("Print / Save as PDF opened for the local application pipeline.");
+  }
 
   return (
     <section className="workspace-page applications-page" aria-labelledby="applications-title">
@@ -402,6 +411,7 @@ export function ApplicationsPage() {
               </fieldset>
               <button onClick={exportCsv}>Download CSV</button>
               <button onClick={exportJson}>Download JSON</button>
+              <button onClick={printPipeline}>Print / Save as PDF</button>
             </div>
             <section className="application-insights" aria-label="Local pipeline insights">
               <p>
@@ -741,6 +751,13 @@ function ApplicationDetail({
         <p>
           <strong>Local save:</strong> {status}
         </p>
+        {application.sourceUrl && (
+          <p>
+            <a href={application.sourceUrl} rel="noreferrer noopener" target="_blank">
+              Open saved job source
+            </a>
+          </p>
+        )}
         {missingLinks.length > 0 && (
           <p role="alert" className="danger-text">
             Linked {missingLinks.join(", ")} {missingLinks.length === 1 ? "is" : "are"} unavailable. This application

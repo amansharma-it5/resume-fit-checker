@@ -22,6 +22,13 @@ test("creates a private application, records a status change, and exports safe l
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download CSV" }).click();
   expect((await download).suggestedFilename()).toBe("applications.csv");
+  await page.evaluate(() => {
+    (window as Window & { __printed?: boolean }).print = () => {
+      window.__printed = true;
+    };
+  });
+  await page.getByRole("button", { name: "Print / Save as PDF" }).click();
+  expect(await page.evaluate(() => (window as Window & { __printed?: boolean }).__printed)).toBe(true);
   expect(writes).toEqual([]);
 });
 
