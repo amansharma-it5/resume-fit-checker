@@ -151,6 +151,9 @@ function WorkspaceNavigation({ onNavigate }: { onNavigate?: () => void }) {
 export function AppShell({ authEnabled }: { authEnabled: boolean }) {
   const { user, signOut } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [compactNavigation, setCompactNavigation] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
+  );
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
   const drawerId = useId();
@@ -191,6 +194,14 @@ export function AppShell({ authEnabled }: { authEnabled: boolean }) {
     };
   }, [drawerOpen]);
 
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 900px)");
+    const update = () => setCompactNavigation(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
   const closeDrawer = () => setDrawerOpen(false);
   return (
     <div className="app-shell">
@@ -213,7 +224,7 @@ export function AppShell({ authEnabled }: { authEnabled: boolean }) {
         </button>
         <Brand />
         <span className="local-indicator" aria-label="Browser-local workspace">
-          Local
+          {authEnabled || !compactNavigation ? "Local" : "Accounts coming soon"}
         </span>
       </header>
       <aside className="app-sidebar" aria-label="RecruitOS workspace">
@@ -233,7 +244,9 @@ export function AppShell({ authEnabled }: { authEnabled: boolean }) {
               Log in
             </NavLink>
           ) : (
-            <span className="sidebar-note">Accounts coming soon</span>
+            <span className="sidebar-note">
+              {compactNavigation ? "Account sign-in is unavailable in this environment." : "Accounts coming soon"}
+            </span>
           )}
         </div>
       </aside>
