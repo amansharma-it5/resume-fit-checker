@@ -113,3 +113,27 @@ test("cancels a delayed cover-letter suggestion without changing the editor", as
   await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
   await expect(page.getByRole("button", { name: "Generate suggestion" })).toBeEnabled();
 });
+
+test("a newer replacement request wins over a late older response", async ({ page }) => {
+  let releaseFirst: (() => void) | undefined;
+  let requests = 0;
+  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+    requests++;
+    if (requests === 1) {
+      await new Promise<void>((resolve) => { releaseFirst = resolve; });
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ rewrittenBullet: "Old response." }) });
+      return;
+    }
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ rewrittenBullet: "I am writing to apply for the Engineer role at Example Labs." }) });
+  });
+  await createLetter(page);
+  await page.getByLabel("Opening").fill("I am writing to apply for the Engineer role at Example Labs.");
+  await page.getByLabel(/consent to send/i).check();
+  await page.getByRole("button", { name: "Generate suggestion" }).click();
+  await expect(page.getByRole("button", { name: "Replace request" })).toBeEnabled();
+  await page.getByRole("button", { name: "Replace request" }).click();
+  await expect(page.getByRole("button", { name: "Accept" })).toBeVisible();
+  releaseFirst?.();
+  await expect(page.locator("ins")).toHaveText("I am writing to apply for the Engineer role at Example Labs.");
+  await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
+});
