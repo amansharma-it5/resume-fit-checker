@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  addGuestApplicationActivity,
+  addGuestFollowUp,
   applicationDueState,
   applicationExportFilename,
   applicationInsights,
@@ -10,6 +12,8 @@ import {
   safeApplicationUrl,
   serializeApplicationsCsv,
   setGuestApplicationStatus,
+  completeGuestFollowUp,
+  removeGuestFollowUp,
   updateGuestApplication,
   validateApplicationDraft,
 } from "./application-tracker";
@@ -58,6 +62,17 @@ describe.sequential("browser-local application tracker", () => {
     expect(insight.applied).toBe(1);
     expect(insight.interview).toBe(1);
     expect(insight.offerRate).toBe(0);
+  });
+
+  it("keeps follow-ups and local activity bounded to the owning application", async () => {
+    const created = await createGuestApplication({ company: "Example Follow-up", role: "Analyst" });
+    const withFollowUp = await addGuestFollowUp(created.id, "Check in", "2026-09-01", "Synthetic only");
+    const completed = await completeGuestFollowUp(created.id, withFollowUp.followUps[0].id, true);
+    expect(completed.followUps[0].completed).toBe(true);
+    await addGuestApplicationActivity(created.id, "Fictional recruiter contact");
+    expect((await getGuestApplication(created.id))?.activities.at(-1)?.message).toBe("Fictional recruiter contact");
+    await removeGuestFollowUp(created.id, withFollowUp.followUps[0].id);
+    expect((await getGuestApplication(created.id))?.followUps).toEqual([]);
   });
 
   it("filters deterministically and rejects unsafe links", async () => {

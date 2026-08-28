@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
+  addGuestApplicationActivity,
   addGuestFollowUp,
   applicationDueState,
   applicationExportFilename,
@@ -14,9 +15,11 @@ import {
   filterAndSortApplications,
   listGuestApplications,
   removeGuestApplication,
+  removeGuestFollowUp,
   restoreGuestApplication,
   serializeApplicationsCsv,
   updateGuestApplication,
+  updateGuestFollowUp,
   validateApplicationDraft,
   type ApplicationDraft,
 } from "../lib/application-tracker";
@@ -72,9 +75,11 @@ export function ApplicationsPage() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ApplicationStatus | "all">("all");
   const [sort, setSort] = useState<"updated" | "company" | "role" | "status">("updated");
+  const [view, setView] = useState<"board" | "list">("board");
   const [confirmDelete, setConfirmDelete] = useState<ApplicationRecord | null>(null);
   const [followUpTitle, setFollowUpTitle] = useState("");
   const [followUpDate, setFollowUpDate] = useState("");
+  const [activityNote, setActivityNote] = useState("");
   const autosave = useRef<number | undefined>(undefined);
   const editingRef = useRef<ApplicationRecord | null>(null);
 
@@ -297,6 +302,26 @@ export function ApplicationsPage() {
               .then(load)
               .then(() => setMessage(complete ? "Follow-up completed." : "Follow-up reopened."))
           }
+          onEditFollowUp={(id, title, dueDate) =>
+            void updateGuestFollowUp(selected.id, id, { title, dueDate })
+              .then(load)
+              .then(() => setMessage("Follow-up updated."))
+          }
+          onDeleteFollowUp={(id) =>
+            void removeGuestFollowUp(selected.id, id)
+              .then(load)
+              .then(() => setMessage("Follow-up deleted."))
+          }
+          activityNote={activityNote}
+          setActivityNote={setActivityNote}
+          onAddActivity={() =>
+            void addGuestApplicationActivity(selected.id, activityNote)
+              .then(() => {
+                setActivityNote("");
+                return load();
+              })
+              .then(() => setMessage("Activity added locally."))
+          }
           onDuplicate={() =>
             void (async () => {
               const copy = await duplicateGuestApplication(selected.id);
@@ -366,17 +391,49 @@ export function ApplicationsPage() {
                   <option value="status">Status</option>
                 </select>
               </label>
+              <fieldset className="view-toggle">
+                <legend>View</legend>
+                <label>
+                  <input type="radio" checked={view === "board"} onChange={() => setView("board")} /> Board
+                </label>
+                <label>
+                  <input type="radio" checked={view === "list"} onChange={() => setView("list")} /> List
+                </label>
+              </fieldset>
               <button onClick={exportCsv}>Download CSV</button>
               <button onClick={exportJson}>Download JSON</button>
             </div>
+            <section className="application-insights" aria-label="Local pipeline insights">
+              <p>
+                <strong>{insights.total}</strong> total
+              </p>
+              <p>
+                <strong>{insights.applied}</strong> applied
+              </p>
+              <p>
+                <strong>{insights.interview}</strong> interviewing or offer
+              </p>
+              <p>
+                {insights.interviewRate === null
+                  ? "Interview conversion needs an applied application."
+                  : `${Math.round(insights.interviewRate * 100)}% interview conversion from applied applications.`}
+              </p>
+            </section>
             {!applications.length ? (
               <p>No applications yet. Create one when you want a private pipeline.</p>
             ) : !visible.length ? (
               <p>No applications match these filters.</p>
             ) : (
-              <div className="application-list">
+              <div
+                className={view === "board" ? "application-list" : "application-table"}
+                role={view === "list" ? "list" : undefined}
+              >
                 {visible.map((application) => (
-                  <article className="application-card" key={application.id}>
+                  <article
+                    className="application-card"
+                    role={view === "list" ? "listitem" : undefined}
+                    key={application.id}
+                  >
                     <h3>
                       <Link to={`/applications/${application.id}`}>
                         {application.role} at {application.company}
@@ -637,6 +694,11 @@ function ApplicationDetail({
   setFollowUpTitle,
   setFollowUpDate,
   onCompleteFollowUp,
+  onEditFollowUp,
+  onDeleteFollowUp,
+  activityNote,
+  setActivityNote,
+  onAddActivity,
   onDuplicate,
   onArchive,
   onRestore,
@@ -659,6 +721,11 @@ function ApplicationDetail({
   setFollowUpTitle: (value: string) => void;
   setFollowUpDate: (value: string) => void;
   onCompleteFollowUp: (id: string, complete: boolean) => void;
+  onEditFollowUp: (id: string, title: string, dueDate?: string) => void;
+  onDeleteFollowUp: (id: string) => void;
+  activityNote: string;
+  setActivityNote: (value: string) => void;
+  onAddActivity: () => void;
   onDuplicate: () => void;
   onArchive: () => void;
   onRestore: () => void;
@@ -739,6 +806,17 @@ function ApplicationDetail({
                 <button onClick={() => onCompleteFollowUp(item.id, !item.completed)}>
                   {item.completed ? "Reopen" : "Mark complete"}
                 </button>
+                <button
+                  onClick={() => {
+                    const title = window.prompt("Edit follow-up title", item.title);
+                    if (title?.trim()) onEditFollowUp(item.id, title, item.dueDate);
+                  }}
+                >
+                  Edit
+                </button>
+                <button className="danger-text" onClick={() => onDeleteFollowUp(item.id)}>
+                  Delete
+                </button>
               </li>
             ))}
           </ul>
@@ -746,6 +824,15 @@ function ApplicationDetail({
       </section>
       <section aria-labelledby="activity-title">
         <h2 id="activity-title">Activity</h2>
+        <div className="inline-form">
+          <label>
+            Manual activity note
+            <input value={activityNote} onChange={(event) => setActivityNote(event.target.value)} />
+          </label>
+          <button onClick={onAddActivity} disabled={!activityNote.trim()}>
+            Add activity
+          </button>
+        </div>
         <ol className="application-activity">
           {application.activities
             .slice()

@@ -203,6 +203,62 @@ export async function completeGuestFollowUp(id: string, followUpId: string, comp
   return putGuestApplication(next, current.editorVersion);
 }
 
+export async function updateGuestFollowUp(
+  id: string,
+  followUpId: string,
+  patch: { title?: string; dueDate?: string; notes?: string },
+) {
+  const current = await getGuestApplication(id);
+  if (!current) throw new Error("APPLICATION_MISSING");
+  const existing = current.followUps.find((item) => item.id === followUpId);
+  if (!existing) throw new Error("FOLLOW_UP_MISSING");
+  const title = patch.title === undefined ? existing.title : clean(patch.title, 240);
+  if (!title) throw new Error("FOLLOW_UP_INVALID");
+  return putGuestApplication(
+    {
+      ...current,
+      followUps: current.followUps.map((item) =>
+        item.id === followUpId
+          ? {
+              ...item,
+              title,
+              dueDate: patch.dueDate ?? item.dueDate,
+              notes: cleanNotes(patch.notes ?? item.notes, 1000) || undefined,
+            }
+          : item,
+      ),
+      activities: appendActivity(current, activity("follow-up", `Follow-up updated: ${title}.`)),
+    },
+    current.editorVersion,
+  );
+}
+
+export async function removeGuestFollowUp(id: string, followUpId: string) {
+  const current = await getGuestApplication(id);
+  if (!current) throw new Error("APPLICATION_MISSING");
+  const existing = current.followUps.find((item) => item.id === followUpId);
+  if (!existing) throw new Error("FOLLOW_UP_MISSING");
+  return putGuestApplication(
+    {
+      ...current,
+      followUps: current.followUps.filter((item) => item.id !== followUpId),
+      activities: appendActivity(current, activity("follow-up", `Follow-up removed: ${existing.title}.`)),
+    },
+    current.editorVersion,
+  );
+}
+
+export async function addGuestApplicationActivity(id: string, message: string) {
+  const current = await getGuestApplication(id);
+  if (!current) throw new Error("APPLICATION_MISSING");
+  const note = cleanNotes(message, 1000);
+  if (!note) throw new Error("ACTIVITY_INVALID");
+  return putGuestApplication(
+    { ...current, activities: appendActivity(current, activity("note", note)) },
+    current.editorVersion,
+  );
+}
+
 export function applicationDueState(dueDate: string | undefined, completed = false, today = new Date()) {
   if (!dueDate || completed) return "none" as const;
   const current = today.toISOString().slice(0, 10);
