@@ -27,7 +27,9 @@ export function InterviewCoach({
   const [source, setSource] = useState<"ai" | "fallback">("ai");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const timeout = useRef<number | undefined>(undefined);
   const generateButton = useRef<HTMLButtonElement | null>(null);
   const announce = (value: string) => {
     setStatus(value);
@@ -39,7 +41,10 @@ export function InterviewCoach({
     controller.current?.abort();
     const request = new AbortController();
     controller.current = request;
+    window.clearTimeout(timeout.current);
+    timeout.current = window.setTimeout(() => request.abort(), 15_000);
     setBusy(true);
+    setFailed(false);
     announce("Generating an evidence-checked coaching suggestion.");
     try {
       const response = await fetch("/.netlify/functions/ai-rewrite", {
@@ -69,6 +74,7 @@ export function InterviewCoach({
       announce("AI suggestion ready for review.");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
+      setFailed(true);
       const fallback = smartRewrite(answer).after;
       const checked = validate(fallback);
       if (checked.status === "review" || checked.status === "more-information") {
@@ -80,6 +86,7 @@ export function InterviewCoach({
       setSuggestion(fallback);
       announce("AI unavailable. Showing a deterministic local fallback.");
     } finally {
+      window.clearTimeout(timeout.current);
       if (controller.current === request) setBusy(false);
     }
   }
@@ -126,6 +133,11 @@ export function InterviewCoach({
         </button>
       </div>
       <p className="assistant-feedback">{status}</p>
+      {failed && !busy && (
+        <button type="button" onClick={() => void generate()}>
+          Retry coaching
+        </button>
+      )}
       {suggestion !== null && (
         <>
           <div className="copilot-diff">

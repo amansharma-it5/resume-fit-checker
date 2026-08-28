@@ -83,4 +83,22 @@ describe("InterviewCoach", () => {
     resolveFirst?.(new Response(JSON.stringify({ rewrittenBullet: "Invented AWS outcome." }), { status: 200 }));
     await waitFor(() => expect(screen.getByText(answer, { selector: "ins" })).toBeInTheDocument());
   });
+
+  it("offers a safe retry after a provider failure and keeps fallback review-only", async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("provider details should not be shown", { status: 429 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ rewrittenBullet: answer }), { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+    const user = userEvent.setup();
+    const { accepted } = renderCoach();
+    await user.click(screen.getByLabelText(/consent to send/i));
+    await user.click(screen.getByRole("button", { name: "Generate coaching" }));
+    await screen.findByRole("button", { name: "Retry coaching" });
+    expect(screen.getByText("Deterministic local fallback", { exact: true })).toBeInTheDocument();
+    expect(accepted).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Retry coaching" }));
+    await screen.findByRole("button", { name: "Accept" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
 });
