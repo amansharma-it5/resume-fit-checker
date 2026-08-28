@@ -1233,14 +1233,14 @@ footer {
 
 @media print {
   body * {
-    visibility: hidden;
+    visibility: hidden !important;
   }
   .application-print,
   .application-print * {
-    visibility: visible;
+    visibility: visible !important;
   }
   .application-print {
-    display: block;
+    display: block !important;
     position: absolute;
     inset: 0;
     color: #000;

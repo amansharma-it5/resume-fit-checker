@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { downloadCoverLetterPlainText, createCoverLetter, localEvidenceDraft } from "../lib/cover-letters";
 import { getGuestTarget, listGuestCoverLetters, listGuestResumes, putGuestCoverLetter } from "../lib/guest-db";
 import { isStructuredResume, resumeToPlainText } from "../resume-builder/model";
@@ -173,6 +173,9 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
                       </p>
                     </div>
                     <button onClick={() => setLetter(item)}>Open</button>
+                    <Link className="button-link" to={`/applications?letter=${item.id}`}>
+                      Track application
+                    </Link>
                   </article>
                 ))}
               </div>

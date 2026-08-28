@@ -133,6 +133,9 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
         <Link className="button-link" to="/targets">
           Job targets
         </Link>
+        <Link className="button-link" to="/applications">
+          Applications
+        </Link>
         {!account && authEnabled && (
           <Link className="button-link" to="/signup">
             Create an account

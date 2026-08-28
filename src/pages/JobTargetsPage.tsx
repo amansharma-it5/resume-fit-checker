@@ -404,6 +404,9 @@ function TargetLinks({
       <Link className="button-link" to={`/cover-letters?target=${target.id}`}>
         Create cover letter
       </Link>
+      <Link className="button-link" to={`/applications?target=${target.id}`}>
+        Track application
+      </Link>
       <button onClick={() => onMessage("Open the tailored resume to review local ATS evidence or export.")}>
         How to continue
       </button>

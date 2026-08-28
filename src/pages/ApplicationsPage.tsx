@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
   addGuestFollowUp,
@@ -58,6 +58,7 @@ function asDraft(application: ApplicationRecord): ApplicationDraft {
 export function ApplicationsPage() {
   const { applicationId } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [resumes, setResumes] = useState<ResumeDocument[]>([]);
   const [targets, setTargets] = useState<JobTarget[]>([]);
@@ -93,6 +94,44 @@ export function ApplicationsPage() {
   }, []);
   useEffect(() => void load(), [load]);
 
+  useEffect(() => {
+    if (applicationId || draft.company || draft.role) return;
+    const target = targets.find((item) => item.id === searchParams.get("target"));
+    const letter = letters.find((item) => item.id === searchParams.get("letter"));
+    const session = sessions.find((item) => item.id === searchParams.get("session"));
+    if (target) {
+      setDraft({
+        ...blank(),
+        company: target.company,
+        role: target.role,
+        sourceUrl: target.sourceUrl,
+        resumeId: target.tailoredResumeId,
+        jobTargetId: target.id,
+        status: target.status === "Applied" ? "Applied" : "Preparing",
+      });
+    } else if (letter) {
+      setDraft({
+        ...blank(),
+        company: letter.company,
+        role: letter.role,
+        resumeId: letter.resumeId,
+        jobTargetId: letter.jobTargetId,
+        coverLetterId: letter.id,
+        status: "Preparing",
+      });
+    } else if (session) {
+      setDraft({
+        ...blank(),
+        company: session.company,
+        role: session.role,
+        resumeId: session.resumeId,
+        jobTargetId: session.jobTargetId,
+        interviewSessionIds: [session.id],
+        status: "Preparing",
+      });
+    }
+  }, [applicationId, draft.company, draft.role, letters, searchParams, sessions, targets]);
+
   const selected = applications.find((item) => item.id === applicationId) || null;
   const visible = useMemo(
     () => filterAndSortApplications(applications, query, filter, sort),
@@ -115,7 +154,7 @@ export function ApplicationsPage() {
     }
     editingRef.current = selected;
     setEditDraft(asDraft(selected));
-  }, [applicationId, selected?.editorVersion]); // reset only when saved record changes
+  }, [applicationId, selected]); // reset only when the saved record changes
 
   useEffect(() => {
     if (!selected || !editDraft || status === "Conflict") return;
