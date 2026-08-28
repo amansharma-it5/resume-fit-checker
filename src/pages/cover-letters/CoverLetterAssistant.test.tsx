@@ -49,13 +49,17 @@ describe("CoverLetterAssistant provider safety", () => {
   it("uses a validated fallback without exposing provider details or auto-applying content", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response(JSON.stringify({ internal: "provider key secret-stack" }), { status: 429 })),
+      vi
+        .fn()
+        .mockResolvedValue(new Response(JSON.stringify({ internal: "provider key secret-stack" }), { status: 429 })),
     );
     const user = userEvent.setup();
     const { accepted, announce } = renderAssistant();
     await user.click(screen.getByLabelText(/consent to send/i));
     await user.click(screen.getByRole("button", { name: "Generate suggestion" }));
-    await waitFor(() => expect(announce).toHaveBeenCalledWith("AI unavailable. Showing a deterministic local fallback."));
+    await waitFor(() =>
+      expect(announce).toHaveBeenCalledWith("AI unavailable. Showing a deterministic local fallback."),
+    );
     expect(screen.queryByText(/provider key|secret-stack/i)).not.toBeInTheDocument();
     expect(accepted).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Accept" })).toBeVisible();
@@ -67,7 +71,9 @@ describe("CoverLetterAssistant provider safety", () => {
     const { accepted, announce } = renderAssistant();
     await user.click(screen.getByLabelText(/consent to send/i));
     await user.click(screen.getByRole("button", { name: "Generate suggestion" }));
-    await waitFor(() => expect(announce).toHaveBeenCalledWith("AI unavailable. Showing a deterministic local fallback."));
+    await waitFor(() =>
+      expect(announce).toHaveBeenCalledWith("AI unavailable. Showing a deterministic local fallback."),
+    );
     await user.clear(screen.getByLabelText("Edit suggestion"));
     await user.type(screen.getByLabelText("Edit suggestion"), "Increased revenue by 40% with AWS certification.");
     await user.click(screen.getByRole("button", { name: "Accept" }));
