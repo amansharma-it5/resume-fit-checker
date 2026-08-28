@@ -137,3 +137,24 @@ test("a newer replacement request wins over a late older response", async ({ pag
   await expect(page.locator("ins")).toHaveText("I am writing to apply for the Engineer role at Example Labs.");
   await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
 });
+
+test("keeps provider failures local, safe, and explicitly reviewable", async ({ page }) => {
+  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+    await route.fulfill({
+      status: 429,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "internal provider token and stack trace" }),
+    });
+  });
+  await createLetter(page);
+  await page.getByLabel("Opening").fill("I am writing to apply for the Engineer role at Example Labs.");
+  await page.getByLabel(/consent to send/i).check();
+  await page.getByRole("button", { name: "Generate suggestion" }).click();
+  await expect(page.locator(".dashboard-page > [role='status']")).toHaveText(
+    "AI unavailable. Showing a deterministic local fallback.",
+  );
+  await expect(page.locator(".assistant-feedback")).toHaveText("AI unavailable. Showing a deterministic local fallback.");
+  await expect(page.getByRole("button", { name: "Accept" })).toBeVisible();
+  await expect(page.getByText(/provider token|stack trace/i)).toHaveCount(0);
+  await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
+});

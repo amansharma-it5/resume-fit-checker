@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { downloadCoverLetterPlainText, createCoverLetter, localEvidenceDraft } from "../lib/cover-letters";
 import { getGuestTarget, listGuestCoverLetters, listGuestResumes, putGuestCoverLetter } from "../lib/guest-db";
@@ -6,7 +6,21 @@ import { isStructuredResume, resumeToPlainText } from "../resume-builder/model";
 import type { CoverLetterDocument, ResumeDocument } from "../types";
 import { CoverLetterAssistant } from "./cover-letters/CoverLetterAssistant";
 
-export function CoverLettersPage() {
+export type CoverLetterRepository = {
+  getTarget: typeof getGuestTarget;
+  listLetters: typeof listGuestCoverLetters;
+  listResumes: typeof listGuestResumes;
+  putLetter: typeof putGuestCoverLetter;
+};
+
+const guestCoverLetterRepository: CoverLetterRepository = {
+  getTarget: getGuestTarget,
+  listLetters: listGuestCoverLetters,
+  listResumes: listGuestResumes,
+  putLetter: putGuestCoverLetter,
+};
+
+export function CoverLettersPage({ repository = guestCoverLetterRepository }: { repository?: CoverLetterRepository }) {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [resumes, setResumes] = useState<ResumeDocument[]>([]);
@@ -21,16 +35,23 @@ export function CoverLettersPage() {
   const [history, setHistory] = useState<CoverLetterDocument[]>([]);
   const [future, setFuture] = useState<CoverLetterDocument[]>([]);
   const autosave = useRef<number | undefined>(undefined);
-  const load = async () => {
-    setResumes((await listGuestResumes()).filter((item) => item.status === "active"));
-    setLetters(await listGuestCoverLetters());
+  const letterRef = useRef<CoverLetterDocument | null>(null);
+  const revision = useRef(0);
+  const replaceLetter = (next: CoverLetterDocument | null) => {
+    revision.current += 1;
+    letterRef.current = next;
+    setLetter(next);
   };
+  const load = useCallback(async () => {
+    setResumes((await repository.listResumes()).filter((item) => item.status === "active"));
+    setLetters(await repository.listLetters());
+  }, [repository]);
   const targetId = params.get("target");
   // save is intentionally read at schedule time so only the newest document snapshot is persisted.
   useEffect(() => {
     void load();
     if (targetId)
-      void getGuestTarget(targetId).then((target) => {
+      void repository.getTarget(targetId).then((target) => {
         if (target) {
           setResumeId(target.tailoredResumeId);
           setCompany(target.company);
@@ -38,7 +59,7 @@ export function CoverLettersPage() {
           setJd(target.jobDescription);
         }
       });
-  }, [targetId]);
+  }, [load, repository, targetId]);
   const selected = useMemo(() => resumes.find((item) => item.id === resumeId), [resumes, resumeId]);
   async function create() {
     if (!selected || !company.trim() || !role.trim() || !jd.trim()) {
@@ -52,21 +73,29 @@ export function CoverLettersPage() {
       jobDescription: jd,
       jobTargetId: params.get("target") || undefined,
     });
-    const saved = await putGuestCoverLetter(next);
-    setLetter(saved);
+    const saved = await repository.putLetter(next);
+    replaceLetter(saved);
     setMessage("Cover letter created locally. Review and save it before exporting.");
     await load();
   }
-  async function save() {
-    if (!letter) return;
+  async function save(snapshot = letter) {
+    if (!snapshot) return;
+    const saveRevision = revision.current;
     setSaving(true);
+    setMessage("Saving cover letter locally.");
     try {
-      const saved = await putGuestCoverLetter(letter, letter.editorVersion);
-      setLetter(saved);
+      const saved = await repository.putLetter(snapshot, snapshot.editorVersion);
+      const latest = letterRef.current;
+      if (latest?.id === snapshot.id && revision.current === saveRevision) replaceLetter(saved);
+      else if (latest?.id === snapshot.id) replaceLetter({ ...latest, editorVersion: saved.editorVersion });
       setMessage("Cover letter saved locally.");
       await load();
-    } catch {
-      setMessage("Save conflict detected. Reload the letter before saving again.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error && error.message === "SAVE_CONFLICT"
+          ? "Save conflict detected. Reload the letter before saving again."
+          : "Cover letter could not be saved locally. Your edits are still here.",
+      );
     } finally {
       setSaving(false);
     }
@@ -74,7 +103,7 @@ export function CoverLettersPage() {
   const change = (next: CoverLetterDocument) => {
     if (letter) setHistory((items) => [...items.slice(-19), letter]);
     setFuture([]);
-    setLetter(next);
+    replaceLetter(next);
   };
   const update = (key: keyof CoverLetterDocument, value: string) => {
     if (letter) change({ ...letter, [key]: value });
@@ -82,7 +111,7 @@ export function CoverLettersPage() {
   useEffect(() => {
     if (!letter) return;
     window.clearTimeout(autosave.current);
-    autosave.current = window.setTimeout(() => void save(), 700);
+    autosave.current = window.setTimeout(() => void save(letter), 700);
     return () => window.clearTimeout(autosave.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [letter]);
@@ -156,7 +185,7 @@ export function CoverLettersPage() {
           <div className="button-row cover-letter-controls">
             <button
               onClick={() => {
-                setLetter(null);
+                replaceLetter(null);
                 navigate("/cover-letters");
               }}
             >
@@ -172,7 +201,7 @@ export function CoverLettersPage() {
                 const previous = history.at(-1)!;
                 setHistory((items) => items.slice(0, -1));
                 setFuture((items) => [letter, ...items]);
-                setLetter(previous);
+                replaceLetter(previous);
               }}
             >
               Undo
@@ -184,7 +213,7 @@ export function CoverLettersPage() {
                 const next = future[0]!;
                 setFuture((items) => items.slice(1));
                 setHistory((items) => [...items, letter]);
-                setLetter(next);
+                replaceLetter(next);
               }}
             >
               Redo

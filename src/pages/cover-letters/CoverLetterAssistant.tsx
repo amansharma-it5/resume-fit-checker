@@ -20,7 +20,7 @@ export function CoverLetterAssistant({
   onAnnouncement: (value: string) => void;
 }) {
   const [consent, setConsent] = useState(false);
-  const [suggestion, setSuggestion] = useState("");
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
@@ -102,7 +102,7 @@ export function CoverLetterAssistant({
         </button>
       </div>
       <p className="assistant-feedback">{status}</p>
-      {suggestion && (
+      {suggestion !== null && (
         <>
           <div className="copilot-diff">
             <del>{text}</del>
@@ -134,7 +134,7 @@ export function CoverLetterAssistant({
             </button>
             <button
               onClick={() => {
-                setSuggestion("");
+                setSuggestion(null);
                 announce("Suggestion rejected. Your letter was not changed.");
               }}
             >
