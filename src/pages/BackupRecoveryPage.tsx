@@ -1,11 +1,12 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { StatusMessage } from "../components/StatusMessage";
-import { exportGuestWorkspaceData } from "../lib/guest-db";
+import { clearGuestData, exportGuestWorkspaceData } from "../lib/guest-db";
 import {
   createWorkspaceBackup,
   downloadWorkspaceBackup,
   findBrokenLinks,
   preflightWorkspaceBackup,
+  repairGuestWorkspaceLinks,
   restoreWorkspace,
   type BackupPreview,
   type WorkspaceBackup,
@@ -31,6 +32,7 @@ export function BackupRecoveryPage() {
   const [error, setError] = useState("");
   const [health, setHealth] = useState<{ counts: Record<string, number>; broken: string[]; usage?: string }>({ counts: {}, broken: [] });
   const [replaceText, setReplaceText] = useState("");
+  const [deleteText, setDeleteText] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
   const encrypted = Boolean(preview?.manifest.encrypted);
@@ -108,6 +110,23 @@ export function BackupRecoveryPage() {
     const granted = await navigator.storage.persist();
     setStatus(granted ? "Browser storage persistence was requested." : "This browser did not grant persistent storage.");
   }
+  async function repairLinks() {
+    const repaired = await repairGuestWorkspaceLinks();
+    setStatus(repaired ? `Removed ${repaired} safely orphaned optional links.` : "No safely removable orphan links were found.");
+    await refreshHealth();
+  }
+  async function deleteWorkspace() {
+    if (deleteText !== "DELETE") {
+      setError("Type DELETE to confirm deleting only RecruitOS AI local workspace data.");
+      return;
+    }
+    await clearGuestData();
+    localStorage.removeItem("resume-lab.onboarding.v1");
+    localStorage.removeItem("resume-lab.workspace-backup.last-success");
+    setDeleteText("");
+    setStatus("Local RecruitOS AI workspace data was deleted from this browser.");
+    await refreshHealth();
+  }
   return (
     <section className="workspace-page backup-recovery-page">
       <header className="page-heading">
@@ -151,7 +170,13 @@ export function BackupRecoveryPage() {
         <ul>{Object.entries(health.counts).map(([key, value]) => <li key={key}>{countLabels[key as keyof typeof countLabels]}: {value}</li>)}</ul>
         <p>{health.broken.length ? `${health.broken.length} linked-record warnings found.` : "No broken workspace links found."}</p>
         <button onClick={() => void refreshHealth()}>Run local integrity scan</button>
+        <button onClick={() => void repairLinks()} disabled={!health.broken.length}>Repair safely removable links</button>
         <button onClick={() => void requestPersistentStorage()}>Request persistent browser storage</button>
+        <p>Last successful backup: {localStorage.getItem("resume-lab.workspace-backup.last-success") ? new Date(localStorage.getItem("resume-lab.workspace-backup.last-success")!).toLocaleString() : "not yet recorded"}.</p>
+        <h3>Delete local workspace data</h3>
+        <p>Download a backup first. This cannot be undone and affects only RecruitOS AI browser data, never other websites.</p>
+        <label>To delete all local workspace data, type DELETE <input value={deleteText} onChange={(event) => setDeleteText(event.target.value)} /></label>
+        <button className="danger" onClick={() => void deleteWorkspace()}>Delete all local workspace data</button>
       </section>
     </section>
   );

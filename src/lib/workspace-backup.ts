@@ -330,6 +330,44 @@ export async function restoreWorkspace(preview: BackupPreview, mode: "merge" | "
   return { restored: plan.added, remapped: plan.remapped };
 }
 
+/** Plans and applies only optional orphan-link removal after explicit user confirmation. */
+export async function repairGuestWorkspaceLinks() {
+  const workspace = await exportGuestWorkspaceData();
+  const resumes = new Set(workspace.resumes.map((item) => item.id));
+  const targets = new Set(workspace.targets.map((item) => item.id));
+  const letters = new Set(workspace.coverLetters.map((item) => item.id));
+  const sessions = new Set(workspace.interviewSessions.map((item) => item.id));
+  let repaired = 0;
+  const next = structuredClone(workspace);
+  next.coverLetters.forEach((item) => {
+    if (item.jobTargetId && !targets.has(item.jobTargetId)) {
+      item.jobTargetId = undefined;
+      repaired++;
+    }
+  });
+  next.interviewSessions.forEach((item) => {
+    if (item.jobTargetId && !targets.has(item.jobTargetId)) {
+      item.jobTargetId = undefined;
+      repaired++;
+    }
+  });
+  next.applications.forEach((item) => {
+    for (const key of ["resumeId", "jobTargetId", "coverLetterId"] as const) {
+      const existing = item[key];
+      const available = key === "resumeId" ? resumes : key === "jobTargetId" ? targets : letters;
+      if (existing && !available.has(existing)) {
+        item[key] = undefined;
+        repaired++;
+      }
+    }
+    const validSessions = item.interviewSessionIds.filter((id) => sessions.has(id));
+    repaired += item.interviewSessionIds.length - validSessions.length;
+    item.interviewSessionIds = validSessions;
+  });
+  if (repaired) await replaceGuestWorkspaceData(next);
+  return repaired;
+}
+
 export function workspaceBackupFilename(now = new Date()) {
   const date = now.toISOString().slice(0, 10);
   return sanitizeExportFilename(`recruitos-ai-workspace-v${BACKUP_SCHEMA_VERSION}-${date}`, ".json");
