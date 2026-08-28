@@ -31,6 +31,12 @@ test("mobile navigation uses an accessible drawer with escape and focus restorat
   const drawer = page.getByRole("complementary", { name: "Mobile workspace navigation" });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByRole("link", { name: "Interview Practice" })).toBeVisible();
+  const firstDrawerLink = drawer.getByRole("link", { name: "RecruitOS AI home" });
+  await expect(firstDrawerLink).toBeFocused();
+  const lastDrawerLink = drawer.getByRole("link", { name: "Settings" });
+  await lastDrawerLink.focus();
+  await page.keyboard.press("Tab");
+  await expect(firstDrawerLink).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(drawer).toBeHidden();
   await expect(trigger).toBeFocused();
