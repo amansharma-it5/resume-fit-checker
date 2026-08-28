@@ -460,6 +460,31 @@ button small {
   margin: 8px 0;
   letter-spacing: 0;
 }
+.dashboard-page > h1,
+.workspace-page > h1,
+.dashboard-page > .eyebrow + h1 {
+  margin: 6px 0 10px;
+  color: var(--text);
+  font-size: clamp(2rem, 3.4vw, 3rem);
+  line-height: 1.14;
+  letter-spacing: 0;
+}
+.dashboard-page > p:not(.eyebrow):not([role="status"]) {
+  max-width: 860px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+.target-create,
+.target-detail,
+.cover-letter-print,
+.interview-practice-page > section,
+.applications-page > section,
+.backup-recovery-page > section {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.04);
+}
 .page-heading p,
 .prose-page p {
   color: var(--muted);
