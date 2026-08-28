@@ -111,12 +111,14 @@ export function stableSerialize(value: unknown) {
   return stable(value);
 }
 
-export async function createWorkspaceBackup(options: {
-  passphrase?: string;
-  now?: Date;
-  workspace?: GuestWorkspaceData;
-  applicationVersion?: string;
-} = {}): Promise<WorkspaceBackup> {
+export async function createWorkspaceBackup(
+  options: {
+    passphrase?: string;
+    now?: Date;
+    workspace?: GuestWorkspaceData;
+    applicationVersion?: string;
+  } = {},
+): Promise<WorkspaceBackup> {
   const workspace = cleanWorkspace(options.workspace || (await exportGuestWorkspaceData()));
   const content = stableSerialize(workspace);
   const manifest: BackupManifest = {
@@ -131,7 +133,9 @@ export async function createWorkspaceBackup(options: {
   if (!options.passphrase) return { manifest, workspace };
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const material = await crypto.subtle.importKey("raw", textEncoder().encode(options.passphrase), "PBKDF2", false, ["deriveKey"]);
+  const material = await crypto.subtle.importKey("raw", textEncoder().encode(options.passphrase), "PBKDF2", false, [
+    "deriveKey",
+  ]);
   const key = await crypto.subtle.deriveKey(
     { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
     material,
@@ -142,7 +146,13 @@ export async function createWorkspaceBackup(options: {
   const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, textEncoder().encode(content));
   return {
     manifest,
-    encryption: { algorithm: "AES-GCM", kdf: "PBKDF2-SHA-256", iterations: PBKDF2_ITERATIONS, salt: bytesToBase64(salt), iv: bytesToBase64(iv) },
+    encryption: {
+      algorithm: "AES-GCM",
+      kdf: "PBKDF2-SHA-256",
+      iterations: PBKDF2_ITERATIONS,
+      salt: bytesToBase64(salt),
+      iv: bytesToBase64(iv),
+    },
     ciphertext: bytesToBase64(new Uint8Array(ciphertext)),
   };
 }
@@ -161,19 +171,30 @@ function isDate(value: unknown) {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
 function assertWorkspace(value: unknown): asserts value is GuestWorkspaceData {
-  if (!value || typeof value !== "object" || hasUnsafeKeys(value)) throw new Error("This backup has unsafe or invalid data.");
+  if (!value || typeof value !== "object" || hasUnsafeKeys(value))
+    throw new Error("This backup has unsafe or invalid data.");
   const candidate = value as Record<string, unknown>;
-  for (const store of stores) if (!Array.isArray(candidate[store])) throw new Error("This backup is missing required workspace data.");
+  for (const store of stores)
+    if (!Array.isArray(candidate[store])) throw new Error("This backup is missing required workspace data.");
   for (const store of stores) {
     const ids = new Set<string>();
     for (const record of candidate[store] as unknown[]) {
-      if (!record || typeof record !== "object" || hasUnsafeKeys(record)) throw new Error("This backup contains an invalid record.");
+      if (!record || typeof record !== "object" || hasUnsafeKeys(record))
+        throw new Error("This backup contains an invalid record.");
       const item = record as Record<string, unknown>;
       const key = store === "meta" ? item.key : item.id;
       if (typeof key !== "string" || !key || (store !== "meta" && !isId(key)) || ids.has(key))
         throw new Error("This backup contains duplicate or invalid record IDs.");
       ids.add(key);
-      for (const dateKey of ["createdAt", "updatedAt", "timestamp", "deletedAt", "importedAt", "appliedAt", "closedAt"]) {
+      for (const dateKey of [
+        "createdAt",
+        "updatedAt",
+        "timestamp",
+        "deletedAt",
+        "importedAt",
+        "appliedAt",
+        "closedAt",
+      ]) {
         if (item[dateKey] != null && !isDate(item[dateKey])) throw new Error("This backup contains an invalid date.");
       }
     }
@@ -184,7 +205,9 @@ async function decryptBackup(input: EncryptedWorkspaceBackup, passphrase: string
   try {
     const salt = base64ToBytes(input.encryption.salt);
     const iv = base64ToBytes(input.encryption.iv);
-    const material = await crypto.subtle.importKey("raw", textEncoder().encode(passphrase), "PBKDF2", false, ["deriveKey"]);
+    const material = await crypto.subtle.importKey("raw", textEncoder().encode(passphrase), "PBKDF2", false, [
+      "deriveKey",
+    ]);
     const key = await crypto.subtle.deriveKey(
       { name: "PBKDF2", salt, iterations: input.encryption.iterations, hash: "SHA-256" },
       material,
@@ -201,27 +224,36 @@ async function decryptBackup(input: EncryptedWorkspaceBackup, passphrase: string
 
 /** Parses without writing. Callers must present the result and explicitly choose restore mode. */
 export async function preflightWorkspaceBackup(fileText: string, passphrase?: string): Promise<BackupPreview> {
-  if (textEncoder().encode(fileText).byteLength > MAX_BACKUP_BYTES) throw new Error("This backup is larger than the supported limit.");
+  if (textEncoder().encode(fileText).byteLength > MAX_BACKUP_BYTES)
+    throw new Error("This backup is larger than the supported limit.");
   let parsed: unknown;
   try {
     parsed = JSON.parse(fileText);
   } catch {
     throw new Error("This file is not a valid workspace backup.");
   }
-  if (!parsed || typeof parsed !== "object" || hasUnsafeKeys(parsed)) throw new Error("This file is not a safe workspace backup.");
+  if (!parsed || typeof parsed !== "object" || hasUnsafeKeys(parsed))
+    throw new Error("This file is not a safe workspace backup.");
   const backup = parsed as Partial<WorkspaceBackup>;
   const manifest = backup.manifest;
   if (!manifest || manifest.format !== BACKUP_FORMAT || typeof manifest.schemaVersion !== "number")
     throw new Error("This file is not a supported RecruitOS AI workspace backup.");
-  if (manifest.schemaVersion > BACKUP_SCHEMA_VERSION) throw new Error("This backup was created by a newer version of RecruitOS AI.");
+  if (manifest.schemaVersion > BACKUP_SCHEMA_VERSION)
+    throw new Error("This backup was created by a newer version of RecruitOS AI.");
   if (manifest.schemaVersion < 1) throw new Error("This backup version cannot be restored safely.");
   const workspace = manifest.encrypted
     ? await decryptBackup(backup as EncryptedWorkspaceBackup, passphrase || "")
     : (backup as PlainWorkspaceBackup).workspace;
   assertWorkspace(workspace);
-  if ((await sha256(stableSerialize(workspace))) !== manifest.integrity?.digest) throw new Error("This backup failed its integrity check.");
+  if ((await sha256(stableSerialize(workspace))) !== manifest.integrity?.digest)
+    throw new Error("This backup failed its integrity check.");
   const brokenLinks = findBrokenLinks(workspace);
-  return { manifest, workspace: cleanWorkspace(workspace), brokenLinks, warnings: brokenLinks.length ? ["Some linked records are unavailable and will remain safely unlinked."] : [] };
+  return {
+    manifest,
+    workspace: cleanWorkspace(workspace),
+    brokenLinks,
+    warnings: brokenLinks.length ? ["Some linked records are unavailable and will remain safely unlinked."] : [],
+  };
 }
 
 export function findBrokenLinks(workspace: GuestWorkspaceData) {
@@ -236,17 +268,24 @@ export function findBrokenLinks(workspace: GuestWorkspaceData) {
   });
   workspace.coverLetters.forEach((letter) => {
     if (!resumes.has(letter.resumeId)) links.push(`Cover letter ${letter.id} has a missing resume.`);
-    if (letter.jobTargetId && !targets.has(letter.jobTargetId)) links.push(`Cover letter ${letter.id} has a missing job target.`);
+    if (letter.jobTargetId && !targets.has(letter.jobTargetId))
+      links.push(`Cover letter ${letter.id} has a missing job target.`);
   });
   workspace.interviewSessions.forEach((session) => {
     if (!resumes.has(session.resumeId)) links.push(`Interview session ${session.id} has a missing resume.`);
-    if (session.jobTargetId && !targets.has(session.jobTargetId)) links.push(`Interview session ${session.id} has a missing job target.`);
+    if (session.jobTargetId && !targets.has(session.jobTargetId))
+      links.push(`Interview session ${session.id} has a missing job target.`);
   });
   workspace.applications.forEach((application) => {
-    if (application.resumeId && !resumes.has(application.resumeId)) links.push(`Application ${application.id} has a missing resume.`);
-    if (application.jobTargetId && !targets.has(application.jobTargetId)) links.push(`Application ${application.id} has a missing job target.`);
-    if (application.coverLetterId && !letters.has(application.coverLetterId)) links.push(`Application ${application.id} has a missing cover letter.`);
-    application.interviewSessionIds.forEach((id) => !sessions.has(id) && links.push(`Application ${application.id} has a missing interview session.`));
+    if (application.resumeId && !resumes.has(application.resumeId))
+      links.push(`Application ${application.id} has a missing resume.`);
+    if (application.jobTargetId && !targets.has(application.jobTargetId))
+      links.push(`Application ${application.id} has a missing job target.`);
+    if (application.coverLetterId && !letters.has(application.coverLetterId))
+      links.push(`Application ${application.id} has a missing cover letter.`);
+    application.interviewSessionIds.forEach(
+      (id) => !sessions.has(id) && links.push(`Application ${application.id} has a missing interview session.`),
+    );
   });
   return links;
 }
@@ -300,7 +339,8 @@ export async function createSafeMergePlan(incoming: GuestWorkspaceData): Promise
   const map = (id?: string) => (id ? remaps.get(id) || id : id);
   workspace.versions.forEach((item) => {
     item.resumeId = map(item.resumeId)!;
-    if (item.snapshot && typeof item.snapshot === "object") (item.snapshot as { id?: string }).id = map((item.snapshot as { id?: string }).id);
+    if (item.snapshot && typeof item.snapshot === "object")
+      (item.snapshot as { id?: string }).id = map((item.snapshot as { id?: string }).id);
   });
   workspace.analyses.forEach((item) => (item.resumeId = map(item.resumeId)));
   workspace.targets.forEach((item) => {

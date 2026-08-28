@@ -28,7 +28,10 @@ const workspace: GuestWorkspaceData = {
   coverLetters: [],
   interviewSessions: [],
   applications: [],
-  meta: [{ key: "analysis-overrides:resume-1", value: [] }, { key: "untrusted-token", value: "never-export" }],
+  meta: [
+    { key: "analysis-overrides:resume-1", value: [] },
+    { key: "untrusted-token", value: "never-export" },
+  ],
 };
 
 describe("workspace backup", () => {
@@ -38,7 +41,9 @@ describe("workspace backup", () => {
     const preview = await preflightWorkspaceBackup(stableSerialize(backup));
     expect(preview.workspace.resumes[0].title).toBe("Synthetic Resume");
     expect(preview.workspace.meta).toEqual([{ key: "analysis-overrides:resume-1", value: [] }]);
-    expect(workspaceBackupFilename(new Date("2026-02-03T00:00:00.000Z"))).toBe("recruitos-ai-workspace-v1-2026-02-03.json");
+    expect(workspaceBackupFilename(new Date("2026-02-03T00:00:00.000Z"))).toBe(
+      "recruitos-ai-workspace-v1-2026-02-03.json",
+    );
   });
 
   it("encrypts with fresh salt and iv and rejects a wrong passphrase", async () => {
@@ -48,13 +53,17 @@ describe("workspace backup", () => {
     expect(first.encryption.salt).not.toBe(second.encryption.salt);
     expect(first.encryption.iv).not.toBe(second.encryption.iv);
     await expect(preflightWorkspaceBackup(stableSerialize(first), "wrong passphrase")).rejects.toThrow(/passphrase/i);
-    await expect(preflightWorkspaceBackup(stableSerialize(first), "synthetic passphrase")).resolves.toMatchObject({ workspace: { resumes: [{ id: "resume-1" }] } });
+    await expect(preflightWorkspaceBackup(stableSerialize(first), "synthetic passphrase")).resolves.toMatchObject({
+      workspace: { resumes: [{ id: "resume-1" }] },
+    });
   });
 
   it("rejects unsafe keys, unsupported schema, and bad relationship structures before writes", async () => {
     const backup = await createWorkspaceBackup({ workspace });
     const text = stableSerialize(backup);
-    await expect(preflightWorkspaceBackup(text.replace('"schemaVersion":1', '"schemaVersion":99'))).rejects.toThrow(/newer/i);
+    await expect(preflightWorkspaceBackup(text.replace('"schemaVersion":1', '"schemaVersion":99'))).rejects.toThrow(
+      /newer/i,
+    );
     await expect(preflightWorkspaceBackup('{"__proto__":{"polluted":true}}')).rejects.toThrow(/safe/i);
   });
 

@@ -31,7 +31,10 @@ export function BackupRecoveryPage() {
   const [encryptedImport, setEncryptedImport] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [health, setHealth] = useState<{ counts: Record<string, number>; broken: string[]; usage?: string }>({ counts: {}, broken: [] });
+  const [health, setHealth] = useState<{ counts: Record<string, number>; broken: string[]; usage?: string }>({
+    counts: {},
+    broken: [],
+  });
   const [replaceText, setReplaceText] = useState("");
   const [deleteText, setDeleteText] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
@@ -63,7 +66,11 @@ export function BackupRecoveryPage() {
     downloadWorkspaceBackup(backup);
     localStorage.setItem("resume-lab.workspace-backup.last-success", new Date().toISOString());
     setPassphrase("");
-    setStatus(encrypt ? "Encrypted backup downloaded. Keep the passphrase somewhere safe." : "Workspace backup downloaded locally.");
+    setStatus(
+      encrypt
+        ? "Encrypted backup downloaded. Keep the passphrase somewhere safe."
+        : "Workspace backup downloaded locally.",
+    );
     void refreshHealth();
   }
   async function inspectFile(event: ChangeEvent<HTMLInputElement>) {
@@ -107,13 +114,15 @@ export function BackupRecoveryPage() {
   async function restore(mode: "merge" | "replace") {
     if (!preview) return;
     if (mode === "replace" && replaceText !== "REPLACE") {
-      setError('Type REPLACE to confirm replacing this application\'s local workspace.');
+      setError("Type REPLACE to confirm replacing this application's local workspace.");
       return;
     }
     setError("");
     try {
       const result = await restoreWorkspace(preview, mode);
-      setStatus(`${mode === "replace" ? "Workspace replaced" : "Backup merged"}. Restored ${Object.values(result.restored).reduce((sum, value) => sum + value, 0)} records.`);
+      setStatus(
+        `${mode === "replace" ? "Workspace replaced" : "Backup merged"}. Restored ${Object.values(result.restored).reduce((sum, value) => sum + value, 0)} records.`,
+      );
       setPreview(null);
       setPendingImportText("");
       setEncryptedImport(false);
@@ -130,11 +139,15 @@ export function BackupRecoveryPage() {
       return;
     }
     const granted = await navigator.storage.persist();
-    setStatus(granted ? "Browser storage persistence was requested." : "This browser did not grant persistent storage.");
+    setStatus(
+      granted ? "Browser storage persistence was requested." : "This browser did not grant persistent storage.",
+    );
   }
   async function repairLinks() {
     const repaired = await repairGuestWorkspaceLinks();
-    setStatus(repaired ? `Removed ${repaired} safely orphaned optional links.` : "No safely removable orphan links were found.");
+    setStatus(
+      repaired ? `Removed ${repaired} safely orphaned optional links.` : "No safely removable orphan links were found.",
+    );
     await refreshHealth();
   }
   async function deleteWorkspace() {
@@ -154,51 +167,153 @@ export function BackupRecoveryPage() {
       <header className="page-heading">
         <p className="eyebrow">Local recovery</p>
         <h1>Backup &amp; recovery</h1>
-        <p>Backups stay on this device until you choose where to store the downloaded file. They can contain sensitive career information.</p>
+        <p>
+          Backups stay on this device until you choose where to store the downloaded file. They can contain sensitive
+          career information.
+        </p>
       </header>
       <StatusMessage message={status || error} error={Boolean(error)} />
 
       <section aria-labelledby="backup-heading">
         <h2 id="backup-heading">Create workspace backup</h2>
-        <p>Includes local resumes, versions, job targets, cover letters, interview practice, applications, links, and safe workspace metadata. It excludes provider settings, secrets, tokens, transient requests, and object URLs.</p>
-        <label className="check-row"><input type="checkbox" checked={encrypt} onChange={(event) => setEncrypt(event.target.checked)} /> Protect this backup with a passphrase</label>
-        {encrypt && <label>Passphrase <input type="password" autoComplete="new-password" value={passphrase} onChange={(event) => setPassphrase(event.target.value)} /></label>}
-        {encrypt && <p className="notice">Forgotten passphrases cannot be recovered. RecruitOS AI never stores or sends this passphrase.</p>}
-        {!encrypt && <p className="notice">Unencrypted backups are readable JSON. Store them only where you trust the access controls.</p>}
-        <button className="primary" onClick={() => void download()}>Download workspace backup</button>
+        <p>
+          Includes local resumes, versions, job targets, cover letters, interview practice, applications, links, and
+          safe workspace metadata. It excludes provider settings, secrets, tokens, transient requests, and object URLs.
+        </p>
+        <label className="check-row">
+          <input type="checkbox" checked={encrypt} onChange={(event) => setEncrypt(event.target.checked)} /> Protect
+          this backup with a passphrase
+        </label>
+        {encrypt && (
+          <label>
+            Passphrase{" "}
+            <input
+              type="password"
+              autoComplete="new-password"
+              value={passphrase}
+              onChange={(event) => setPassphrase(event.target.value)}
+            />
+          </label>
+        )}
+        {encrypt && (
+          <p className="notice">
+            Forgotten passphrases cannot be recovered. RecruitOS AI never stores or sends this passphrase.
+          </p>
+        )}
+        {!encrypt && (
+          <p className="notice">
+            Unencrypted backups are readable JSON. Store them only where you trust the access controls.
+          </p>
+        )}
+        <button className="primary" onClick={() => void download()}>
+          Download workspace backup
+        </button>
       </section>
 
       <section aria-labelledby="restore-heading">
         <h2 id="restore-heading">Restore from backup</h2>
-        <p>Selecting a file only validates it and prepares a read-only restore preview. Nothing is changed until you choose a restore mode.</p>
-        <label>Backup file <input ref={fileInput} type="file" accept="application/json,.json" onChange={(event) => void inspectFile(event)} /></label>
-        {encrypted && <label>Backup passphrase <input type="password" autoComplete="current-password" value={restorePassphrase} onChange={(event) => setRestorePassphrase(event.target.value)} /></label>}
+        <p>
+          Selecting a file only validates it and prepares a read-only restore preview. Nothing is changed until you
+          choose a restore mode.
+        </p>
+        <label>
+          Backup file{" "}
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json,.json"
+            onChange={(event) => void inspectFile(event)}
+          />
+        </label>
+        {encrypted && (
+          <label>
+            Backup passphrase{" "}
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={restorePassphrase}
+              onChange={(event) => setRestorePassphrase(event.target.value)}
+            />
+          </label>
+        )}
         {encrypted && <button onClick={() => void retryPreflight()}>Unlock and validate</button>}
-        {preview && <div className="restore-preview" aria-label="Restore preview">
-          <h3>Read-only restore preview</h3>
-          <p>{preview.manifest.encrypted ? "Encrypted" : "Unencrypted"} backup from {new Date(preview.manifest.createdAt).toLocaleString()}.</p>
-          <ul>{previewCounts.map(([key, value]) => <li key={key}>{countLabels[key as keyof typeof countLabels]}: {value}</li>)}</ul>
-          {preview.brokenLinks.length > 0 && <p className="notice">{preview.brokenLinks.length} broken links will remain safely unavailable; no unrelated record will be selected.</p>}
-          <button className="primary" onClick={() => void restore("merge")}>Safe merge</button>
-          <p>Safe merge preserves existing records. Colliding IDs are renamed consistently and linked records are remapped.</p>
-          <label>To replace this app&apos;s local workspace, type REPLACE <input value={replaceText} onChange={(event) => setReplaceText(event.target.value)} /></label>
-          <button className="danger" onClick={() => void restore("replace")}>Replace local workspace</button>
-        </div>}
+        {preview && (
+          <div className="restore-preview" aria-label="Restore preview">
+            <h3>Read-only restore preview</h3>
+            <p>
+              {preview.manifest.encrypted ? "Encrypted" : "Unencrypted"} backup from{" "}
+              {new Date(preview.manifest.createdAt).toLocaleString()}.
+            </p>
+            <ul>
+              {previewCounts.map(([key, value]) => (
+                <li key={key}>
+                  {countLabels[key as keyof typeof countLabels]}: {value}
+                </li>
+              ))}
+            </ul>
+            {preview.brokenLinks.length > 0 && (
+              <p className="notice">
+                {preview.brokenLinks.length} broken links will remain safely unavailable; no unrelated record will be
+                selected.
+              </p>
+            )}
+            <button className="primary" onClick={() => void restore("merge")}>
+              Safe merge
+            </button>
+            <p>
+              Safe merge preserves existing records. Colliding IDs are renamed consistently and linked records are
+              remapped.
+            </p>
+            <label>
+              To replace this app&apos;s local workspace, type REPLACE{" "}
+              <input value={replaceText} onChange={(event) => setReplaceText(event.target.value)} />
+            </label>
+            <button className="danger" onClick={() => void restore("replace")}>
+              Replace local workspace
+            </button>
+          </div>
+        )}
       </section>
 
       <section aria-labelledby="health-heading">
         <h2 id="health-heading">Storage health</h2>
         <p>{health.usage || "Storage usage is not available in this browser."}</p>
-        <ul>{Object.entries(health.counts).map(([key, value]) => <li key={key}>{countLabels[key as keyof typeof countLabels]}: {value}</li>)}</ul>
-        <p>{health.broken.length ? `${health.broken.length} linked-record warnings found.` : "No broken workspace links found."}</p>
+        <ul>
+          {Object.entries(health.counts).map(([key, value]) => (
+            <li key={key}>
+              {countLabels[key as keyof typeof countLabels]}: {value}
+            </li>
+          ))}
+        </ul>
+        <p>
+          {health.broken.length
+            ? `${health.broken.length} linked-record warnings found.`
+            : "No broken workspace links found."}
+        </p>
         <button onClick={() => void refreshHealth()}>Run local integrity scan</button>
-        <button onClick={() => void repairLinks()} disabled={!health.broken.length}>Repair safely removable links</button>
+        <button onClick={() => void repairLinks()} disabled={!health.broken.length}>
+          Repair safely removable links
+        </button>
         <button onClick={() => void requestPersistentStorage()}>Request persistent browser storage</button>
-        <p>Last successful backup: {localStorage.getItem("resume-lab.workspace-backup.last-success") ? new Date(localStorage.getItem("resume-lab.workspace-backup.last-success")!).toLocaleString() : "not yet recorded"}.</p>
+        <p>
+          Last successful backup:{" "}
+          {localStorage.getItem("resume-lab.workspace-backup.last-success")
+            ? new Date(localStorage.getItem("resume-lab.workspace-backup.last-success")!).toLocaleString()
+            : "not yet recorded"}
+          .
+        </p>
         <h3>Delete local workspace data</h3>
-        <p>Download a backup first. This cannot be undone and affects only RecruitOS AI browser data, never other websites.</p>
-        <label>To delete all local workspace data, type DELETE <input value={deleteText} onChange={(event) => setDeleteText(event.target.value)} /></label>
-        <button className="danger" onClick={() => void deleteWorkspace()}>Delete all local workspace data</button>
+        <p>
+          Download a backup first. This cannot be undone and affects only RecruitOS AI browser data, never other
+          websites.
+        </p>
+        <label>
+          To delete all local workspace data, type DELETE{" "}
+          <input value={deleteText} onChange={(event) => setDeleteText(event.target.value)} />
+        </label>
+        <button className="danger" onClick={() => void deleteWorkspace()}>
+          Delete all local workspace data
+        </button>
       </section>
     </section>
   );
