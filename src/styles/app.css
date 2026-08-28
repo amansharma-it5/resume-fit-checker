@@ -1619,6 +1619,60 @@ button:hover {
 main .eyebrow {
   color: #475467;
 }
+.lab-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.58fr);
+  min-height: 0;
+  gap: 36px;
+  padding: 12px 0 20px;
+}
+main .lab-hero .hero-copy h1 {
+  max-width: 720px;
+  margin: 6px 0 14px;
+  color: var(--text);
+  font-size: clamp(2.35rem, 4.2vw, 4.25rem);
+  line-height: 1.04;
+  letter-spacing: 0;
+}
+main .lab-hero .hero-copy p:not(.eyebrow) {
+  max-width: 650px;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+.lab-stage-viewport {
+  overflow: visible;
+}
+.lab-stage {
+  min-height: 270px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #ffffff, #f5f3ff);
+  box-shadow: 0 10px 26px rgba(16, 24, 40, 0.08);
+}
+.scanner-ring {
+  width: min(76%, 340px);
+  border-color: rgba(92, 109, 242, 0.24);
+  box-shadow: none;
+  animation: none;
+}
+.scan-beam {
+  background: #5c6df2;
+  box-shadow: none;
+  animation: none;
+}
+.resume-sheet {
+  border-color: #d0d5dd;
+  box-shadow: 0 18px 26px rgba(16, 24, 40, 0.14);
+}
+.resume-sheet span {
+  background: #344054;
+}
+.resume-sheet span:nth-child(2) {
+  background: #5c6df2;
+}
+.resume-sheet span:nth-child(4) {
+  background: #168a5b;
+}
 .preview-pane {
   border-color: var(--line);
 }
@@ -1769,6 +1823,13 @@ main .eyebrow {
   }
   .editor-topbar {
     position: static;
+  }
+  .lab-hero {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .lab-stage-viewport {
+    order: 0;
   }
   .preview-pane {
     top: auto;
