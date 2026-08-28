@@ -106,7 +106,37 @@ describe("CoverLettersPage save recovery", () => {
     fireEvent.change(opening, { target: { value: "First revision." } });
     await user.click(screen.getByRole("button", { name: "Save" }));
     fireEvent.change(opening, { target: { value: "Newer revision." } });
-    resolveFirst?.({ ...(saved as ReturnType<typeof createCoverLetter>), opening: "First revision.", editorVersion: 2 });
+    resolveFirst?.({
+      ...(saved as ReturnType<typeof createCoverLetter>),
+      opening: "First revision.",
+      editorVersion: 2,
+    });
     await waitFor(() => expect(opening).toHaveValue("Newer revision."));
+  });
+
+  it("uses the selected local print page size and restores focus to the print control", async () => {
+    const stored = new Map<string, ReturnType<typeof createCoverLetter>>();
+    const repository: CoverLetterRepository = {
+      getTarget: vi.fn(),
+      listLetters: vi.fn(async () => [...stored.values()]),
+      listResumes: vi.fn(async () => [resume]),
+      putLetter: vi.fn(async (letter) => {
+        const saved = { ...letter, editorVersion: (stored.get(letter.id)?.editorVersion || 0) + 1 };
+        stored.set(saved.id, saved);
+        return saved;
+      }),
+    };
+    const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    const user = userEvent.setup();
+    renderPage(repository);
+    await createLetter(user);
+    await user.selectOptions(screen.getByLabelText("Print page size"), "a4");
+    const control = screen.getByRole("button", { name: "Print / Save as PDF" });
+    await user.click(control);
+    expect(print).toHaveBeenCalledOnce();
+    expect(control).toHaveFocus();
+    expect(screen.getByLabelText("Printable cover letter")).toHaveAttribute("data-page-size", "a4");
+    expect(screen.getByRole("status")).toHaveTextContent("Print / Save as PDF opened with A4 sizing.");
+    print.mockRestore();
   });
 });

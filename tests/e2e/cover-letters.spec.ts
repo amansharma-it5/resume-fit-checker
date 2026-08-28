@@ -112,6 +112,7 @@ test("cancels a delayed cover-letter suggestion without changing the editor", as
   await expect(page.getByRole("button", { name: "Accept" })).toHaveCount(0);
   await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
   await expect(page.getByRole("button", { name: "Generate suggestion" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Generate suggestion" })).toBeFocused();
 });
 
 test("a newer replacement request wins over a late older response", async ({ page }) => {
@@ -120,11 +121,19 @@ test("a newer replacement request wins over a late older response", async ({ pag
   await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
     requests++;
     if (requests === 1) {
-      await new Promise<void>((resolve) => { releaseFirst = resolve; });
-      await route.fulfill({ contentType: "application/json", body: JSON.stringify({ rewrittenBullet: "Old response." }) });
+      await new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ rewrittenBullet: "Old response." }),
+      });
       return;
     }
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({ rewrittenBullet: "I am writing to apply for the Engineer role at Example Labs." }) });
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ rewrittenBullet: "I am writing to apply for the Engineer role at Example Labs." }),
+    });
   });
   await createLetter(page);
   await page.getByLabel("Opening").fill("I am writing to apply for the Engineer role at Example Labs.");
@@ -153,8 +162,39 @@ test("keeps provider failures local, safe, and explicitly reviewable", async ({ 
   await expect(page.locator(".dashboard-page > [role='status']")).toHaveText(
     "AI unavailable. Showing a deterministic local fallback.",
   );
-  await expect(page.locator(".assistant-feedback")).toHaveText("AI unavailable. Showing a deterministic local fallback.");
+  await expect(page.locator(".assistant-feedback")).toHaveText(
+    "AI unavailable. Showing a deterministic local fallback.",
+  );
   await expect(page.getByRole("button", { name: "Accept" })).toBeVisible();
   await expect(page.getByText(/provider token|stack trace/i)).toHaveCount(0);
   await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
+});
+
+test("renders a semantic cover-letter-only print surface for Letter and A4", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.print = () => undefined;
+  });
+  await createLetter(page);
+  await page.getByLabel("Opening").fill("I am writing to apply for the Engineer role at Example Labs.");
+  await page.getByLabel("Print page size").selectOption("a4");
+  await expect(page.getByLabel("Printable cover letter")).toHaveAttribute("data-page-size", "a4");
+  await page.getByRole("button", { name: "Print / Save as PDF" }).click();
+  await expect(page.locator(".dashboard-page > [role='status']")).toHaveText(
+    "Print / Save as PDF opened with A4 sizing.",
+  );
+  await page.emulateMedia({ media: "print" });
+  await expect(page.getByLabel("Printable cover letter")).toBeVisible();
+  await expect(
+    page
+      .getByLabel("Printable cover letter")
+      .getByText("I am writing to apply for the Engineer role at Example Labs.", {
+        exact: true,
+      }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Cover letter assistant" })).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
+  await page.getByLabel("Print page size").selectOption("letter");
+  await expect(page.getByLabel("Printable cover letter")).toHaveAttribute("data-page-size", "letter");
+  await expect(page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).resolves.toBe(true);
 });

@@ -24,6 +24,7 @@ export function CoverLetterAssistant({
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const controller = useRef<AbortController | null>(null);
+  const generateButton = useRef<HTMLButtonElement | null>(null);
   const announce = (value: string) => {
     setStatus(value);
     onAnnouncement(value);
@@ -73,7 +74,7 @@ export function CoverLetterAssistant({
     }
   }
   return (
-    <section className="editor-tool copilot-panel" aria-labelledby="cover-letter-assistant-title">
+    <section className="editor-tool copilot-panel" aria-labelledby="cover-letter-assistant-title" aria-busy={busy}>
       <h3 id="cover-letter-assistant-title">Cover letter assistant</h3>
       <p>
         AI is optional. Only this paragraph, selected resume evidence, company, role, and limited JD context are sent
@@ -87,7 +88,7 @@ export function CoverLetterAssistant({
         minimum selected context to Groq AI.
       </label>
       <div className="button-row">
-        <button disabled={!consent || !text.trim()} onClick={() => void generate()}>
+        <button ref={generateButton} disabled={!consent || !text.trim()} onClick={() => void generate()}>
           {busy ? "Replace request" : "Generate suggestion"}
         </button>
         <button
@@ -96,6 +97,7 @@ export function CoverLetterAssistant({
             controller.current?.abort();
             setBusy(false);
             announce("Suggestion request cancelled.");
+            window.setTimeout(() => generateButton.current?.focus(), 0);
           }}
         >
           Cancel

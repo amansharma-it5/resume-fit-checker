@@ -32,6 +32,7 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
   const [letter, setLetter] = useState<CoverLetterDocument | null>(null);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [printPageSize, setPrintPageSize] = useState<"letter" | "a4">("letter");
   const [history, setHistory] = useState<CoverLetterDocument[]>([]);
   const [future, setFuture] = useState<CoverLetterDocument[]>([]);
   const autosave = useRef<number | undefined>(undefined);
@@ -230,10 +231,33 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
             >
               Download plain text
             </button>
-            <button onClick={() => window.print()}>Print / Save as PDF</button>
+            <label>
+              Print page size
+              <select
+                value={printPageSize}
+                onChange={(event) => setPrintPageSize(event.target.value as "letter" | "a4")}
+              >
+                <option value="letter">US Letter</option>
+                <option value="a4">A4</option>
+              </select>
+            </label>
+            <button
+              onClick={(event) => {
+                window.print();
+                event.currentTarget.focus();
+                setMessage(`Print / Save as PDF opened with ${printPageSize === "a4" ? "A4" : "US Letter"} sizing.`);
+              }}
+            >
+              Print / Save as PDF
+            </button>
           </div>
           <h2 id="letter-editor-title">{letter.title}</h2>
-          <article className="cover-letter-print-content" aria-label="Printable cover letter">
+          <style media="print">{`@page { size: ${printPageSize === "a4" ? "A4" : "letter"}; margin: 0.55in; }`}</style>
+          <article
+            className="cover-letter-print-content"
+            data-page-size={printPageSize}
+            aria-label="Printable cover letter"
+          >
             <p>{letter.sender.name}</p>
             <p>{letter.sender.email}</p>
             <p>{letter.sender.phone}</p>
