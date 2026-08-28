@@ -151,9 +151,7 @@ function WorkspaceNavigation({ onNavigate }: { onNavigate?: () => void }) {
 export function AppShell({ authEnabled }: { authEnabled: boolean }) {
   const { user, signOut } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [compactNavigation, setCompactNavigation] = useState(
-    () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
-  );
+  const [compactNavigation, setCompactNavigation] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLElement>(null);
   const drawerId = useId();
@@ -195,6 +193,7 @@ export function AppShell({ authEnabled }: { authEnabled: boolean }) {
   }, [drawerOpen]);
 
   useEffect(() => {
+    if (!window.matchMedia) return;
     const media = window.matchMedia("(max-width: 900px)");
     const update = () => setCompactNavigation(media.matches);
     update();
