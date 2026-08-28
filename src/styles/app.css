@@ -1195,6 +1195,26 @@ footer {
 .cover-letter-print-content {
   display: none;
 }
+.interview-practice-print {
+  display: none;
+}
+@media print {
+  .interview-practice-print,
+  .interview-practice-print * {
+    visibility: visible !important;
+  }
+  .interview-practice-print {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    width: auto;
+    color: #000;
+    background: #fff;
+  }
+  .interview-practice-print section {
+    break-inside: avoid;
+  }
+}
 @media print {
   .cover-letter-print-content {
     display: block !important;

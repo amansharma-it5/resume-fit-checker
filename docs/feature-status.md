@@ -51,3 +51,7 @@ Implemented: Guest Mode local job targets with a versioned IndexedDB store, requ
 Privacy: targets, JDs, and score summaries remain browser-local. Creating or opening a target sends no provider, Supabase, analytics, or server request. This is deliberately not cloud sync, job-board scraping, application submission, or a full CRM.
 
 Limitations: target relinking/replacing a missing tailored copy and richer multi-target reporting remain future work. A target score is refreshed from the existing deterministic editor ATS check; the product does not invent evidence or use a hard-coded score.
+
+# Interview Practice (Phase 10)
+
+Interview Practice is a browser-local, evidence-safe preparation workspace. It supports deterministic questions and feedback, optional consent-gated coaching with a local fallback, answer history, local TXT export, and a clean printable review. It does not record audio/video, make hiring decisions, or provide DOCX export.

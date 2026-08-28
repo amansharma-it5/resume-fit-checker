@@ -1,5 +1,11 @@
 import { deleteDB, openDB, type DBSchema } from "idb";
-import type { AnalysisSummary, CoverLetterDocument, JobTarget, ResumeDocument } from "../types";
+import type {
+  AnalysisSummary,
+  CoverLetterDocument,
+  InterviewPracticeSession,
+  JobTarget,
+  ResumeDocument,
+} from "../types";
 import type { ResumeVersionSnapshot, StructuredResume } from "../resume-builder/types";
 
 const DB_NAME = "resume-lab-guest-v2";
@@ -16,10 +22,15 @@ interface GuestSchema extends DBSchema {
   };
   targets: { key: string; value: JobTarget; indexes: { "by-updated": string; "by-status": string } };
   coverLetters: { key: string; value: CoverLetterDocument; indexes: { "by-updated": string; "by-resume": string } };
+  interviewSessions: {
+    key: string;
+    value: InterviewPracticeSession;
+    indexes: { "by-updated": string; "by-resume": string };
+  };
 }
 
 function db() {
-  return openDB<GuestSchema>(DB_NAME, 4, {
+  return openDB<GuestSchema>(DB_NAME, 5, {
     upgrade(database, oldVersion) {
       if (oldVersion < 1) {
         const resumes = database.createObjectStore("resumes", { keyPath: "id" });
@@ -43,6 +54,11 @@ function db() {
         const letters = database.createObjectStore("coverLetters", { keyPath: "id" });
         letters.createIndex("by-updated", "updatedAt");
         letters.createIndex("by-resume", "resumeId");
+      }
+      if (oldVersion < 5) {
+        const sessions = database.createObjectStore("interviewSessions", { keyPath: "id" });
+        sessions.createIndex("by-updated", "updatedAt");
+        sessions.createIndex("by-resume", "resumeId");
       }
     },
   });
@@ -238,6 +254,41 @@ export async function putGuestCoverLetter(letter: CoverLetterDocument, expectedV
 
 export async function deleteGuestCoverLetter(id: string) {
   await (await db()).delete("coverLetters", id);
+}
+
+export async function listGuestInterviewSessions() {
+  return (await (await db()).getAll("interviewSessions")).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getGuestInterviewSession(id: string) {
+  return (await db()).get("interviewSessions", id);
+}
+
+export async function putGuestInterviewSession(session: InterviewPracticeSession, expectedVersion?: number) {
+  const database = await db();
+  const tx = database.transaction("interviewSessions", "readwrite");
+  const current = await tx.store.get(session.id);
+  if (expectedVersion !== undefined && current && current.editorVersion !== expectedVersion) {
+    tx.abort();
+    try {
+      await tx.done;
+    } catch {
+      // Deliberate optimistic-concurrency abort.
+    }
+    throw new Error("SAVE_CONFLICT");
+  }
+  const saved = {
+    ...session,
+    editorVersion: (current?.editorVersion ?? session.editorVersion) + 1,
+    updatedAt: new Date().toISOString(),
+  };
+  await tx.store.put(saved);
+  await tx.done;
+  return saved;
+}
+
+export async function deleteGuestInterviewSession(id: string) {
+  await (await db()).delete("interviewSessions", id);
 }
 export async function getGuestAnalysisOverrides(key: string) {
   return (await (await db()).get("meta", `analysis-overrides:${key}`))?.value || [];
