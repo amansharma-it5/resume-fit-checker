@@ -2333,6 +2333,18 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
   border-color: #fecdca;
   background: #fffbfa;
 }
+.skip-link {
+  color: #fff;
+  background: #4959db;
+  font-weight: 700;
+}
+.export-readiness .error {
+  color: #b42318;
+}
+.preview-region:focus-visible {
+  outline: 3px solid rgba(92, 109, 242, 0.6);
+  outline-offset: 2px;
+}
 
 /* Guest entry and account-disabled surfaces share the same original light presentation. */
 .auth-page {

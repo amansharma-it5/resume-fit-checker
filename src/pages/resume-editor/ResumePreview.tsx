@@ -99,7 +99,7 @@ export const ResumePreview = memo(function ResumePreview({ resume, zoom }: { res
     "--resume-zoom": String(zoom),
   } as React.CSSProperties;
   return (
-    <section className="preview-region" aria-label="Live resume preview">
+    <section className="preview-region" aria-label="Live resume preview" tabIndex={0}>
       <div className="preview-page-count" role="status">
         Estimated {estimatePageCount(resume)} page{estimatePageCount(resume) === 1 ? "" : "s"}
       </div>
