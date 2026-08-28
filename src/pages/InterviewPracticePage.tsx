@@ -163,10 +163,27 @@ export function InterviewPracticePage() {
             >
               Mark complete
             </button>
-            <button onClick={() => change({ ...current, questions: current.questions.map((item, itemIndex) => itemIndex === index ? { ...item, skipped: true } : item) }}>
+            <button
+              onClick={() => {
+                const questions = current.questions.map((item, itemIndex) =>
+                  itemIndex === index ? { ...item, skipped: true } : item,
+                );
+                change({ ...current, questions });
+              }}
+            >
               Skip
             </button>
-            <button onClick={() => { const questions = current.questions.map((item, itemIndex) => itemIndex === index ? { ...item, answerVersions: [...item.answerVersions, item.answer], answer: "" } : item); change({ ...current, questions }); setMessage("Answer reset locally."); }}>
+            <button
+              onClick={() => {
+                const questions = current.questions.map((item, itemIndex) =>
+                  itemIndex === index
+                    ? { ...item, answerVersions: [...item.answerVersions, item.answer], answer: "" }
+                    : item,
+                );
+                change({ ...current, questions });
+                setMessage("Answer reset locally.");
+              }}
+            >
               Reset answer
             </button>
             <button
@@ -242,9 +259,39 @@ export function InterviewPracticePage() {
                 >
                   Continue
                 </button>
-                <button onClick={() => { const title = window.prompt("Rename this practice session", session.title); if (!title?.trim()) return; void putGuestInterviewSession({ ...session, title: title.trim() }, session.editorVersion).then(load); }}>Rename</button>
-                <button onClick={() => { const copy = { ...session, id: crypto.randomUUID(), title: `${session.title} copy`, createdAt: new Date().toISOString(), editorVersion: 0 }; void putGuestInterviewSession(copy).then(load); }}>Duplicate</button>
-                <button onClick={() => { if (!window.confirm(`Delete ${session.title}? Linked resumes are preserved.`)) return; void deleteGuestInterviewSession(session.id).then(load); }}>Delete</button>
+                <button
+                  onClick={() => {
+                    const title = window.prompt("Rename this practice session", session.title);
+                    if (!title?.trim()) return;
+                    void putGuestInterviewSession({ ...session, title: title.trim() }, session.editorVersion).then(
+                      load,
+                    );
+                  }}
+                >
+                  Rename
+                </button>
+                <button
+                  onClick={() => {
+                    const copy = {
+                      ...session,
+                      id: crypto.randomUUID(),
+                      title: `${session.title} copy`,
+                      createdAt: new Date().toISOString(),
+                      editorVersion: 0,
+                    };
+                    void putGuestInterviewSession(copy).then(load);
+                  }}
+                >
+                  Duplicate
+                </button>
+                <button
+                  onClick={() => {
+                    if (!window.confirm(`Delete ${session.title}? Linked resumes are preserved.`)) return;
+                    void deleteGuestInterviewSession(session.id).then(load);
+                  }}
+                >
+                  Delete
+                </button>
               </article>
             ))}
           </div>
