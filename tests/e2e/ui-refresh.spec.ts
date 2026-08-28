@@ -42,3 +42,17 @@ test("mobile navigation uses an accessible drawer with escape and focus restorat
   await expect(trigger).toBeFocused();
   await expectNoHorizontalOverflow(page);
 });
+
+test("dashboard renders a compact resume row with a keyboard-accessible action menu", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  const row = page.locator(".document-row").first();
+  await expect(row.locator(".document-thumbnail")).toBeVisible();
+  await expect(row).toContainText("Saved locally");
+  const menu = row.getByRole("button", { name: /More actions for Untitled resume/ });
+  await menu.focus();
+  await menu.press("Enter");
+  await expect(row.getByRole("button", { name: "Rename" })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});

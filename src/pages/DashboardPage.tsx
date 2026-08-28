@@ -40,6 +40,7 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
     trigger: HTMLButtonElement;
   } | null>(null);
   const [confirmSample, setConfirmSample] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [onboarding, setOnboarding] = useState(readOnboardingState);
   const load = useCallback(
     async (showLoading = true) => {
@@ -130,6 +131,16 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
         <button className="primary" onClick={() => void action(() => createResume(account), "Resume created.")}>
           Create resume
         </button>
+        <button
+          onClick={() =>
+            void action(async () => {
+              const document = await createResume(account);
+              navigate(`/resumes/${document.id}/edit`);
+            }, "Import review is ready in the editor.")
+          }
+        >
+          Import resume
+        </button>
         <Link className="button-link" to="/targets">
           Job targets
         </Link>
@@ -177,58 +188,81 @@ export function DashboardPage({ authEnabled }: { authEnabled: boolean }) {
         <div className="document-list">
           {shown.map((resume) => (
             <article className="document-row" key={resume.id}>
+              <div className="document-thumbnail" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+                <span />
+              </div>
               <div>
                 <h2>{resume.title}</h2>
                 <p>
                   Last edited <time dateTime={resume.updatedAt}>{new Date(resume.updatedAt).toLocaleString()}</time> ·{" "}
                   {resume.status}
                 </p>
-                <span className="autosave">Saved</span>
+                <span className="document-local-state">Saved locally</span>
               </div>
-              <div className="document-actions">
+              <div className="document-primary-action">
                 {resume.status === "active" && (
                   <Link className="button-link" to={`/resumes/${resume.id}/edit`}>
                     Edit
                   </Link>
                 )}
-                <button onClick={(event) => setPendingRename({ resume, trigger: event.currentTarget })}>Rename</button>
-                <button onClick={() => void action(() => duplicateResume(account, resume), "Resume duplicated.")}>
-                  Duplicate
-                </button>
-                {resume.status === "active" && (
+                <div className="document-menu">
                   <button
-                    onClick={() =>
-                      void action(() => updateResume(account, resume, { status: "archived" }), "Resume archived.")
-                    }
+                    type="button"
+                    aria-label={`More actions for ${resume.title}`}
+                    aria-expanded={openMenuId === resume.id}
+                    aria-haspopup="menu"
+                    onClick={() => setOpenMenuId((current) => (current === resume.id ? null : resume.id))}
                   >
-                    Archive
+                    <span aria-hidden="true">•••</span>
                   </button>
-                )}
-                {resume.status === "archived" && (
-                  <button
-                    onClick={() =>
-                      void action(() => updateResume(account, resume, { status: "active" }), "Resume restored.")
-                    }
-                  >
-                    Restore
-                  </button>
-                )}
-                {resume.status !== "deleted" ? (
-                  <button
-                    onClick={() =>
-                      void action(
-                        () => updateResume(account, resume, { status: "deleted" }),
-                        "Resume moved to recently deleted.",
-                      )
-                    }
-                  >
-                    Delete
-                  </button>
-                ) : (
-                  <button className="danger" onClick={() => setPendingDelete(resume)}>
-                    Delete permanently
-                  </button>
-                )}
+                  {openMenuId === resume.id && (
+                    <div role="menu" aria-label={`Actions for ${resume.title}`}>
+                      <button onClick={(event) => setPendingRename({ resume, trigger: event.currentTarget })}>
+                        Rename
+                      </button>
+                      <button onClick={() => void action(() => duplicateResume(account, resume), "Resume duplicated.")}>
+                        Duplicate
+                      </button>
+                      {resume.status === "active" && (
+                        <button
+                          onClick={() =>
+                            void action(() => updateResume(account, resume, { status: "archived" }), "Resume archived.")
+                          }
+                        >
+                          Archive
+                        </button>
+                      )}
+                      {resume.status === "archived" && (
+                        <button
+                          onClick={() =>
+                            void action(() => updateResume(account, resume, { status: "active" }), "Resume restored.")
+                          }
+                        >
+                          Restore
+                        </button>
+                      )}
+                      {resume.status !== "deleted" ? (
+                        <button
+                          onClick={() =>
+                            void action(
+                              () => updateResume(account, resume, { status: "deleted" }),
+                              "Resume moved to recently deleted.",
+                            )
+                          }
+                        >
+                          Delete
+                        </button>
+                      ) : (
+                        <button className="danger" onClick={() => setPendingDelete(resume)}>
+                          Delete permanently
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </article>
           ))}

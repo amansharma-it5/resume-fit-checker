@@ -1574,6 +1574,114 @@ main .not-found {
   padding: 16px;
   box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
 }
+.document-list {
+  gap: 8px;
+}
+.document-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 108px;
+}
+.document-thumbnail {
+  display: grid;
+  width: 68px;
+  height: 84px;
+  align-content: start;
+  gap: 7px;
+  padding: 15px 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 3px 8px rgba(16, 24, 40, 0.08);
+}
+.document-thumbnail span {
+  display: block;
+  height: 3px;
+  border-radius: 99px;
+  background: #98a2b3;
+}
+.document-thumbnail span:first-child {
+  width: 72%;
+  background: #5c6df2;
+}
+.document-thumbnail span:nth-child(3) {
+  width: 86%;
+}
+.document-thumbnail span:nth-child(4) {
+  width: 55%;
+}
+.document-row h2 {
+  overflow-wrap: anywhere;
+}
+.document-local-state {
+  display: inline-flex;
+  margin-top: 7px;
+  color: #168a5b;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.document-primary-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.document-menu {
+  position: relative;
+}
+.document-menu > button {
+  display: grid;
+  width: 40px;
+  min-height: 40px;
+  place-items: center;
+  border: 1px solid #d0d5dd;
+  border-radius: 7px;
+  color: #475467;
+  background: #fff;
+}
+.document-menu > button:hover {
+  border-color: #98a2b3;
+  background: #f9fafb;
+}
+.document-menu > div {
+  position: absolute;
+  right: 0;
+  z-index: 10;
+  display: grid;
+  width: 160px;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 28px rgba(16, 24, 40, 0.16);
+}
+.document-menu button {
+  width: 100%;
+  min-height: 36px;
+  justify-content: flex-start;
+  text-align: left;
+}
+.usage-summary {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.usage-summary h2 {
+  margin-top: 0;
+  font-size: 1rem;
+}
+.usage-summary dl {
+  gap: 18px;
+}
+.usage-summary dd {
+  color: #344054;
+  font-family: inherit;
+  font-size: 1.5rem;
+}
 input,
 textarea,
 select {
@@ -1849,6 +1957,15 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
   .editor-topbar {
     position: static;
   }
+  .document-row {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    gap: 12px;
+  }
+  .document-thumbnail {
+    width: 58px;
+    height: 72px;
+    padding: 12px 8px;
+  }
   .lab-hero {
     grid-template-columns: 1fr;
     gap: 18px;
@@ -1884,6 +2001,18 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
   .auth-panel,
   .prose-page {
     padding: 16px;
+  }
+  .document-row {
+    grid-template-columns: 52px minmax(0, 1fr);
+    align-items: start;
+  }
+  .document-thumbnail {
+    width: 48px;
+    height: 62px;
+  }
+  .document-primary-action {
+    grid-column: 2;
+    justify-content: flex-start;
   }
   .editor-workspace {
     grid-template-columns: 1fr;
