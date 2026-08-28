@@ -108,3 +108,27 @@ test("exports local practice text and keeps a semantic print-only review", async
   await expect(page.getByRole("button", { name: "Save" })).toBeHidden();
   await page.emulateMedia({ media: "screen" });
 });
+
+test("supports custom questions, a local timer, progress, and answer reset", async ({ page }) => {
+  await createSession(page);
+  await page.getByLabel("Custom question").fill("How would you explain your local evidence?");
+  await page.getByRole("button", { name: "Add custom question" }).click();
+  await page.getByRole("button", { name: "Mark complete" }).click();
+  await expect(page.getByLabel("Practice progress")).toContainText("1 completed");
+  await page.getByRole("button", { name: "Start timer" }).click();
+  await expect(page.getByRole("button", { name: "Pause timer" })).toBeVisible();
+  await page.getByLabel("Your practice answer").fill("A local answer.");
+  await page.getByRole("button", { name: "Reset answer" }).click();
+  await expect(page.getByLabel("Your practice answer")).toHaveValue("");
+});
+
+test("keeps session actions keyboard reachable without horizontal overflow", async ({ page }) => {
+  await createSession(page);
+  await page.getByRole("button", { name: "Save", exact: true }).focus();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeFocused();
+  const dimensions = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    content: document.documentElement.scrollWidth,
+  }));
+  expect(dimensions.content <= dimensions.viewport, JSON.stringify(dimensions)).toBeTruthy();
+});
