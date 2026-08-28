@@ -2204,3 +2204,278 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
     margin: 0.35rem 0 !important;
   }
 }
+
+/* Shared operational pages: dense, calm panels that keep existing controls and document lifecycles intact. */
+.workspace-page,
+.dashboard-page {
+  min-width: 0;
+}
+.workspace-page > .page-heading,
+.dashboard-page > .page-heading,
+.dashboard-page > h1,
+.dashboard-page > .eyebrow + h1 {
+  max-width: 780px;
+}
+.page-heading h1,
+.dashboard-page > h1,
+.workspace-page > h1,
+.dashboard-page > .eyebrow + h1 {
+  font-size: clamp(1.8rem, 2.7vw, 2.45rem);
+  font-weight: 760;
+  line-height: 1.15;
+}
+.workspace-page > section,
+.target-create,
+.target-detail,
+.cover-letter-print,
+.interview-practice-page > section,
+.applications-page > section,
+.backup-recovery-page > section,
+.application-card,
+.application-detail {
+  border-color: var(--line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+}
+.target-create,
+.target-detail,
+.cover-letter-print,
+.interview-practice-page > section,
+.applications-page > section,
+.backup-recovery-page > section {
+  padding: clamp(16px, 2vw, 24px);
+}
+.target-create > h2,
+.target-detail > h2,
+.cover-letter-print > h2,
+.interview-practice-page h2,
+.applications-page h2,
+.backup-recovery-page h2 {
+  margin-top: 0;
+  color: #1d2939;
+  font-size: 1.1rem;
+}
+.target-list,
+.document-list,
+.application-list,
+.application-table {
+  gap: 10px;
+}
+.target-list .document-row,
+.cover-letter-print .document-row,
+.interview-practice-page .document-row,
+.applications-page .document-row,
+.application-card {
+  border-color: var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: none;
+}
+.field-grid {
+  gap: 14px 16px;
+}
+.field-grid label,
+.inline-form label,
+.filters label {
+  min-width: 0;
+  margin-bottom: 0;
+  color: #344054;
+  font-size: 0.84rem;
+  font-weight: 680;
+}
+.filters,
+.view-toggle,
+.section-heading-row,
+.button-row,
+.dashboard-actions,
+.document-actions {
+  align-items: center;
+}
+.filters {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f9fafb;
+}
+.view-toggle {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.view-toggle label {
+  min-height: 38px;
+  padding: 8px 10px;
+  border-right: 1px solid var(--line);
+  color: #475467;
+}
+.view-toggle label:last-child {
+  border-right: 0;
+}
+.workspace-status,
+.status-message,
+.notice {
+  border-radius: 7px;
+  color: #475467;
+  background: #f8f9fc;
+}
+.status-message {
+  border-left-color: var(--mint);
+}
+.status-message.error,
+.error-summary,
+.field-error {
+  color: #b42318;
+}
+.error-summary {
+  border-color: #fecdca;
+  background: #fffbfa;
+}
+.privacy-note,
+.notice,
+.section-navigator-note {
+  color: #667085;
+}
+.application-insights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(142px, 1fr));
+  gap: 10px;
+}
+.application-insights p {
+  min-height: 76px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #475467;
+  background: #f9fafb;
+}
+.application-follow-ups,
+.application-activity {
+  padding: 0;
+  list-style-position: inside;
+}
+.application-follow-ups li,
+.application-activity li {
+  padding: 10px 0;
+  border-bottom: 1px solid #eef0f3;
+}
+.application-follow-ups li:last-child,
+.application-activity li:last-child {
+  border-bottom: 0;
+}
+.backup-recovery-page .notice {
+  padding: 12px 14px;
+  border-left: 3px solid #5c6df2;
+}
+.backup-recovery-page .restore-preview {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f9fafb;
+}
+.backup-recovery-page .danger,
+button.danger,
+.danger-text {
+  border-color: #fda29b;
+  color: #b42318;
+  background: #fff5f5;
+}
+.backup-recovery-page .danger:hover,
+button.danger:hover,
+.danger-text:hover {
+  border-color: #f97066;
+  color: #912018;
+  background: #ffebe9;
+}
+.onboarding-checklist {
+  border-left-color: var(--mint);
+  color: #344054;
+}
+.dialog h2,
+.dialog h3 {
+  color: #1d2939;
+}
+.dialog-actions button:last-child.primary,
+.dialog-actions .primary {
+  order: 2;
+}
+.save-status,
+.autosave {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid #d9eadd;
+  border-radius: 999px;
+  color: #157347;
+  background: #f0fdf4;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+.save-status.saving,
+.save-status.idle {
+  border-color: #d9e3ff;
+  color: #3b4fc4;
+  background: #f2f4ff;
+}
+.save-status.failed,
+.save-status.conflict,
+.save-status.offline {
+  border-color: #fecdca;
+  color: #b42318;
+  background: #fffbfa;
+}
+
+@media (max-width: 700px) {
+  .filters,
+  .section-heading-row,
+  .button-row,
+  .dashboard-actions,
+  .document-actions {
+    align-items: stretch;
+  }
+  .filters {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .filters label {
+    width: 100%;
+  }
+  .application-list {
+    grid-template-columns: 1fr;
+  }
+  .section-heading-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .application-follow-ups li {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media print {
+  .app-sidebar,
+  .app-mobile-header,
+  .app-drawer-layer,
+  .app-footer,
+  .editor-topbar,
+  .editor-actions,
+  .mobile-view-tabs,
+  .section-navigator,
+  .preview-controls,
+  .dialog-backdrop,
+  .button-row,
+  .dashboard-actions,
+  .document-actions,
+  .filters,
+  .view-toggle,
+  .copilot-panel,
+  .rewrite-lab,
+  .validation-summary,
+  .error-summary {
+    display: none !important;
+  }
+}

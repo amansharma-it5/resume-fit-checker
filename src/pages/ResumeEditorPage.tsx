@@ -78,6 +78,7 @@ export function ResumeEditorPage() {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [lastSavedJson, setLastSavedJson] = useState("");
   const [view, setView] = useState<"sections" | "edit" | "preview">("edit");
+  const [pendingSectionFocus, setPendingSectionFocus] = useState<string | null>(null);
   const [zoom, setZoom] = useState(0.82);
   const [deleteSection, setDeleteSection] = useState<ResumeSection | null>(null);
   const [versions, setVersions] = useState<ResumeVersionSnapshot[]>([]);
@@ -110,6 +111,12 @@ export function ResumeEditorPage() {
     if (!extraction) return;
     importReviewRef.current?.focus();
   }, [extraction]);
+
+  useEffect(() => {
+    if (view !== "edit" || !pendingSectionFocus) return;
+    document.getElementById(`section-${pendingSectionFocus}`)?.focus();
+    setPendingSectionFocus(null);
+  }, [pendingSectionFocus, view]);
 
   useEffect(() => {
     let active = true;
@@ -366,8 +373,8 @@ export function ResumeEditorPage() {
     setAnalysisNotice("Opened the relevant resume section.");
   }
   function selectSection(sectionId: string) {
+    setPendingSectionFocus(sectionId);
     setView("edit");
-    window.setTimeout(() => document.getElementById(`section-${sectionId}`)?.focus(), 0);
   }
   function fixIssueWithCopilot(sectionId: string, issueText: string) {
     const index = copilotTargets.findIndex((item) => item.sectionId === sectionId);

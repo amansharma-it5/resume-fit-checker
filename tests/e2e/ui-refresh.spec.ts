@@ -66,6 +66,9 @@ test("editor exposes section navigation and responsive review views without losi
   await expect(navigator).toBeVisible();
   await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
   await expect(page.locator(".preview-pane")).toBeVisible();
+  await page.getByLabel("Full name").fill("Avery Morgan with a deliberately long synthetic professional identity");
+  await navigator.getByRole("button", { name: /Work Experience/ }).click();
+  await expect(page.locator(".section-editor").filter({ hasText: "Work Experience" })).toBeFocused();
 
   await page.setViewportSize({ width: 320, height: 760 });
   const editorViews = page.getByRole("group", { name: "Editor view" });
