@@ -59,3 +59,8 @@ Interview Practice is a browser-local, evidence-safe preparation workspace. It s
 # Application Tracker (Phase 11)
 
 Application Tracker provides a browser-local pipeline for applications, status history, document links, follow-ups, local notes, deterministic counts, CSV/JSON backup, and print review. It preserves linked documents when an application is deleted and does not upload application, recruiter, resume, or job-description content. It is not cloud sync, a CRM, a reminder service, a job-board integration, or a hiring-decision system.
+
+# Phase 12: Backup & Recovery
+
+- Browser-local workspace backup and read-only restore preview with schema/integrity checks.
+- Optional AES-GCM passphrase protection, safe merge, typed replace confirmation, storage health, and local recovery controls.
