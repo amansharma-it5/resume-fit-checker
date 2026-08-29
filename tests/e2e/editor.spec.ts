@@ -590,7 +590,7 @@ test("warns safely for an image-only PDF without changing the resume", async ({ 
   await expect(page.getByRole("heading", { name: "Extraction review" })).toHaveCount(0);
 });
 
-for (const width of [320, 360, 390, 412, 768, 1024, 1280, 1440, 1920]) {
+for (const width of [320, 360, 390, 412, 768, 1024, 1180, 1280, 1366, 1440, 1920]) {
   test(`editor has no root overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/dashboard");
