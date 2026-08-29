@@ -590,7 +590,7 @@ test("warns safely for an image-only PDF without changing the resume", async ({ 
   await expect(page.getByRole("heading", { name: "Extraction review" })).toHaveCount(0);
 });
 
-for (const width of [320, 360, 390, 412, 768, 1024, 1180, 1280, 1366, 1440, 1920]) {
+for (const width of [320, 360, 390, 412, 768, 1024, 1180, 1280, 1349, 1350, 1351, 1352, 1366, 1440, 1920]) {
   test(`editor has no root overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/dashboard");
@@ -609,5 +609,44 @@ for (const width of [320, 360, 390, 412, 768, 1024, 1180, 1280, 1366, 1440, 1920
         })),
     }));
     expect(measurement.scrollWidth <= measurement.viewport, JSON.stringify(measurement)).toBe(true);
+  });
+}
+
+for (const width of [1180, 1280, 1350, 1351, 1366, 1440]) {
+  test(`populated long-content editor has no root overflow at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "Try a sample resume" }).click();
+    await page.getByRole("button", { name: "Create sample resume" }).click();
+    await page
+      .getByLabel("Resume name")
+      .fill("A deliberately long fictional platform engineering resume title for an intermediate desktop layout check");
+    await page
+      .getByLabel("LinkedIn")
+      .fill(
+        "https://profiles.example.com/avery-morgan/this-is-an-intentionally-long-fictional-profile-path-for-layout-testing",
+      );
+    await page
+      .getByRole("textbox", { name: /^Skill / })
+      .fill(
+        "TypeScript, SQL, REST APIs, CI/CD, testing, deterministic evidence validation, accessible interface systems, and fictional long-form platform delivery work",
+      );
+    await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible();
+
+    const measurement = await page.evaluate(() => ({
+      viewport: window.innerWidth,
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      editor: document.querySelector<HTMLElement>(".editor-workspace")?.getBoundingClientRect().toJSON(),
+    }));
+    expect(measurement.scrollWidth <= measurement.clientWidth, JSON.stringify(measurement)).toBe(true);
+
+    if (width <= 1350) {
+      await expect(page.getByRole("button", { name: "Preview" })).toBeVisible();
+      await page.getByRole("button", { name: "Preview" }).click();
+      await expect(page.getByRole("article", { name: /resume preview/ })).toBeVisible();
+    } else {
+      await expect(page.getByRole("article", { name: /resume preview/ })).toBeVisible();
+    }
   });
 }
