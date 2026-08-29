@@ -1157,7 +1157,7 @@ footer {
   color: #ffb1a8;
 }
 
-@media (max-width: 1350px) {
+@media (max-width: 1572px) {
   .editor-workspace {
     grid-template-columns: 1fr;
   }
@@ -1978,7 +1978,7 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
   }
 }
 
-@media (max-width: 1350px) {
+@media (max-width: 1572px) {
   .lab-hero {
     grid-template-columns: 1fr;
   }
@@ -2147,7 +2147,7 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
 }
 
 /* Structured editor layout: navigation, fields, and contextual review share a stable desktop grid. */
-@media (min-width: 1351px) {
+@media (min-width: 1573px) {
   .editor-workspace {
     grid-template-columns: minmax(180px, 0.28fr) minmax(380px, 0.86fr) minmax(440px, 1fr);
     gap: 16px;
