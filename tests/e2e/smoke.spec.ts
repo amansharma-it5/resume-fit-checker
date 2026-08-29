@@ -100,6 +100,19 @@ async function fillAndAnalyze(page: import("@playwright/test").Page) {
   await expect(page.getByRole("heading", { name: "ATS evidence dashboard" })).toBeVisible();
 }
 
+async function openDashboard(page: import("@playwright/test").Page) {
+  const mobileTrigger = page.getByRole("button", { name: "Open navigation" });
+  if (await mobileTrigger.isVisible()) {
+    await mobileTrigger.click();
+    await page
+      .getByRole("complementary", { name: "Mobile workspace navigation" })
+      .getByRole("link", { name: "Dashboard" })
+      .click();
+    return;
+  }
+  await page.getByRole("link", { name: "Dashboard" }).click();
+}
+
 test("guest checker and dashboard critical flow", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Tailor your resume with transparent ATS evidence." })).toBeVisible();
@@ -110,7 +123,7 @@ test("guest checker and dashboard critical flow", async ({ page }) => {
     );
   await page.getByRole("button", { name: "Analyze resume" }).click();
   await expect(page.getByRole("heading", { name: "ATS evidence dashboard" })).toBeVisible();
-  await page.getByRole("link", { name: "Dashboard" }).click();
+  await openDashboard(page);
   await page.getByRole("button", { name: "Create resume" }).click();
   await expect(page.getByText("Untitled resume")).toBeVisible();
 });

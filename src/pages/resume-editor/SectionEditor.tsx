@@ -259,6 +259,7 @@ export function SectionEditor({
     <section
       className="section-editor"
       id={`section-${section.id}`}
+      tabIndex={-1}
       draggable
       onDragStart={(event) => event.dataTransfer.setData("text/resume-section", `${section.id}:${index}`)}
       onDragOver={(event) => event.preventDefault()}
