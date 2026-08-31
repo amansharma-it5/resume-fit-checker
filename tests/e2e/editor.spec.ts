@@ -590,7 +590,7 @@ test("warns safely for an image-only PDF without changing the resume", async ({ 
   await expect(page.getByRole("heading", { name: "Extraction review" })).toHaveCount(0);
 });
 
-for (const width of [320, 360, 390, 412, 768, 1024, 1180, 1280, 1349, 1350, 1351, 1352, 1366, 1440, 1920]) {
+for (const width of [320, 360, 390, 412, 768, 1024, 1180, 1280, 1349, 1350, 1351, 1352, 1366, 1440, 1572, 1573, 1920]) {
   test(`editor has no root overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/dashboard");
@@ -612,7 +612,7 @@ for (const width of [320, 360, 390, 412, 768, 1024, 1180, 1280, 1349, 1350, 1351
   });
 }
 
-for (const width of [1180, 1280, 1350, 1351, 1366, 1440]) {
+for (const width of [1180, 1280, 1350, 1351, 1366, 1440, 1572, 1573]) {
   test(`populated long-content editor has no root overflow at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/dashboard");
@@ -641,7 +641,7 @@ for (const width of [1180, 1280, 1350, 1351, 1366, 1440]) {
     }));
     expect(measurement.scrollWidth <= measurement.clientWidth, JSON.stringify(measurement)).toBe(true);
 
-    if (width <= 1350) {
+    if (width <= 1572) {
       await expect(page.getByRole("button", { name: "Preview" })).toBeVisible();
       await page.getByRole("button", { name: "Preview" }).click();
       await expect(page.getByRole("article", { name: /resume preview/ })).toBeVisible();

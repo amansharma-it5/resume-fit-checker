@@ -99,7 +99,7 @@ test("rename dialog keeps a visible focus path and restores the invoking action"
 });
 
 test("editor exposes section navigation and responsive review views without losing controls", async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setViewportSize({ width: 1600, height: 900 });
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Create resume" }).click();
   await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
