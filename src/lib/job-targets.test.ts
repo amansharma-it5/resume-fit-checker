@@ -69,9 +69,18 @@ describe.sequential("local job targets", () => {
       baseResumeId: base.id,
       jobDescription: "TypeScript",
     });
+    await updateGuestTarget(target.id, {
+      latestAnalysis: {
+        overall: 70,
+        resumeVersion: 0,
+        calculatedAt: "2026-08-31T00:00:00.000Z",
+        stale: false,
+      },
+    });
     await relinkGuestTarget(target.id, "tailored", replacement.id);
     const updated = await getGuestTarget(target.id);
     expect(updated?.tailoredResumeId).toBe(replacement.id);
     expect(updated?.baseResumeId).toBe(base.id);
+    expect(updated?.latestAnalysis?.stale).toBe(true);
   });
 });

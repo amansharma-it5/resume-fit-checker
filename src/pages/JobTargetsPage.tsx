@@ -306,22 +306,7 @@ export function JobTargetsPage() {
             ) : (
               <div className="target-list">
                 {shown.map((target) => (
-                  <article key={target.id} className="document-row">
-                    <div>
-                      <h3>{target.role}</h3>
-                      <p>
-                        {target.company} · {target.status}
-                      </p>
-                      <p>
-                        {target.latestAnalysis?.stale
-                          ? "ATS result needs refresh"
-                          : target.latestAnalysis?.overall != null
-                            ? `ATS ${target.latestAnalysis.overall}/100`
-                            : "ATS not calculated"}
-                      </p>
-                    </div>
-                    <Link to={`/targets/${target.id}`}>Open target</Link>
-                  </article>
+                  <TargetRow key={target.id} target={target} resumes={resumes} />
                 ))}
               </div>
             )}
@@ -356,6 +341,31 @@ export function JobTargetsPage() {
         <p>Only target metadata is deleted. Both linked resumes and their histories are preserved.</p>
       </ConfirmDialog>
     </section>
+  );
+}
+
+function TargetRow({ target, resumes }: { target: JobTarget; resumes: ResumeDocument[] }) {
+  const tailored = resumes.find((resume) => resume.id === target.tailoredResumeId);
+  const analysisState = tailored ? targetAnalysisState(target, tailored.editorVersion || 0) : undefined;
+  const summary = target.latestAnalysis;
+  const score = summary?.analysisEligibility === "scored" ? summary.overall : null;
+  return (
+    <article className="document-row">
+      <div>
+        <h3>{target.role}</h3>
+        <p>
+          {target.company} · {target.status}
+        </p>
+        <p>
+          {summary && analysisState?.state === "stale"
+            ? "ATS result needs refresh"
+            : score != null
+              ? `ATS ${score}/100`
+              : "ATS not calculated"}
+        </p>
+      </div>
+      <Link to={`/targets/${target.id}`}>Open target</Link>
+    </article>
   );
 }
 
