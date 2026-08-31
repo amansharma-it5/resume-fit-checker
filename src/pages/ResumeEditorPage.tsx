@@ -981,6 +981,7 @@ export function ResumeEditorPage() {
                     <strong>Next:</strong> {editorRecommendations[0]}
                   </p>
                 )}
+                <p role="status">ATS result {analysisStatus === "calculating" ? "calculating" : "updated"}.</p>
                 <p>Analysis state: {analysisStatus === "calculating" ? "Calculating" : "Updated"}</p>
                 <Link className="button-link" to="/checker">
                   Open full local ATS Checker

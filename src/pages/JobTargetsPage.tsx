@@ -160,7 +160,7 @@ export function JobTargetsPage() {
             )}
             {selectedTailored ? (
               <Link className="button-link" to={`/resumes/${selectedTailored.id}/edit?target=${selected.id}`}>
-                Open tailored resume and run analysis
+                Run local ATS in tailored resume
               </Link>
             ) : (
               <p role="status">The tailored resume is missing; relink a local resume before analysis.</p>

@@ -6,8 +6,10 @@ async function createTargetFromSample(page: import("@playwright/test").Page) {
   await page.getByRole("button", { name: "Create sample resume" }).click();
   await page.goto("/targets");
   const baseResume = page.getByLabel("Base resume");
-  await expect(baseResume.locator("option").filter({ hasNotText: "Choose a resume" })).toHaveCount(1);
-  const baseValue = await baseResume.locator("option").filter({ hasNotText: "Choose a resume" }).getAttribute("value");
+  await expect(baseResume.locator("option")).toHaveCount(2);
+  const baseValue = await baseResume
+    .locator("option")
+    .evaluateAll((options) => options.find((option) => option.value)?.value);
   await baseResume.selectOption(baseValue || "");
   await page.getByLabel("Company name").fill("Example Target Systems");
   await page.getByLabel("Role title").fill("Platform Engineer");
@@ -25,7 +27,7 @@ test("shows a compact local ATS state for an associated tailored resume without 
     if (request.method() !== "GET" && request.url().includes(".netlify")) writes.push(request.url());
   });
   await createTargetFromSample(page);
-  await page.getByRole("link", { name: "Open tailored resume and run analysis" }).click();
+  await page.getByRole("link", { name: "Run local ATS in tailored resume" }).click();
   await page.getByText("ATS check", { exact: true }).click();
   await expect(
     page.getByRole("heading", { name: /Current local ATS score|Local ATS score unavailable/ }),
@@ -38,7 +40,7 @@ test("shows a compact local ATS state for an associated tailored resume without 
 
 test("target summaries label stale state and remain contained at the editor breakpoint", async ({ page }) => {
   await createTargetFromSample(page);
-  await page.getByRole("link", { name: "Open tailored resume and run analysis" }).click();
+  await page.getByRole("link", { name: "Run local ATS in tailored resume" }).click();
   await page.getByText("ATS check", { exact: true }).click();
   await expect(page.getByText("Local ATS Engine v1")).toBeVisible();
   await page.getByLabel("Full name").fill("Avery Example Long Structured Resume Name");
