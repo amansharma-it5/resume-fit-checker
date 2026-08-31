@@ -1288,6 +1288,127 @@ footer {
   }
 }
 
+/* Phase 13.2 checker explanation surfaces use contract data only. */
+.checker-results-v1 {
+  outline: none;
+}
+.checker-results-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.checker-results-heading h2 {
+  margin-bottom: 6px;
+}
+.engine-version,
+.rule-ids {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.engine-version {
+  flex: none;
+  margin: 0;
+  padding: 6px 9px;
+  border: 1px solid #d9e3ff;
+  border-radius: 999px;
+  color: #3b4fc4;
+  background: #f2f4ff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.overall-score {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 14px;
+  max-width: 420px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid #d9e3ff;
+  border-radius: 10px;
+  background: #f6f7ff;
+}
+.overall-score strong {
+  grid-row: span 2;
+  color: #3b4fc4;
+  font-size: 1.8rem;
+}
+.overall-score span {
+  color: #344054;
+  font-weight: 760;
+}
+.overall-score small {
+  color: #667085;
+}
+.eligibility-note {
+  max-width: 64ch;
+  margin: 18px 0;
+  padding: 12px;
+  border-left: 3px solid #b7791f;
+  border-radius: 7px;
+  color: #7a4d00;
+  background: #fffaeb;
+}
+.category-detail {
+  min-width: 0;
+}
+.category-detail .rule-ids,
+.evidence-matrix .rule-ids {
+  color: #667085;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+.requirement-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.requirement-state span {
+  padding: 3px 7px;
+  border: 1px solid #d0d5dd;
+  border-radius: 999px;
+  background: #f9fafb;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.evidence-snippet {
+  overflow-wrap: anywhere;
+  margin: 10px 0;
+  padding: 8px;
+  border-left: 3px solid #5c6df2;
+  border-radius: 4px;
+  background: #f8f9fc;
+}
+.checker-results-v1 .result-columns > div {
+  min-width: 0;
+}
+.checker-results-v1 .result-columns li {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .checker-results-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .overall-score {
+    max-width: none;
+  }
+  .checker-results-v1 .category-list {
+    grid-template-columns: 1fr;
+  }
+  .checker-results-v1 .evidence-matrix li {
+    min-width: 0;
+  }
+  .checker-results-v1 .override-controls {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .checker-results-v1 .override-controls button {
+    width: 100%;
+  }
+}
+
 /* RecruitOS light workspace refresh. These overrides intentionally leave feature markup and data flow untouched. */
 :root {
   color-scheme: light;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   analyzeResumeFit,
   applyUserConfirmation,
@@ -24,6 +24,7 @@ import {
   type RequirementOverride,
 } from "../lib/evidence-overrides";
 import { getGuestAnalysisOverrides, saveGuestAnalysisOverrides } from "../lib/guest-db";
+import { checkerCategories, checkerRecommendations, eligibilityLabel } from "../ats/presentation";
 type Verification = any;
 function opaqueAnalysisIdentity(resume: string, fileName: string, role: string, jd: string) {
   let hash = 2166136261;
@@ -56,6 +57,7 @@ export function CheckerPage() {
   const [approvedContext, setApprovedContext] = useState("");
   const [verification, setVerification] = useState<Verification>(null);
   const [aiBusy, setAiBusy] = useState(false);
+  const resultsRef = useRef<HTMLElement>(null);
   useEffect(() => {
     void migrateLegacySummariesOnce()
       .then(() => listAnalysisSummaries())
@@ -94,6 +96,7 @@ export function CheckerPage() {
     setHistory(await listAnalysisSummaries());
     setError(false);
     setStatus("Analysis complete. Only a privacy-safe summary was saved in IndexedDB.");
+    requestAnimationFrame(() => resultsRef.current?.focus());
   }
   const overrideIdentity = opaqueAnalysisIdentity(resumeText, fileName, role, jd);
   const displayAnalysis = useMemo(
@@ -195,6 +198,11 @@ export function CheckerPage() {
         : [],
     [displayAnalysis],
   );
+  const categoryRows = useMemo(() => (displayAnalysis ? checkerCategories(displayAnalysis) : []), [displayAnalysis]);
+  const orderedRecommendations = useMemo(
+    () => (displayAnalysis ? checkerRecommendations(displayAnalysis) : []),
+    [displayAnalysis],
+  );
   return (
     <div className="checker-page">
       {" "}
@@ -285,39 +293,53 @@ export function CheckerPage() {
         <StatusMessage message={status} error={error} />{" "}
       </section>{" "}
       {displayAnalysis && (
-        <section className="results" aria-labelledby="results-title">
-          {" "}
-          <h2 id="results-title">ATS evidence dashboard</h2>{" "}
-          <p>This score explains deterministic ATS signals; it does not predict hiring decisions.</p>{" "}
-          <div className="score-grid">
-            {" "}
-            {scoreRows.map(([label, score]) => (
-              <div className="score-card" key={String(label)}>
-                {" "}
-                <strong>{score ?? "N/A"}</strong> <span>{label}</span>{" "}
-              </div>
-            ))}{" "}
-          </div>{" "}
+        <section className="results checker-results-v1" aria-labelledby="results-title" ref={resultsRef} tabIndex={-1}>
+          <div className="checker-results-heading">
+            <div>
+              <p className="eyebrow">Local ATS Engine v1</p>
+              <h2 id="results-title">Explainable local ATS results</h2>
+            </div>
+            <p className="engine-version">
+              Engine {displayAnalysis.engineVersion || "legacy"} · Rules {displayAnalysis.rulesetVersion || "legacy"}
+            </p>
+          </div>
+          <p>
+            {eligibilityLabel(displayAnalysis.analysisEligibility)}. Scores are deterministic local ATS signals, not
+            hiring predictions.
+          </p>
+          <p className="privacy-note">
+            Evidence snippets below are available only for this open analysis and are not saved in history.
+          </p>
+          {displayAnalysis.analysisEligibility === "scored" && typeof displayAnalysis.scores.overall === "number" ? (
+            <div
+              className="overall-score"
+              aria-label={`Overall local ATS score ${displayAnalysis.scores.overall} out of 100`}
+            >
+              <strong>{displayAnalysis.scores.overall}/100</strong>
+              <span>Overall local ATS score</span>
+              <small>Excluded categories are not treated as zero.</small>
+            </div>
+          ) : (
+            <p className="eligibility-note">
+              Overall score is unavailable until enough deterministic resume and job-description evidence is present.
+            </p>
+          )}
           <section className="score-explanations" aria-label="Transparent score explanations">
-            {" "}
-            <h3>How this score was calculated</h3>{" "}
+            <h3>Category score breakdown</h3>
             <div className="category-list">
-              {" "}
-              {Object.entries(displayAnalysis.scores.categoryDetails || {}).map(([key, detail]: [string, any]) => (
-                <article key={key} className="category-detail">
-                  {" "}
-                  <h4>{key.replace(/([A-Z])/g, " $1")}</h4>{" "}
+              {categoryRows.map((category) => (
+                <article key={category.key} className="category-detail">
+                  <h4>{category.label}</h4>
                   <p>
-                    {" "}
-                    <strong>{detail.score ?? "N/A"}/100</strong> · {detail.weight}% of overall score{" "}
-                  </p>{" "}
-                  {detail.evidence?.length > 0 && <p>Evidence: {detail.evidence.join(" ")}</p>}{" "}
-                  {detail.deductions?.length > 0 && <p>Deductions: {detail.deductions.join(" ")}</p>}{" "}
-                  {detail.actions?.length > 0 && <p>Next action: {detail.actions[0]}</p>}{" "}
+                    <strong>{category.score === null ? "Excluded" : `${category.score}/100`}</strong> · Weight{" "}
+                    {category.weight}/100
+                  </p>
+                  <p>{category.reason}</p>
+                  {category.ruleIds.length > 0 && <p className="rule-ids">Rules: {category.ruleIds.join(", ")}</p>}
                 </article>
-              ))}{" "}
-            </div>{" "}
-          </section>{" "}
+              ))}
+            </div>
+          </section>
           <section className="evidence-matrix" aria-label="Requirement evidence matrix">
             {" "}
             <h3>Evidence matrix</h3>{" "}
@@ -366,16 +388,18 @@ export function CheckerPage() {
               {" "}
               {(displayAnalysis.requirements || []).map((item: any, index: number) => (
                 <li key={item.id || `${item.priority}-${item.term}`}>
-                  {" "}
-                  <strong>{item.term}</strong> · {item.priority} · {item.status} ·{" "}
-                  {item.confidence ? `${Math.round(item.confidence * 100)}% confidence` : "no evidence"}{" "}
+                  <strong>{item.term}</strong>
+                  <p className="requirement-state">
+                    <span>{item.priority || "unclassified"}</span>
+                    <span>{item.matchState || item.status || "missing"} evidence</span>
+                  </p>
                   {item.evidence && (
-                    <span>
-                      {" "}
-                      · {item.location}: {item.evidence}{" "}
-                    </span>
+                    <p className="evidence-snippet">
+                      <strong>Matched evidence{item.location ? ` in ${item.location}` : ""}:</strong> {item.evidence}
+                    </p>
                   )}{" "}
-                  <p>{item.reason} Add only truthful evidence.</p>{" "}
+                  <p>{item.reason || "This local ATS signal is based only on supplied resume evidence."}</p>{" "}
+                  {item.ruleIds?.length > 0 && <p className="rule-ids">Rules: {item.ruleIds.join(", ")}</p>}
                   <p className="override-badge">
                     {" "}
                     {item.override === "ENGINE" ? "Engine result" : `Manual override: ${item.override}`}{" "}
@@ -496,8 +520,8 @@ export function CheckerPage() {
           <div className="result-columns">
             {" "}
             <div>
-              {" "}
-              <h3>Matched requirements</h3>{" "}
+              <h3>Strengths</h3>
+              <p>Required or preferred terms with matched local resume evidence.</p>
               <ul>
                 {" "}
                 {(displayAnalysis.matched || []).map((term) => (
@@ -506,8 +530,8 @@ export function CheckerPage() {
               </ul>{" "}
             </div>{" "}
             <div>
-              {" "}
-              <h3>Missing requirements</h3>{" "}
+              <h3>Gaps to review</h3>
+              <p>Missing evidence is not proof that experience does not exist.</p>
               <ul>
                 {" "}
                 {(displayAnalysis.missing || []).map((term) => (
@@ -516,11 +540,10 @@ export function CheckerPage() {
               </ul>{" "}
             </div>{" "}
             <div>
-              {" "}
-              <h3>Priorities</h3>{" "}
+              <h3>Prioritized local recommendations</h3>
               <ul>
                 {" "}
-                {displayAnalysis.recommendations.map((item, index) => (
+                {orderedRecommendations.map((item, index) => (
                   <li key={index}>{item}</li>
                 ))}{" "}
               </ul>{" "}

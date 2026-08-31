@@ -23,17 +23,24 @@ export function matchRequirement(
   resumeText: string,
   index = 0,
 ): RequirementEvidence {
-  if (hasWholeTerm(term, resumeText)) {
+  const directMatch = hasWholeTerm(term, resumeText);
+  const evidence = legacy.findEvidence(term, resumeText) as Record<string, unknown>;
+  const text = String(evidence.exact || evidence.partial || "");
+  if (directMatch) {
+    const directLine = String(resumeText)
+      .split(/\r?\n/)
+      .find((line) => hasWholeTerm(term, line))
+      ?.trim();
     return {
       id: `${priority}:${term.trim().toLowerCase()}:${index}`,
       term,
       priority,
       matchState: "exact",
+      evidence: directLine || text || undefined,
+      location: evidence.location ? String(evidence.location) : undefined,
       ruleIds: ["match.exact"],
     };
   }
-  const evidence = legacy.findEvidence(term, resumeText) as Record<string, unknown>;
-  const text = String(evidence.exact || evidence.partial || "");
   const state = matchState(evidence.type, Boolean(text));
   return {
     id: `${priority}:${term.trim().toLowerCase()}:${index}`,
