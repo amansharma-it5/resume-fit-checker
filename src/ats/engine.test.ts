@@ -5,6 +5,7 @@ import { matchRequirement, matchRequirements } from "./term-matcher";
 import { normalizeEligibleScores } from "./scoring";
 import { ENGINE_VERSION, RULESET_VERSION, SCORING_WEIGHTS } from "./types";
 import { sanitizeAnalysisForStorage } from "../lib/analysis";
+import * as legacy from "../../analysis-engine.js";
 
 const resume = `Avery Example\navery@example.com | +1 555 010 2000\n\nExperience\nSenior Platform Engineer | Jan 2020 - Present\n- Built TypeScript services on AWS, reducing deployment time by 24%.\n- Led a cloud infrastructure platform supporting 12 engineers.\n\nEducation\nBachelor of Science in Computer Science\n\nSkills\nTypeScript, AWS, React, SQL\n\nProjects\n- Created an accessible analytics dashboard.\n\nCertifications\nAWS Certified Solutions Architect`;
 
@@ -33,6 +34,20 @@ describe("local ATS engine v1", () => {
     expect(result.scoringWeights).toEqual(SCORING_WEIGHTS);
     expect(Object.values(SCORING_WEIGHTS).reduce((sum, value) => sum + value, 0)).toBe(100);
     expect(result.ruleIds).toEqual([...result.ruleIds].sort());
+  });
+
+  it("uses the legacy score calculation as the v1 compatibility authority", () => {
+    const input = {
+      resumeText: resume,
+      jobDescription,
+      role: "Platform Engineer",
+      fileName: "avery-example-resume.txt",
+    };
+    const legacyResult = legacy.analyzeResumeFit(input);
+    const result = runLocalAtsEngine({ ...input, generatedAt: "2026-08-31T00:00:00.000Z" });
+    expect(result.scores.atsStructure).toBe(legacyResult.scores.atsStructure);
+    expect(result.scores.requiredQualificationCoverage).toBe(legacyResult.scores.requiredQualificationCoverage);
+    expect(result.scores.overall).toBe(legacyResult.scores.overall);
   });
 
   it("distinguishes exact, explicit aliases, partial evidence, and missing evidence", () => {

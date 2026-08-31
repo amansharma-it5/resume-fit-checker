@@ -43,7 +43,10 @@ export function runLocalAtsEngine(input: LocalAtsInput): LocalAtsResult {
     status: item.matchState === "exact" || item.matchState === "alias" ? "matched" : item.matchState,
     matchType: item.matchState,
   }));
-  const legacyScores = legacy.scoreAnalysis(resume, job, requirementsForCompatibility) as Record<string, any>;
+  // `analysis-engine.js` remains the one authoritative calculator in v1.
+  // The new modules attach versioned evidence metadata and safe persistence,
+  // rather than running a second, potentially divergent scoring algorithm.
+  const legacyScores = legacyResult.scores as Record<string, any>;
   const eligibleLegacyScores =
     analysisEligibility === "insufficient-resume-detail"
       ? Object.fromEntries(Object.keys(SCORING_WEIGHTS).map((key) => [key, null]))
