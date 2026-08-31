@@ -44,7 +44,7 @@ test("explains missing JD eligibility instead of showing a fabricated overall sc
 });
 
 test("contains long deterministic evidence at representative narrow and desktop widths", async ({ page }) => {
-  for (const width of [320, 390, 768, 1024, 1280, 1440, 1920]) {
+  for (const width of [320, 390, 768, 1024, 1180, 1280, 1366, 1440, 1920]) {
     await page.setViewportSize({ width, height: 900 });
     await analyze(page);
     const dimensions = await page.evaluate(() => ({
