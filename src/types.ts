@@ -159,6 +159,9 @@ export interface ResumeDocument {
 }
 
 export interface AnalysisResult {
+  engineVersion?: string;
+  rulesetVersion?: string;
+  analysisEligibility?: string;
   role: string;
   fileName: string;
   scores: Record<string, number | null>;
@@ -188,4 +191,8 @@ export interface AnalysisSummary {
   partialTerms: string[];
   missingTerms: string[];
   recommendations: string[];
+  engineVersion?: string;
+  rulesetVersion?: string;
+  analysisEligibility?: string;
+  ruleIds?: string[];
 }
