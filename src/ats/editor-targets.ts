@@ -13,7 +13,14 @@ export type StructuredEvidenceLocation = {
 };
 
 function contains(value: unknown, evidence: string) {
-  return typeof value === "string" && value.toLocaleLowerCase().includes(evidence.toLocaleLowerCase());
+  // Checker snippets are bounded for display. Keep the mapping useful without
+  // treating the omitted suffix as resume evidence.
+  const boundedEvidence = evidence.replace(/(?:\.{3}|…)+\s*$/, "").trim();
+  return (
+    typeof value === "string" &&
+    Boolean(boundedEvidence) &&
+    value.toLocaleLowerCase().includes(boundedEvidence.toLocaleLowerCase())
+  );
 }
 
 /** Maps current in-memory evidence to the canonical resume, never persisting raw text. */

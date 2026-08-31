@@ -25,6 +25,11 @@ describe("editor and target ATS integration", () => {
     expect(evidenceLocationLabel()).toBe("Current resume text");
   });
 
+  it("maps a bounded display snippet without persisting a new evidence value", () => {
+    const location = locateStructuredEvidence(resume, "Built TypeScript services for local reliability...");
+    expect(location).toMatchObject({ section: "Work Experience", bullet: 1 });
+  });
+
   it("stores only safe target summary metadata and detects stale inputs", () => {
     const summary = privacySafeTargetAnalysis(
       {
@@ -49,5 +54,15 @@ describe("editor and target ATS integration", () => {
       targetAnalysisState({ ...target, jobDescription: "Required Qualifications\n- React", latestAnalysis: summary }, 4)
         .state,
     ).toBe("stale");
+    expect(
+      targetAnalysisState({ ...target, latestAnalysis: { ...summary, engineVersion: "older-engine" } }, 4).state,
+    ).toBe("stale");
+    expect(
+      targetAnalysisState({ ...target, latestAnalysis: { ...summary, rulesetVersion: "older-ruleset" } }, 4).state,
+    ).toBe("stale");
+    expect(targetAnalysisState({ ...target, latestAnalysis: { ...summary, stale: true } }, 4).state).toBe("stale");
+    expect(targetAnalysisState({ ...target, latestAnalysis: summary }, 4, false).state).toBe("current");
+    expect(JSON.stringify(summary)).not.toContain(target.jobDescription);
+    expect(JSON.stringify(summary)).not.toContain("Synthetic resume");
   });
 });
