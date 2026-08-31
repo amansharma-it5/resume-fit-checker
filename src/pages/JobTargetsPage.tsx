@@ -138,13 +138,17 @@ export function JobTargetsPage() {
                   <strong>
                     {selectedAnalysisState?.state === "current" ? "Analysis current" : "Analysis out of date"}.
                   </strong>{" "}
-                  {selectedAnalysisState?.message}
+                  {selectedAnalysisState?.message ||
+                    "The linked tailored resume is unavailable, so this earlier analysis cannot be current."}
                 </p>
                 <p>
                   {selected.latestAnalysis.analysisEligibility || "Local ATS result"} ·{" "}
-                  {selected.latestAnalysis.overall ?? "Score unavailable"}
-                  {selected.latestAnalysis.overall != null ? "/100" : ""} · Engine{" "}
-                  {selected.latestAnalysis.engineVersion || "legacy"}
+                  {selectedAnalysisState?.state === "current" &&
+                  selected.latestAnalysis.analysisEligibility === "scored" &&
+                  typeof selected.latestAnalysis.overall === "number"
+                    ? `${selected.latestAnalysis.overall}/100`
+                    : "Score unavailable"}{" "}
+                  · Engine {selected.latestAnalysis.engineVersion || "legacy"}
                 </p>
                 <p>
                   Required matched: {selected.latestAnalysis.matchedRequiredCount ?? "not recorded"} · Required missing:{" "}
