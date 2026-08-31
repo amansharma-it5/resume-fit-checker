@@ -17,6 +17,13 @@ function matchState(type: unknown, found: boolean): MatchState {
   return "exact";
 }
 
+// Evidence is displayed only for the current analysis. Bound it anyway so a
+// one-line pasted resume cannot turn an evidence snippet into the whole resume.
+function transientSnippet(value: string) {
+  const normalized = value.trim();
+  return normalized.length > 280 ? `${normalized.slice(0, 277).trimEnd()}...` : normalized;
+}
+
 export function matchRequirement(
   term: string,
   priority: RequirementPriority,
@@ -36,7 +43,7 @@ export function matchRequirement(
       term,
       priority,
       matchState: "exact",
-      evidence: directLine || text || undefined,
+      evidence: transientSnippet(directLine || text) || undefined,
       location: evidence.location ? String(evidence.location) : undefined,
       ruleIds: ["match.exact"],
     };
@@ -47,7 +54,7 @@ export function matchRequirement(
     term,
     priority,
     matchState: state,
-    evidence: text || undefined,
+    evidence: transientSnippet(text) || undefined,
     location: evidence.location ? String(evidence.location) : undefined,
     ruleIds: [`match.${state}`],
   };

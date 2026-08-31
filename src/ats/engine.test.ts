@@ -63,6 +63,14 @@ describe("local ATS engine v1", () => {
     expect(matchRequirement("Java", "required", "Skills\nJavaScript").matchState).toBe("missing");
   });
 
+  it("bounds transient exact-match evidence without changing the exact-match rule", () => {
+    const oneLineResume = `TypeScript ${"evidence ".repeat(80)}`;
+    const match = matchRequirement("TypeScript", "required", oneLineResume);
+    expect(match.matchState).toBe("exact");
+    expect(match.evidence).toHaveLength(280);
+    expect(match.evidence).toMatch(/\.\.\.$/);
+  });
+
   it("deduplicates repeated requirements while retaining required priority", () => {
     const matched = matchRequirements(
       [
