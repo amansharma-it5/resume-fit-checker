@@ -44,7 +44,13 @@ test("target summaries label stale state and remain contained at the editor brea
   await page.getByText("ATS check", { exact: true }).click();
   await expect(page.getByText("Local ATS Engine v1")).toBeVisible();
   await page.getByLabel("Full name").fill("Avery Example Long Structured Resume Name");
-  await expect(page.getByText(/Analysis out of date|Analysis current/)).toBeVisible();
+  await expect(page.getByText("Analysis out of date.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+  await expect(page.getByText("Analysis out of date.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Analyze structured resume" }).click();
+  await expect(page.getByText("Analysis current.", { exact: true })).toBeVisible();
+  await page.getByLabel("Job description").fill("Required Qualifications\n- TypeScript\n- React");
+  await expect(page.getByText("Analysis out of date.", { exact: true })).toBeVisible();
   for (const width of [320, 390, 768, 1024, 1180, 1280, 1366, 1440, 1572, 1573, 1920]) {
     await page.setViewportSize({ width, height: 900 });
     await expect

@@ -192,9 +192,12 @@ export function ResumeEditorPage() {
       const saved = await saveStructuredResume(account, resumeDocument, snapshot);
       setResumeDocument(saved);
       if (!account && targetId)
-        void getGuestTarget(targetId).then((target) => {
-          if (target?.tailoredResumeId === saved.id && target.latestAnalysis)
-            void updateGuestTarget(targetId, { latestAnalysis: { ...target.latestAnalysis, stale: true } });
+        void getGuestTarget(targetId).then(async (target) => {
+          if (target?.tailoredResumeId !== saved.id || !target.latestAnalysis) return;
+          const refreshed = await updateGuestTarget(targetId, {
+            latestAnalysis: { ...target.latestAnalysis, stale: true },
+          });
+          setLinkedTarget(refreshed);
         });
       if (saveSnapshotIsCurrent(resumeRef.current, snapshotJson)) setLastSavedJson(snapshotJson);
       setStatus("saved");
@@ -260,9 +263,10 @@ export function ResumeEditorPage() {
     () => (analysis ? checkerRecommendations(analysis).slice(0, 3) : []),
     [analysis],
   );
+  const analysisResumeVersion = resumeDocument?.editorVersion ?? resume.documentVersion;
   const linkedTargetState = useMemo(
-    () => (linkedTarget ? targetAnalysisState(linkedTarget, resume.documentVersion, dirty) : null),
-    [dirty, linkedTarget, resume.documentVersion],
+    () => (linkedTarget ? targetAnalysisState(linkedTarget, analysisResumeVersion, dirty) : null),
+    [analysisResumeVersion, dirty, linkedTarget],
   );
   const words = useMemo(() => {
     const text = resumeToPlainText(resume);
@@ -344,22 +348,17 @@ export function ResumeEditorPage() {
       setAnalysis(result);
       if (!account && targetId)
         void updateGuestTarget(targetId, {
-          latestAnalysis: privacySafeTargetAnalysis(result, resume.documentVersion, jobDescription),
-        });
-      if (!account && targetId) {
-        void getGuestTarget(targetId).then((refreshed) => {
-          if (refreshed) setLinkedTarget(refreshed);
-        });
-      }
+          latestAnalysis: privacySafeTargetAnalysis(result, analysisResumeVersion, jobDescription),
+        }).then(setLinkedTarget);
       markOnboardingStep("ats");
       setAnalysisStatus("updated");
       setAnalysisNotice("ATS analysis updated.");
       if (!account && resumeDocument) {
-        const key = `${resume.id}:${resume.documentVersion}:${targetRole.trim().toLowerCase()}:${jobDescription.length}`;
+        const key = `${resume.id}:${analysisResumeVersion}:${targetRole.trim().toLowerCase()}:${jobDescription.length}`;
         void saveAnalysisSummary(
           sanitizeAnalysisForStorage(result, {
             resumeId: resume.id,
-            resumeVersion: resume.documentVersion,
+            resumeVersion: analysisResumeVersion,
             analysisKey: key,
           }),
         );
@@ -369,7 +368,7 @@ export function ResumeEditorPage() {
       setAnalysisStatus("error");
       setAnalysisNotice("ATS analysis could not be calculated. Your resume remains unchanged.");
     }
-  }, [account, jobDescription, resume, resumeDocument, targetId, targetRole]);
+  }, [account, analysisResumeVersion, jobDescription, resume, resumeDocument, targetId, targetRole]);
 
   useEffect(() => {
     if (!jobDescription.trim()) return;
