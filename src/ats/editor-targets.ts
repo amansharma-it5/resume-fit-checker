@@ -85,14 +85,16 @@ export function targetAnalysisState(target: JobTarget, resumeVersion: number, re
 
 export function privacySafeTargetAnalysis(analysis: any, resumeVersion: number, jobDescription: string) {
   const requirements = Array.isArray(analysis.requirements) ? analysis.requirements : [];
+  const analysisEligibility = String(analysis.analysisEligibility || "unknown");
   return {
-    overall: typeof analysis.scores?.overall === "number" ? analysis.scores.overall : null,
+    overall:
+      analysisEligibility === "scored" && typeof analysis.scores?.overall === "number" ? analysis.scores.overall : null,
     resumeVersion,
     calculatedAt: new Date().toISOString(),
     stale: false,
     engineVersion: String(analysis.engineVersion || ENGINE_VERSION),
     rulesetVersion: String(analysis.rulesetVersion || RULESET_VERSION),
-    analysisEligibility: String(analysis.analysisEligibility || "unknown"),
+    analysisEligibility,
     jobDescriptionHash: hashJobDescription(jobDescription),
     matchedRequiredCount: requirements.filter(
       (item: any) => item.priority === "required" && ["exact", "alias"].includes(item.matchState),

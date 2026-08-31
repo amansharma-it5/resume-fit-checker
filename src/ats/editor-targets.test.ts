@@ -30,6 +30,47 @@ describe("editor and target ATS integration", () => {
     expect(location).toMatchObject({ section: "Work Experience", bullet: 1 });
   });
 
+  it("maps skills, education, and project evidence in deterministic section order", () => {
+    const education = resume.sections.find((section) => section.type === "education")!;
+    const skills = resume.sections.find((section) => section.type === "skills")!;
+    education.entries[0].fields.degree = "Bachelor of Science in Computer Science";
+    skills.entries[0].fields.skill = "GraphQL";
+    resume.sections.push({
+      ...experience,
+      id: "project-section",
+      type: "projects",
+      title: "Projects",
+      entries: [
+        {
+          ...experience.entries[0],
+          id: "project-entry",
+          fields: { name: "Accessible platform", technologies: "GraphQL" },
+          bullets: [],
+        },
+      ],
+    });
+
+    expect(locateStructuredEvidence(resume, "Bachelor of Science in Computer Science")).toMatchObject({
+      section: "Education",
+      entry: "Bachelor of Science in Computer Science",
+    });
+    expect(locateStructuredEvidence(resume, "GraphQL")).toMatchObject({ section: "Skills", entry: "GraphQL" });
+    expect(locateStructuredEvidence(resume, "Accessible platform")).toMatchObject({ section: "Projects" });
+  });
+
+  it("chooses the first current structured location for duplicate evidence", () => {
+    experience.entries[0].bullets.push(createBullet("Repeated local evidence."));
+    experience.entries.push({
+      ...experience.entries[0],
+      id: "later-entry",
+      bullets: [createBullet("Repeated local evidence.")],
+    });
+    expect(locateStructuredEvidence(resume, "Repeated local evidence.")).toMatchObject({
+      entryId: experience.entries[0].id,
+      bullet: 2,
+    });
+  });
+
   it("stores only safe target summary metadata and detects stale inputs", () => {
     const summary = privacySafeTargetAnalysis(
       {
@@ -64,5 +105,14 @@ describe("editor and target ATS integration", () => {
     expect(targetAnalysisState({ ...target, latestAnalysis: summary }, 4, false).state).toBe("current");
     expect(JSON.stringify(summary)).not.toContain(target.jobDescription);
     expect(JSON.stringify(summary)).not.toContain("Synthetic resume");
+  });
+
+  it("does not retain an overall score when deterministic eligibility is incomplete", () => {
+    const summary = privacySafeTargetAnalysis(
+      { scores: { overall: 91 }, analysisEligibility: "insufficient-jd-detail", requirements: [] },
+      4,
+      target.jobDescription,
+    );
+    expect(summary).toMatchObject({ analysisEligibility: "insufficient-jd-detail", overall: null });
   });
 });
