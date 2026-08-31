@@ -47,10 +47,17 @@ test("target summaries label stale state and remain contained at the editor brea
   await expect(page.getByText(/Analysis out of date|Analysis current/)).toBeVisible();
   for (const width of [320, 390, 768, 1024, 1180, 1280, 1366, 1440, 1572, 1573, 1920]) {
     await page.setViewportSize({ width, height: 900 });
-    const dimensions = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      clientWidth: document.documentElement.clientWidth,
-    }));
-    expect(dimensions.scrollWidth, `width ${width}`).toBeLessThanOrEqual(dimensions.clientWidth);
+    await expect
+      .poll(
+        async () => {
+          const dimensions = await page.evaluate(() => ({
+            scrollWidth: document.documentElement.scrollWidth,
+            clientWidth: document.documentElement.clientWidth,
+          }));
+          return dimensions.scrollWidth <= dimensions.clientWidth;
+        },
+        { message: `width ${width}` },
+      )
+      .toBe(true);
   }
 });
