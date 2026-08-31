@@ -97,7 +97,10 @@ async function fillAndAnalyze(page: import("@playwright/test").Page) {
   const analyzeButton = page.getByRole("button", { name: "Analyze resume" });
   await analyzeButton.focus();
   await analyzeButton.press("Enter");
-  await expect(page.getByRole("heading", { name: "ATS evidence dashboard" })).toBeVisible();
+  const results = page.getByRole("heading", { name: "Explainable local ATS results" });
+  await expect(results).toBeVisible();
+  await expect(page.locator(".checker-results-v1")).toBeFocused();
+  await expect(page.getByText("Local ATS Engine v1")).toBeVisible();
 }
 
 async function openDashboard(page: import("@playwright/test").Page) {
@@ -122,7 +125,10 @@ test("guest checker and dashboard critical flow", async ({ page }) => {
       "Jane Candidate jane@example.com Experience Senior Engineer 2020-2025 Built React applications and improved release time by 20 percent. Skills React TypeScript SQL Education Bachelor of Science",
     );
   await page.getByRole("button", { name: "Analyze resume" }).click();
-  await expect(page.getByRole("heading", { name: "ATS evidence dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Explainable local ATS results" })).toBeVisible();
+  await expect(page.locator(".checker-results-v1")).toBeFocused();
+  await expect(page.getByText("Job description needed")).toBeVisible();
+  await expect(page.getByText(/Overall score is unavailable/)).toBeVisible();
   await openDashboard(page);
   await page.getByRole("button", { name: "Create resume" }).click();
   await expect(page.getByText("Untitled resume")).toBeVisible();
