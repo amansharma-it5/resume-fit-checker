@@ -4,6 +4,7 @@ async function createTargetFromSample(page: import("@playwright/test").Page) {
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Try a sample resume" }).click();
   await page.getByRole("button", { name: "Create sample resume" }).click();
+  await expect(page.getByLabel("Full name")).toHaveValue("Avery Morgan");
   await page.goto("/targets");
   const baseResume = page.getByLabel("Base resume");
   await expect(baseResume.locator("option")).toHaveCount(2);
@@ -28,6 +29,7 @@ test("shows a compact local ATS state for an associated tailored resume without 
   });
   await createTargetFromSample(page);
   await page.getByRole("link", { name: "Run local ATS in tailored resume" }).click();
+  await expect(page.getByLabel("Full name")).toHaveValue("Avery Morgan");
   await page.getByText("ATS check", { exact: true }).click();
   await expect(
     page.getByRole("heading", { name: /Current local ATS score|Local ATS score unavailable/ }),
@@ -41,6 +43,7 @@ test("shows a compact local ATS state for an associated tailored resume without 
 test("target summaries label stale state and remain contained at the editor breakpoint", async ({ page }) => {
   await createTargetFromSample(page);
   await page.getByRole("link", { name: "Run local ATS in tailored resume" }).click();
+  await expect(page.getByLabel("Full name")).toHaveValue("Avery Morgan");
   await page.getByText("ATS check", { exact: true }).click();
   await expect(page.getByText("Local ATS Engine v1")).toBeVisible();
   await page.getByLabel("Full name").fill("Avery Example Long Structured Resume Name");
