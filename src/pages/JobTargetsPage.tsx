@@ -13,6 +13,7 @@ import {
   type JobTargetDraft,
 } from "../lib/job-targets";
 import { JOB_TARGET_STATUSES, type JobTarget, type ResumeDocument } from "../types";
+import { targetAnalysisState } from "../ats/editor-targets";
 
 const emptyDraft = (): JobTargetDraft => ({
   company: "",
@@ -59,6 +60,9 @@ export function JobTargetsPage() {
     );
   }, [query, sort, statusFilter, targets]);
   const selected = targets.find((target) => target.id === targetId);
+  const selectedTailored = selected ? resumes.find((resume) => resume.id === selected.tailoredResumeId) : undefined;
+  const selectedAnalysisState =
+    selected && selectedTailored ? targetAnalysisState(selected, selectedTailored.editorVersion || 0) : null;
 
   function updateDraft<K extends keyof JobTargetDraft>(key: K, value: JobTargetDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -126,12 +130,42 @@ export function JobTargetsPage() {
             </select>
           </label>
           <TargetLinks target={selected} resumes={resumes} onMessage={setMessage} onRelinked={load} />
-          <p>
-            <strong>ATS:</strong>{" "}
-            {selected.latestAnalysis
-              ? `${selected.latestAnalysis.stale ? "Stale" : (selected.latestAnalysis.overall ?? "Not calculated")} · ${new Date(selected.latestAnalysis.calculatedAt).toLocaleString()}`
-              : "Not calculated for this target."}
-          </p>
+          <section className="target-ats-summary" aria-labelledby="target-ats-title">
+            <h3 id="target-ats-title">Local ATS summary</h3>
+            {selected.latestAnalysis ? (
+              <>
+                <p>
+                  <strong>
+                    {selectedAnalysisState?.state === "current" ? "Analysis current" : "Analysis out of date"}.
+                  </strong>{" "}
+                  {selectedAnalysisState?.message}
+                </p>
+                <p>
+                  {selected.latestAnalysis.analysisEligibility || "Local ATS result"} ·{" "}
+                  {selected.latestAnalysis.overall ?? "Score unavailable"}
+                  {selected.latestAnalysis.overall != null ? "/100" : ""} · Engine{" "}
+                  {selected.latestAnalysis.engineVersion || "legacy"}
+                </p>
+                <p>
+                  Required matched: {selected.latestAnalysis.matchedRequiredCount ?? "not recorded"} · Required missing:{" "}
+                  {selected.latestAnalysis.missingRequiredCount ?? "not recorded"}
+                </p>
+                <p>
+                  Calculated {new Date(selected.latestAnalysis.calculatedAt).toLocaleString()}. No resume,
+                  job-description, or evidence text is stored here.
+                </p>
+              </>
+            ) : (
+              <p>Not calculated for this target.</p>
+            )}
+            {selectedTailored ? (
+              <Link className="button-link" to={`/resumes/${selectedTailored.id}/edit?target=${selected.id}`}>
+                Open tailored resume and run analysis
+              </Link>
+            ) : (
+              <p role="status">The tailored resume is missing; relink a local resume before analysis.</p>
+            )}
+          </section>
           <p>Job description is isolated to this target and is never used as resume evidence by itself.</p>
           <details>
             <summary>Target job description</summary>
