@@ -28,7 +28,19 @@ export interface JobTarget {
   createdAt: string;
   updatedAt: string;
   appliedAt?: string;
-  latestAnalysis?: { overall: number | null; resumeVersion: number; calculatedAt: string; stale: boolean };
+  /** Privacy-safe ATS metadata; raw resume, JD, and evidence snippets stay out of target storage. */
+  latestAnalysis?: {
+    overall: number | null;
+    resumeVersion: number;
+    calculatedAt: string;
+    stale: boolean;
+    engineVersion?: string;
+    rulesetVersion?: string;
+    analysisEligibility?: string;
+    jobDescriptionHash?: string;
+    matchedRequiredCount?: number;
+    missingRequiredCount?: number;
+  };
 }
 
 /** A browser-local, independently editable career document. */

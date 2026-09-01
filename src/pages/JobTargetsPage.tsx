@@ -13,6 +13,7 @@ import {
   type JobTargetDraft,
 } from "../lib/job-targets";
 import { JOB_TARGET_STATUSES, type JobTarget, type ResumeDocument } from "../types";
+import { targetAnalysisState } from "../ats/editor-targets";
 
 const emptyDraft = (): JobTargetDraft => ({
   company: "",
@@ -59,6 +60,9 @@ export function JobTargetsPage() {
     );
   }, [query, sort, statusFilter, targets]);
   const selected = targets.find((target) => target.id === targetId);
+  const selectedTailored = selected ? resumes.find((resume) => resume.id === selected.tailoredResumeId) : undefined;
+  const selectedAnalysisState =
+    selected && selectedTailored ? targetAnalysisState(selected, selectedTailored.editorVersion || 0) : null;
 
   function updateDraft<K extends keyof JobTargetDraft>(key: K, value: JobTargetDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -126,12 +130,46 @@ export function JobTargetsPage() {
             </select>
           </label>
           <TargetLinks target={selected} resumes={resumes} onMessage={setMessage} onRelinked={load} />
-          <p>
-            <strong>ATS:</strong>{" "}
-            {selected.latestAnalysis
-              ? `${selected.latestAnalysis.stale ? "Stale" : (selected.latestAnalysis.overall ?? "Not calculated")} · ${new Date(selected.latestAnalysis.calculatedAt).toLocaleString()}`
-              : "Not calculated for this target."}
-          </p>
+          <section className="target-ats-summary" aria-labelledby="target-ats-title">
+            <h3 id="target-ats-title">Local ATS summary</h3>
+            {selected.latestAnalysis ? (
+              <>
+                <p>
+                  <strong>
+                    {selectedAnalysisState?.state === "current" ? "Analysis current" : "Analysis out of date"}.
+                  </strong>{" "}
+                  {selectedAnalysisState?.message ||
+                    "The linked tailored resume is unavailable, so this earlier analysis cannot be current."}
+                </p>
+                <p>
+                  {selected.latestAnalysis.analysisEligibility || "Local ATS result"} ·{" "}
+                  {selectedAnalysisState?.state === "current" &&
+                  selected.latestAnalysis.analysisEligibility === "scored" &&
+                  typeof selected.latestAnalysis.overall === "number"
+                    ? `${selected.latestAnalysis.overall}/100`
+                    : "Score unavailable"}{" "}
+                  · Engine {selected.latestAnalysis.engineVersion || "legacy"}
+                </p>
+                <p>
+                  Required matched: {selected.latestAnalysis.matchedRequiredCount ?? "not recorded"} · Required missing:{" "}
+                  {selected.latestAnalysis.missingRequiredCount ?? "not recorded"}
+                </p>
+                <p>
+                  Calculated {new Date(selected.latestAnalysis.calculatedAt).toLocaleString()}. No resume,
+                  job-description, or evidence text is stored here.
+                </p>
+              </>
+            ) : (
+              <p>Not calculated for this target.</p>
+            )}
+            {selectedTailored ? (
+              <Link className="button-link" to={`/resumes/${selectedTailored.id}/edit?target=${selected.id}`}>
+                Run local ATS in tailored resume
+              </Link>
+            ) : (
+              <p role="status">The tailored resume is missing; relink a local resume before analysis.</p>
+            )}
+          </section>
           <p>Job description is isolated to this target and is never used as resume evidence by itself.</p>
           <details>
             <summary>Target job description</summary>
@@ -272,22 +310,7 @@ export function JobTargetsPage() {
             ) : (
               <div className="target-list">
                 {shown.map((target) => (
-                  <article key={target.id} className="document-row">
-                    <div>
-                      <h3>{target.role}</h3>
-                      <p>
-                        {target.company} · {target.status}
-                      </p>
-                      <p>
-                        {target.latestAnalysis?.stale
-                          ? "ATS result needs refresh"
-                          : target.latestAnalysis?.overall != null
-                            ? `ATS ${target.latestAnalysis.overall}/100`
-                            : "ATS not calculated"}
-                      </p>
-                    </div>
-                    <Link to={`/targets/${target.id}`}>Open target</Link>
-                  </article>
+                  <TargetRow key={target.id} target={target} resumes={resumes} />
                 ))}
               </div>
             )}
@@ -322,6 +345,31 @@ export function JobTargetsPage() {
         <p>Only target metadata is deleted. Both linked resumes and their histories are preserved.</p>
       </ConfirmDialog>
     </section>
+  );
+}
+
+function TargetRow({ target, resumes }: { target: JobTarget; resumes: ResumeDocument[] }) {
+  const tailored = resumes.find((resume) => resume.id === target.tailoredResumeId);
+  const analysisState = tailored ? targetAnalysisState(target, tailored.editorVersion || 0) : undefined;
+  const summary = target.latestAnalysis;
+  const score = summary?.analysisEligibility === "scored" ? summary.overall : null;
+  return (
+    <article className="document-row">
+      <div>
+        <h3>{target.role}</h3>
+        <p>
+          {target.company} · {target.status}
+        </p>
+        <p>
+          {summary && analysisState?.state === "stale"
+            ? "ATS result needs refresh"
+            : score != null
+              ? `ATS ${score}/100`
+              : "ATS not calculated"}
+        </p>
+      </div>
+      <Link to={`/targets/${target.id}`}>Open target</Link>
+    </article>
   );
 }
 

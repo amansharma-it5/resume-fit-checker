@@ -9,6 +9,13 @@ import { extractResumeDocument } from "../lib/file-parser";
 import { getGuestResume, saveAnalysisSummary } from "../lib/guest-db";
 import { getGuestTarget, updateGuestTarget } from "../lib/job-targets";
 import {
+  evidenceLocationLabel,
+  locateStructuredEvidence,
+  privacySafeTargetAnalysis,
+  targetAnalysisState,
+} from "../ats/editor-targets";
+import { checkerCategories, checkerRecommendations, eligibilityLabel } from "../ats/presentation";
+import {
   createResumeVersion,
   createResumeFromStructuredData,
   listAccountResumes,
@@ -91,6 +98,7 @@ export function ResumeEditorPage() {
   const [selectedBullet, setSelectedBullet] = useState<SelectedBullet | null>(null);
   const [targetRole, setTargetRole] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  const [linkedTarget, setLinkedTarget] = useState<any>(null);
   const [analysis, setAnalysis] = useState<any>(null);
   const [analysisStatus, setAnalysisStatus] = useState<"idle" | "calculating" | "updated" | "error">("idle");
   const [analysisNotice, setAnalysisNotice] = useState("");
@@ -164,6 +172,7 @@ export function ResumeEditorPage() {
       }
       setTargetRole(target.role);
       setJobDescription(target.jobDescription);
+      setLinkedTarget(target);
       setAnalysisNotice(`Loaded local job target: ${target.role} at ${target.company}.`);
     });
   }, [account, resumeId, targetId]);
@@ -183,9 +192,12 @@ export function ResumeEditorPage() {
       const saved = await saveStructuredResume(account, resumeDocument, snapshot);
       setResumeDocument(saved);
       if (!account && targetId)
-        void getGuestTarget(targetId).then((target) => {
-          if (target?.tailoredResumeId === saved.id && target.latestAnalysis)
-            void updateGuestTarget(targetId, { latestAnalysis: { ...target.latestAnalysis, stale: true } });
+        void getGuestTarget(targetId).then(async (target) => {
+          if (target?.tailoredResumeId !== saved.id || !target.latestAnalysis) return;
+          const refreshed = await updateGuestTarget(targetId, {
+            latestAnalysis: { ...target.latestAnalysis, stale: true },
+          });
+          setLinkedTarget(refreshed);
         });
       if (saveSnapshotIsCurrent(resumeRef.current, snapshotJson)) setLastSavedJson(snapshotJson);
       setStatus("saved");
@@ -246,6 +258,16 @@ export function ResumeEditorPage() {
   }, [resumeId]);
 
   const issues = useMemo(() => validateResume(resume), [resume]);
+  const editorCategories = useMemo(() => (analysis ? checkerCategories(analysis).slice(0, 4) : []), [analysis]);
+  const editorRecommendations = useMemo(
+    () => (analysis ? checkerRecommendations(analysis).slice(0, 3) : []),
+    [analysis],
+  );
+  const analysisResumeVersion = resumeDocument?.editorVersion ?? resume.documentVersion;
+  const linkedTargetState = useMemo(
+    () => (linkedTarget ? targetAnalysisState(linkedTarget, analysisResumeVersion, dirty) : null),
+    [analysisResumeVersion, dirty, linkedTarget],
+  );
   const words = useMemo(() => {
     const text = resumeToPlainText(resume);
     return text ? text.split(/\s+/).length : 0;
@@ -326,22 +348,17 @@ export function ResumeEditorPage() {
       setAnalysis(result);
       if (!account && targetId)
         void updateGuestTarget(targetId, {
-          latestAnalysis: {
-            overall: result.scores?.overall ?? null,
-            resumeVersion: resume.documentVersion,
-            calculatedAt: new Date().toISOString(),
-            stale: false,
-          },
-        });
+          latestAnalysis: privacySafeTargetAnalysis(result, analysisResumeVersion, jobDescription),
+        }).then(setLinkedTarget);
       markOnboardingStep("ats");
       setAnalysisStatus("updated");
       setAnalysisNotice("ATS analysis updated.");
       if (!account && resumeDocument) {
-        const key = `${resume.id}:${resume.documentVersion}:${targetRole.trim().toLowerCase()}:${jobDescription.length}`;
+        const key = `${resume.id}:${analysisResumeVersion}:${targetRole.trim().toLowerCase()}:${jobDescription.length}`;
         void saveAnalysisSummary(
           sanitizeAnalysisForStorage(result, {
             resumeId: resume.id,
-            resumeVersion: resume.documentVersion,
+            resumeVersion: analysisResumeVersion,
             analysisKey: key,
           }),
         );
@@ -351,7 +368,7 @@ export function ResumeEditorPage() {
       setAnalysisStatus("error");
       setAnalysisNotice("ATS analysis could not be calculated. Your resume remains unchanged.");
     }
-  }, [account, jobDescription, resume, resumeDocument, targetId, targetRole]);
+  }, [account, analysisResumeVersion, jobDescription, resume, resumeDocument, targetId, targetRole]);
 
   useEffect(() => {
     if (!jobDescription.trim()) return;
@@ -881,9 +898,9 @@ export function ResumeEditorPage() {
                 onChange={(event) => {
                   setJobDescription(event.target.value);
                   if (!account && targetId)
-                    void updateGuestTarget(targetId, { jobDescription: event.target.value }).catch(() =>
-                      setAnalysisNotice("This target job description could not be saved."),
-                    );
+                    void updateGuestTarget(targetId, { jobDescription: event.target.value })
+                      .then(setLinkedTarget)
+                      .catch(() => setAnalysisNotice("This target job description could not be saved."));
                   if (event.target.value.trim()) markOnboardingStep("jobDescription");
                 }}
               />
@@ -904,16 +921,71 @@ export function ResumeEditorPage() {
               Analyze structured resume
             </button>
             {analysis && (
-              <div className="ats-editor-results" role="status">
-                <h3>ATS result: {analysis.scores?.overall ?? "Insufficient JD detail"}</h3>
-                <p>Use evidence and issue links to review the relevant resume fields.</p>
-                <p>{analysis.recommendations?.[0] || "Review the matched and missing requirements."}</p>
+              <section className="ats-editor-results" aria-labelledby="editor-ats-title">
+                <p className="eyebrow">Local ATS Engine v1</p>
+                <h3 id="editor-ats-title">
+                  {analysis.analysisEligibility === "scored" && typeof analysis.scores?.overall === "number"
+                    ? `Current local ATS score: ${analysis.scores.overall}/100`
+                    : "Local ATS score unavailable"}
+                </h3>
                 <p>
-                  Matched: {analysis.matched?.length || 0} · Partial: {analysis.partial?.length || 0} · Missing:{" "}
-                  {analysis.missing?.length || 0}
+                  {eligibilityLabel(analysis.analysisEligibility)}. This is a deterministic local signal, not a hiring
+                  prediction.
                 </p>
+                {linkedTargetState && (
+                  <p className={`analysis-state ${linkedTargetState.state}`}>
+                    <strong>
+                      {linkedTargetState.state === "current" ? "Analysis current" : "Analysis out of date"}.
+                    </strong>{" "}
+                    {linkedTargetState.message}
+                  </p>
+                )}
+                <div className="editor-ats-categories" aria-label="Selected local ATS categories">
+                  {editorCategories.map((category) => (
+                    <p key={category.key}>
+                      <strong>{category.label}:</strong>{" "}
+                      {category.score === null ? "Excluded" : `${category.score}/100`} (weight {category.weight}/100)
+                    </p>
+                  ))}
+                </div>
+                <p>
+                  Required matched:{" "}
+                  {
+                    (analysis.requirements || []).filter(
+                      (item: any) => item.priority === "required" && ["exact", "alias"].includes(item.matchState),
+                    ).length
+                  }
+                  {" · "}Required missing:{" "}
+                  {
+                    (analysis.requirements || []).filter(
+                      (item: any) => item.priority === "required" && item.matchState === "missing",
+                    ).length
+                  }
+                </p>
+                <ul className="editor-ats-evidence" aria-label="Evidence locations">
+                  {(analysis.requirements || [])
+                    .filter((item: any) => item.evidence)
+                    .slice(0, 3)
+                    .map((item: any) => {
+                      const location = locateStructuredEvidence(resume, item.evidence);
+                      return (
+                        <li key={item.id}>
+                          <strong>{item.term}:</strong> {item.matchState} evidence in {evidenceLocationLabel(location)}.
+                        </li>
+                      );
+                    })}
+                </ul>
+                {editorRecommendations.length > 0 && (
+                  <p>
+                    <strong>Next:</strong> {editorRecommendations[0]}
+                  </p>
+                )}
+                <p role="status">ATS result {analysisStatus === "calculating" ? "calculating" : "updated"}.</p>
                 <p>Analysis state: {analysisStatus === "calculating" ? "Calculating" : "Updated"}</p>
-              </div>
+                <Link className="button-link" to="/checker">
+                  Open full local ATS Checker
+                </Link>
+              </section>
             )}
           </details>
           {selectedBullet && (
