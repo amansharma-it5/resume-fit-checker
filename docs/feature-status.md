@@ -64,3 +64,9 @@ Application Tracker provides a browser-local pipeline for applications, status h
 
 - Browser-local workspace backup and read-only restore preview with schema/integrity checks.
 - Optional AES-GCM passphrase protection, safe merge, typed replace confirmation, storage health, and local recovery controls.
+
+# Phase 13: Local ATS v1
+
+Implemented: deterministic browser-local ATS v1 with explainable eligibility, fixed category weights, requirement matching, bounded evidence display, privacy-safe history summaries, Checker results, and Editor/Job Target freshness integration. Cloudflare Pages production remains Guest Mode-first and applies the generated security-header contract.
+
+Limitations: Local ATS v1 uses documented deterministic rules rather than semantic hiring inference. Ineligible results are excluded rather than scored, and historical target-score comparison remains deferred. See `docs/phase-13-local-ats-v1.md` for the architecture, release checks, and privacy boundaries.
