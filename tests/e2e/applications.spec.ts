@@ -4,6 +4,7 @@ async function createTargetWithCurrentAnalysis(page: import("@playwright/test").
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Try a sample resume" }).click();
   await page.getByRole("button", { name: "Create sample resume" }).click();
+  await expect(page.getByLabel("Full name")).toHaveValue("Avery Morgan");
   await page.goto("/targets");
   const baseResume = page.getByLabel("Base resume");
   await expect(baseResume.locator("option")).toHaveCount(2);
@@ -36,7 +37,7 @@ test("creates a private application, records a status change, and exports safe l
   await page.getByLabel("Next action").fill("Review locally");
   await page.getByRole("button", { name: "Create application" }).click();
   await expect(page.getByRole("heading", { name: "Platform Engineer at Fictional Example Labs" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Readiness" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Readiness", exact: true })).toBeVisible();
   await expect(page.getByText("Link a job target to review Local ATS status.")).toBeVisible();
   await page.getByRole("button", { name: "Applied" }).click();
   await expect(page.getByRole("status")).toContainText("Status changed to Applied");
