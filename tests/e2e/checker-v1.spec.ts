@@ -43,7 +43,7 @@ test("sends Gemini data only after explicit consent and keeps AI Insights separa
     await route.fulfill({
       json: {
         provider: "gemini",
-        model: "gemini-2.5-flash",
+        model: "gemini-3.7-flash",
         insights: {
           summary: "Relevant TypeScript experience is present.",
           strengths: ["TypeScript"],

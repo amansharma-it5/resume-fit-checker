@@ -6,7 +6,7 @@ Production is Cloudflare Pages, so the AI endpoint is a native Pages Function at
 
 ## Provider and model
 
-The Function uses the supported Gemini Developer API REST `generateContent` endpoint with stable `gemini-2.5-flash`. It is a Flash-class model with structured-output support and a documented free tier. The model ID is centralized in `functions/_shared/gemini-analysis.ts`. The implementation was checked against Google's public [Gemini 2.5 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash), [structured output](https://ai.google.dev/gemini-api/docs/structured-output), and [pricing](https://ai.google.dev/gemini-api/docs/pricing) documentation on 2026-09-04.
+The Function uses the supported Gemini Developer API REST `generateContent` endpoint with stable `gemini-3.7-flash`. It is a current Flash-class model with structured-output support and free-tier availability subject to project quota. The model ID is centralized in `functions/_shared/gemini-analysis.ts`. The implementation was checked against Google's public [Gemini 3.7 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash), [structured output](https://ai.google.dev/gemini-api/docs/structured-output), and [rate limits](https://ai.google.dev/gemini-api/docs/rate-limits) documentation on 2026-09-04.
 
 The endpoint accepts a resume and job-description body only after an explicit Checker action. It returns a bounded structured `summary`, `strengths`, `gaps`, and `recommendations` response. It does not create an ATS score, hiring probability, or claim to represent an employer ATS.
 

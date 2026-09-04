@@ -24,7 +24,7 @@ const provider = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
 
 describe("Gemini Pages Function contract", () => {
   it("uses a stable Flash model and normalizes only complete structured insight responses", () => {
-    expect(GEMINI_ANALYSIS_MODEL).toBe("gemini-2.5-flash");
+    expect(GEMINI_ANALYSIS_MODEL).toBe("gemini-3.7-flash");
     expect(normalizeAiInsights(insight)).toEqual(insight);
     expect(normalizeAiInsights({ summary: "partial" })).toBeNull();
   });

@@ -1,4 +1,9 @@
-import { MAX_AI_INPUT_CHARS, requestGeminiInsights, type GeminiEnv } from "../../_shared/gemini-analysis";
+import {
+  GEMINI_ANALYSIS_MODEL,
+  MAX_AI_INPUT_CHARS,
+  requestGeminiInsights,
+  type GeminiEnv,
+} from "../../_shared/gemini-analysis";
 
 type Context = { request: Request; env: GeminiEnv };
 function json(status: number, body: Record<string, unknown>) {
@@ -34,6 +39,6 @@ export async function handleAiAnalysis(context: Context, fetchFn: typeof fetch =
     const status = result.code === "GEMINI_RATE_LIMITED" ? 429 : result.code === "GEMINI_UNAVAILABLE" ? 503 : 502;
     return json(status, { error: "AI Insights are unavailable. Try again later.", code: result.code });
   }
-  return json(200, { insights: result.insights, provider: "gemini", model: "gemini-2.5-flash" });
+  return json(200, { insights: result.insights, provider: "gemini", model: GEMINI_ANALYSIS_MODEL });
 }
 export const onRequest = (context: Context) => handleAiAnalysis(context);

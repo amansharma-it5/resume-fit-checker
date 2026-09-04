@@ -1,4 +1,4 @@
-export const GEMINI_ANALYSIS_MODEL = "gemini-2.5-flash";
+export const GEMINI_ANALYSIS_MODEL = "gemini-3.7-flash";
 export const MAX_AI_INPUT_CHARS = 24_000;
 
 export type AiInsights = { summary: string; strengths: string[]; gaps: string[]; recommendations: string[] };
