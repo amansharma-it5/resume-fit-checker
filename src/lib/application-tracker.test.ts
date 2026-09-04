@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   addGuestApplicationActivity,
   addGuestFollowUp,
@@ -14,9 +14,79 @@ import {
   setGuestApplicationStatus,
   completeGuestFollowUp,
   removeGuestFollowUp,
+  resolveApplicationReadiness,
   updateGuestApplication,
   validateApplicationDraft,
 } from "./application-tracker";
+import * as legacy from "../../analysis-engine.js";
+import type { CoverLetterDocument, InterviewPracticeSession, JobTarget, ResumeDocument } from "../types";
+import { hashJobDescription } from "./job-targets";
+
+const readinessResume: ResumeDocument = {
+  id: "resume-readiness",
+  title: "Synthetic resume",
+  status: "active",
+  structuredData: {},
+  createdAt: "2026-09-01T00:00:00.000Z",
+  updatedAt: "2026-09-01T00:00:00.000Z",
+  editorVersion: 4,
+};
+const readinessTarget: JobTarget = {
+  id: "target-readiness",
+  schemaVersion: 1,
+  company: "Example Systems",
+  role: "Platform Engineer",
+  status: "Tailoring",
+  baseResumeId: "base-readiness",
+  tailoredResumeId: readinessResume.id,
+  jobDescription: "Synthetic job description that must never be projected.",
+  jobDescriptionHash: hashJobDescription("Synthetic job description that must never be projected."),
+  createdAt: "2026-09-01T00:00:00.000Z",
+  updatedAt: "2026-09-01T00:00:00.000Z",
+  latestAnalysis: {
+    overall: 82,
+    resumeVersion: 4,
+    calculatedAt: "2026-09-01T00:00:00.000Z",
+    stale: false,
+    engineVersion: "local-ats-v1",
+    rulesetVersion: "2026-08-ats-core-1",
+    analysisEligibility: "scored",
+    jobDescriptionHash: hashJobDescription("Synthetic job description that must never be projected."),
+  },
+};
+const readinessLetter: CoverLetterDocument = {
+  id: "letter-readiness",
+  schemaVersion: 1,
+  title: "Synthetic letter",
+  resumeId: readinessResume.id,
+  company: "Example Systems",
+  role: "Platform Engineer",
+  jobDescription: "Unprojected letter JD.",
+  sender: { name: "Synthetic", email: "synthetic@example.test", phone: "", location: "" },
+  recipient: { name: "", company: "", address: "" },
+  greeting: "Hello",
+  opening: "",
+  experience: [],
+  roleFit: "",
+  closing: "",
+  signOff: "Regards",
+  createdAt: "2026-09-01T00:00:00.000Z",
+  updatedAt: "2026-09-01T00:00:00.000Z",
+  editorVersion: 1,
+};
+const readinessSession: InterviewPracticeSession = {
+  id: "session-readiness",
+  schemaVersion: 1,
+  title: "Synthetic practice",
+  resumeId: readinessResume.id,
+  company: "Example Systems",
+  role: "Platform Engineer",
+  jobDescription: "Unprojected practice JD.",
+  questions: [],
+  createdAt: "2026-09-01T00:00:00.000Z",
+  updatedAt: "2026-09-01T00:00:00.000Z",
+  editorVersion: 1,
+};
 
 describe.sequential("browser-local application tracker", () => {
   it("creates isolated, versioned records and rejects stale writes", async () => {
@@ -96,5 +166,105 @@ describe.sequential("browser-local application tracker", () => {
     expect(csv).toContain("'=HYPERLINK");
     expect(csv).toContain("'@role");
     expect(applicationExportFilename("../../pipeline.csv.csv", "csv")).toBe("pipeline.csv");
+  });
+
+  it("projects current linked preparation without invoking the ATS scorer or exposing source text", async () => {
+    const application = await createGuestApplication({
+      company: "Example Systems",
+      role: "Platform Engineer",
+      resumeId: readinessResume.id,
+      jobTargetId: readinessTarget.id,
+      coverLetterId: readinessLetter.id,
+      interviewSessionIds: [readinessSession.id],
+    });
+    const scorer = vi.spyOn(legacy, "analyzeResumeFit");
+    const readiness = resolveApplicationReadiness(application, {
+      resumes: [readinessResume],
+      targets: [readinessTarget],
+      letters: [readinessLetter],
+      sessions: [readinessSession],
+    });
+    expect(readiness.items.map((item) => item.state)).toEqual(["ready", "ready", "ready", "ready", "ready"]);
+    expect(readiness.ats.overall).toBe(82);
+    expect(scorer).not.toHaveBeenCalled();
+    expect(JSON.stringify(readiness)).not.toContain("Synthetic job description");
+    expect(JSON.stringify(readiness)).not.toContain("Unprojected");
+  });
+
+  it("projects missing, stale, ineligible, and unlinked records without a stale score", async () => {
+    const application = await createGuestApplication({
+      company: "Example Missing",
+      role: "Engineer",
+      resumeId: "deleted-resume",
+      jobTargetId: readinessTarget.id,
+      coverLetterId: "deleted-letter",
+      interviewSessionIds: ["deleted-session"],
+    });
+    const stale = {
+      ...readinessTarget,
+      latestAnalysis: { ...readinessTarget.latestAnalysis!, stale: true },
+    };
+    const staleReadiness = resolveApplicationReadiness(application, {
+      resumes: [readinessResume],
+      targets: [stale],
+      letters: [],
+      sessions: [],
+    });
+    expect(staleReadiness.items.map((item) => item.state)).toEqual(["missing", "ready", "stale", "missing", "missing"]);
+    expect(staleReadiness.ats.overall).toBeNull();
+
+    const ineligible = {
+      ...readinessTarget,
+      latestAnalysis: { ...readinessTarget.latestAnalysis!, analysisEligibility: "missing-jd", overall: null },
+    };
+    const ineligibleReadiness = resolveApplicationReadiness(
+      {
+        ...application,
+        resumeId: readinessResume.id,
+        coverLetterId: undefined,
+        interviewSessionIds: [],
+        jobTargetId: ineligible.id,
+      },
+      { resumes: [readinessResume], targets: [ineligible], letters: [], sessions: [] },
+    );
+    expect(ineligibleReadiness.items.find((item) => item.id === "ats")?.state).toBe("ineligible");
+    expect(ineligibleReadiness.ats.overall).toBeNull();
+  });
+
+  it("treats absent analysis, old metadata, and a missing tailored target resume as non-current", async () => {
+    const application = await createGuestApplication({
+      company: "Example",
+      role: "Engineer",
+      jobTargetId: readinessTarget.id,
+    });
+    const noAnalysis = { ...readinessTarget, latestAnalysis: undefined };
+    expect(
+      resolveApplicationReadiness(application, {
+        resumes: [readinessResume],
+        targets: [noAnalysis],
+        letters: [],
+        sessions: [],
+      }).items.find((item) => item.id === "ats")?.state,
+    ).toBe("attention");
+    expect(
+      resolveApplicationReadiness(application, {
+        resumes: [],
+        targets: [readinessTarget],
+        letters: [],
+        sessions: [],
+      }).items.find((item) => item.id === "ats")?.state,
+    ).toBe("missing");
+    const old = {
+      ...readinessTarget,
+      latestAnalysis: { ...readinessTarget.latestAnalysis!, engineVersion: undefined },
+    };
+    expect(
+      resolveApplicationReadiness(application, {
+        resumes: [readinessResume],
+        targets: [old],
+        letters: [],
+        sessions: [],
+      }).items.find((item) => item.id === "ats")?.state,
+    ).toBe("stale");
   });
 });
