@@ -39,6 +39,11 @@ test("creates a private application, records a status change, and exports safe l
   await expect(page.getByRole("heading", { name: "Platform Engineer at Fictional Example Labs" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Readiness", exact: true })).toBeVisible();
   await expect(page.getByText("Link a job target to review Local ATS status.")).toBeVisible();
+  await page.getByRole("button", { name: "Create follow-up" }).click();
+  await page.getByRole("button", { name: "Create follow-up" }).click();
+  await expect(page.getByLabel("Follow-up title")).toBeFocused();
+  await expect(page.getByLabel("Follow-up title")).toHaveValue("Follow up with Fictional Example Labs");
+  await expect(page.locator(".application-follow-ups li")).toHaveCount(0);
   await page.getByRole("button", { name: "Applied" }).click();
   await expect(page.getByRole("status")).toContainText("Status changed to Applied");
   await page.getByLabel("Follow-up title").fill("Send fictional follow-up");
@@ -46,6 +51,7 @@ test("creates a private application, records a status change, and exports safe l
   await expect(
     page.locator(".application-follow-ups").getByText("Send fictional follow-up", { exact: true }),
   ).toBeVisible();
+  await expect(page.locator(".application-follow-ups li")).toHaveCount(1);
   await page.getByRole("link", { name: "Back to applications" }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download CSV" }).click();
@@ -76,9 +82,19 @@ test("projects a current target analysis as read-only readiness and marks it sta
     "href",
     /\/resumes\/.*\/edit/,
   );
+  await expect(page.getByRole("link", { name: "Open resume" })).toHaveAttribute("href", /\/resumes\/.*\/edit/);
+  await expect(page.getByRole("link", { name: "Open job target" })).toHaveAttribute("href", /\/targets\//);
   await expect(page.getByRole("link", { name: "Linked job target is available." })).toHaveAttribute(
     "href",
     /\/targets\//,
+  );
+  await expect(page.getByRole("link", { name: "Create cover letter" })).toHaveAttribute(
+    "href",
+    /\/cover-letters\?target=/,
+  );
+  await expect(page.getByRole("link", { name: "Start interview practice" })).toHaveAttribute(
+    "href",
+    "/interview-practice",
   );
   await page.getByRole("link", { name: "Linked resume is available." }).click();
   await page.getByLabel("Full name").fill("Avery Readiness Stale Name");

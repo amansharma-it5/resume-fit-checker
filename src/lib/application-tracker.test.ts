@@ -186,9 +186,38 @@ describe.sequential("browser-local application tracker", () => {
     });
     expect(readiness.items.map((item) => item.state)).toEqual(["ready", "ready", "ready", "ready", "ready"]);
     expect(readiness.ats.overall).toBe(82);
+    expect(readiness.items.find((item) => item.id === "cover-letter")?.action).toEqual({
+      label: "Open cover letter",
+      href: "/cover-letters",
+    });
     expect(scorer).not.toHaveBeenCalled();
     expect(JSON.stringify(readiness)).not.toContain("Synthetic job description");
     expect(JSON.stringify(readiness)).not.toContain("Unprojected");
+  });
+
+  it("derives explicit creation actions without creating follow-ups or copying source text", async () => {
+    const application = await createGuestApplication({
+      company: "Example Actions",
+      role: "Engineer",
+      resumeId: readinessResume.id,
+      jobTargetId: readinessTarget.id,
+    });
+    const readiness = resolveApplicationReadiness(application, {
+      resumes: [readinessResume],
+      targets: [readinessTarget],
+      letters: [],
+      sessions: [],
+    });
+    expect(readiness.items.find((item) => item.id === "cover-letter")?.action).toEqual({
+      label: "Create cover letter",
+      href: `/cover-letters?target=${readinessTarget.id}`,
+    });
+    expect(readiness.items.find((item) => item.id === "interview")?.action).toEqual({
+      label: "Start interview practice",
+      href: "/interview-practice",
+    });
+    expect((await getGuestApplication(application.id))?.followUps).toEqual([]);
+    expect(JSON.stringify(readiness)).not.toContain("Synthetic job description");
   });
 
   it("projects missing, stale, ineligible, and unlinked records without a stale score", async () => {

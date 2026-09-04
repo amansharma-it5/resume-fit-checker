@@ -43,6 +43,7 @@ export type ApplicationReadinessItem = {
   state: ApplicationReadinessState;
   message: string;
   href?: string;
+  action?: { label: string; href: string };
 };
 
 /**
@@ -81,6 +82,7 @@ export function resolveApplicationReadiness(
             state: "ready",
             message: "Linked resume is available.",
             href: `/resumes/${resume.id}/edit`,
+            action: { label: "Open resume", href: `/resumes/${resume.id}/edit` },
           }
         : { id: "resume", label: "Resume linked", state: "missing", message: "Linked resume is missing or deleted." },
     !application.jobTargetId
@@ -97,6 +99,7 @@ export function resolveApplicationReadiness(
             state: "ready",
             message: "Linked job target is available.",
             href: `/targets/${target.id}`,
+            action: { label: "Open job target", href: `/targets/${target.id}` },
           }
         : {
             id: "target",
@@ -128,6 +131,7 @@ export function resolveApplicationReadiness(
       state: "attention",
       message: "Local ATS analysis has not been run for this target.",
       href: `/targets/${target.id}`,
+      action: { label: "Review target", href: `/targets/${target.id}` },
     };
   } else if (target.latestAnalysis.analysisEligibility && target.latestAnalysis.analysisEligibility !== "scored") {
     ats = {
@@ -136,6 +140,7 @@ export function resolveApplicationReadiness(
       state: "ineligible",
       message: "Local ATS analysis is ineligible; add the missing resume or job-description detail before scoring.",
       href: `/targets/${target.id}`,
+      action: { label: "Review target", href: `/targets/${target.id}` },
     };
   } else {
     const state = targetAnalysisState(target, targetResume.editorVersion || 0);
@@ -145,9 +150,15 @@ export function resolveApplicationReadiness(
       state: state.state === "current" ? "ready" : "stale",
       message: state.message,
       href: `/targets/${target.id}`,
+      action: { label: "Review target", href: `/targets/${target.id}` },
     };
   }
   items.push(ats);
+  const coverLetterAction = target
+    ? { label: "Create cover letter", href: `/cover-letters?target=${target.id}` }
+    : resume
+      ? { label: "Create cover letter", href: `/cover-letters?resume=${resume.id}` }
+      : undefined;
   items.push(
     !application.coverLetterId
       ? {
@@ -155,6 +166,7 @@ export function resolveApplicationReadiness(
           label: "Cover letter prepared",
           state: "attention",
           message: "No cover letter is linked.",
+          action: coverLetterAction,
         }
       : letter
         ? {
@@ -163,6 +175,7 @@ export function resolveApplicationReadiness(
             state: "ready",
             message: "Linked cover letter is available.",
             href: "/cover-letters",
+            action: { label: "Open cover letter", href: "/cover-letters" },
           }
         : {
             id: "cover-letter",
@@ -176,6 +189,7 @@ export function resolveApplicationReadiness(
           label: "Interview practice started",
           state: "attention",
           message: "No interview practice session is linked.",
+          action: resume ? { label: "Start interview practice", href: "/interview-practice" } : undefined,
         }
       : missingSessionCount
         ? {
@@ -190,6 +204,7 @@ export function resolveApplicationReadiness(
             state: "ready",
             message: `${linkedSessions.length} linked interview session${linkedSessions.length === 1 ? "" : "s"} available.`,
             href: "/interview-practice",
+            action: { label: "Open interview practice", href: "/interview-practice" },
           },
   );
 
