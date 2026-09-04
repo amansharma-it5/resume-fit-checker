@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { GEMINI_ANALYSIS_MODEL, normalizeAiInsights } from "../../functions/_shared/gemini-analysis";
+import {
+  GEMINI_ANALYSIS_MODEL,
+  GEMINI_REQUEST_TIMEOUT_MS,
+  GEMINI_RETRY_DELAY_MS,
+  normalizeAiInsights,
+  requestGeminiInsights,
+} from "../../functions/_shared/gemini-analysis";
 import { handleAiAnalysis } from "../../functions/api/ai/analyze";
 
 const insight = {
@@ -129,6 +135,73 @@ describe("Gemini Pages Function contract", () => {
     const checkerSource = readFileSync("src/pages/CheckerPage.tsx", "utf8");
     expect(checkerSource).not.toContain("GEMINI_API_KEY");
     expect(checkerSource).toContain('fetch("/api/ai/analyze"');
+  });
+  it("retries one retryable upstream failure once within the existing request timeout", async () => {
+    const wait = vi.fn(async () => undefined);
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("temporary", { status: 503 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(insight) }] } }] })),
+      );
+    const result = await requestGeminiInsights(
+      { resumeText: "Resume", jobDescription: "JD" },
+      { GEMINI_API_KEY: "test-only-key" },
+      fetcher,
+      wait,
+    );
+    expect(result).toEqual({ ok: true, insights: insight });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(wait).toHaveBeenCalledTimes(1);
+    expect(wait).toHaveBeenCalledWith(GEMINI_RETRY_DELAY_MS, expect.any(AbortSignal));
+    expect(GEMINI_REQUEST_TIMEOUT_MS).toBe(15_000);
+  });
+  it("does not retry non-retryable statuses and returns a normalized failure after two retryable failures", async () => {
+    const wait = vi.fn(async () => undefined);
+    for (const status of [404, 429]) {
+      const fetcher = vi.fn(async () => new Response("provider detail", { status }));
+      const result = await requestGeminiInsights(
+        { resumeText: "Resume", jobDescription: "JD" },
+        { GEMINI_API_KEY: "test-only-key" },
+        fetcher,
+        wait,
+      );
+      expect(result.ok).toBe(false);
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    }
+    const retryableFetcher = vi.fn(async () => new Response("provider detail", { status: 503 }));
+    const failure = await requestGeminiInsights(
+      { resumeText: "Resume", jobDescription: "JD" },
+      { GEMINI_API_KEY: "test-only-key" },
+      retryableFetcher,
+      wait,
+    );
+    expect(failure).toMatchObject({
+      ok: false,
+      code: "GEMINI_UNAVAILABLE",
+      diagnostic: { upstreamStatus: 503, failureCategory: "upstream_unavailable", requestTimedOut: false },
+    });
+    expect(retryableFetcher).toHaveBeenCalledTimes(2);
+    expect(wait).toHaveBeenCalledTimes(1);
+  });
+  it("does not exceed the shared request timeout when the retry delay is aborted", async () => {
+    const fetcher = vi.fn(async () => new Response("temporary", { status: 503 }));
+    const wait = vi.fn(async () => {
+      throw new DOMException("aborted", "AbortError");
+    });
+    const result = await requestGeminiInsights(
+      { resumeText: "Resume", jobDescription: "JD" },
+      { GEMINI_API_KEY: "test-only-key" },
+      fetcher,
+      wait,
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      code: "GEMINI_UNAVAILABLE",
+      diagnostic: { upstreamStatus: null, failureCategory: "timeout", requestTimedOut: true },
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(wait).toHaveBeenCalledTimes(1);
   });
   it("emits only redacted diagnostic categories while retaining normalized client failures", async () => {
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined);
