@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
@@ -80,9 +80,11 @@ export function ApplicationsPage() {
   const [confirmDelete, setConfirmDelete] = useState<ApplicationRecord | null>(null);
   const [followUpTitle, setFollowUpTitle] = useState("");
   const [followUpDate, setFollowUpDate] = useState("");
+  const [creatingFollowUp, setCreatingFollowUp] = useState(false);
   const [activityNote, setActivityNote] = useState("");
   const autosave = useRef<number | undefined>(undefined);
   const editingRef = useRef<ApplicationRecord | null>(null);
+  const followUpInput = useRef<HTMLInputElement | null>(null);
 
   const load = useCallback(async () => {
     const [nextApplications, nextResumes, nextTargets, nextLetters, nextSessions] = await Promise.all([
@@ -235,7 +237,8 @@ export function ApplicationsPage() {
   }
 
   async function addFollowUp() {
-    if (!selected || !followUpTitle.trim()) return;
+    if (!selected || !followUpTitle.trim() || creatingFollowUp) return;
+    setCreatingFollowUp(true);
     try {
       await addGuestFollowUp(selected.id, followUpTitle, followUpDate || undefined);
       setFollowUpTitle("");
@@ -244,6 +247,8 @@ export function ApplicationsPage() {
       await load();
     } catch {
       setMessage("The follow-up needs a title before it can be saved.");
+    } finally {
+      setCreatingFollowUp(false);
     }
   }
 
@@ -308,10 +313,16 @@ export function ApplicationsPage() {
           onSave={() => void save()}
           onMove={(next) => void move(next)}
           onAddFollowUp={() => void addFollowUp()}
+          onStartFollowUp={() => {
+            if (!followUpTitle && selected) setFollowUpTitle(`Follow up with ${selected.company}`);
+            followUpInput.current?.focus();
+          }}
           followUpTitle={followUpTitle}
           followUpDate={followUpDate}
           setFollowUpTitle={setFollowUpTitle}
           setFollowUpDate={setFollowUpDate}
+          followUpInput={followUpInput}
+          creatingFollowUp={creatingFollowUp}
           onCompleteFollowUp={(id, complete) =>
             void completeGuestFollowUp(selected.id, id, complete)
               .then(load)
@@ -706,10 +717,13 @@ function ApplicationDetail({
   onSave,
   onMove,
   onAddFollowUp,
+  onStartFollowUp,
   followUpTitle,
   followUpDate,
   setFollowUpTitle,
   setFollowUpDate,
+  followUpInput,
+  creatingFollowUp,
   onCompleteFollowUp,
   onEditFollowUp,
   onDeleteFollowUp,
@@ -734,10 +748,13 @@ function ApplicationDetail({
   onSave: () => void;
   onMove: (status: ApplicationStatus) => void;
   onAddFollowUp: () => void;
+  onStartFollowUp: () => void;
   followUpTitle: string;
   followUpDate: string;
   setFollowUpTitle: (value: string) => void;
   setFollowUpDate: (value: string) => void;
+  followUpInput: RefObject<HTMLInputElement | null>;
+  creatingFollowUp: boolean;
   onCompleteFollowUp: (id: string, complete: boolean) => void;
   onEditFollowUp: (id: string, title: string, dueDate?: string) => void;
   onDeleteFollowUp: (id: string) => void;
@@ -772,7 +789,7 @@ function ApplicationDetail({
             remains safely available.
           </p>
         )}
-        {readiness && <ApplicationReadiness readiness={readiness} />}
+        {readiness && <ApplicationReadiness readiness={readiness} onStartFollowUp={onStartFollowUp} />}
         <ApplicationFields
           draft={draft}
           resumes={resumes}
@@ -811,13 +828,19 @@ function ApplicationDetail({
         <div className="inline-form">
           <label>
             Follow-up title
-            <input value={followUpTitle} onChange={(event) => setFollowUpTitle(event.target.value)} />
+            <input
+              ref={followUpInput}
+              value={followUpTitle}
+              onChange={(event) => setFollowUpTitle(event.target.value)}
+            />
           </label>
           <label>
             Due date
             <input type="date" value={followUpDate} onChange={(event) => setFollowUpDate(event.target.value)} />
           </label>
-          <button onClick={onAddFollowUp}>Add follow-up</button>
+          <button onClick={onAddFollowUp} disabled={creatingFollowUp}>
+            {creatingFollowUp ? "Saving follow-up…" : "Add follow-up"}
+          </button>
         </div>
         {!application.followUps.length ? (
           <p>No follow-ups recorded.</p>
@@ -874,7 +897,13 @@ function ApplicationDetail({
   );
 }
 
-function ApplicationReadiness({ readiness }: { readiness: ReturnType<typeof resolveApplicationReadiness> }) {
+function ApplicationReadiness({
+  readiness,
+  onStartFollowUp,
+}: {
+  readiness: ReturnType<typeof resolveApplicationReadiness>;
+  onStartFollowUp: () => void;
+}) {
   return (
     <section className="application-readiness" aria-labelledby="application-readiness-title">
       <div>
@@ -892,9 +921,17 @@ function ApplicationReadiness({ readiness }: { readiness: ReturnType<typeof reso
           <li key={item.id} className={`readiness-${item.state}`}>
             <strong>{item.label}: </strong>
             {item.href ? <Link to={item.href}>{item.message}</Link> : item.message}
+            {item.action && (
+              <Link className="readiness-action" to={item.action.href}>
+                {item.action.label}
+              </Link>
+            )}
           </li>
         ))}
       </ul>
+      <button className="readiness-action" onClick={onStartFollowUp}>
+        Create follow-up
+      </button>
     </section>
   );
 }
