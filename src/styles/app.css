@@ -2429,6 +2429,30 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
   color: #352474;
   font-size: 1.2rem;
 }
+.ai-insights {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.ai-insights h3,
+.ai-insights h4,
+.ai-insights p {
+  margin: 0;
+}
+.ai-insights-result {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f9fafb;
+}
+.ai-insights-result ul {
+  margin: 0;
+  padding-left: 1.2rem;
+}
 .target-create > h2,
 .target-detail > h2,
 .cover-letter-print > h2,

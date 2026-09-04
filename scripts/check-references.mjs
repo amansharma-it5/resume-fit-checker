@@ -1,7 +1,7 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
 
-const roots = ["index.html", "src", "netlify/functions"];
+const roots = ["index.html", "src", "functions", "netlify/functions"];
 const files = [];
 async function walk(path) {
   const stat = await import("node:fs/promises").then((fs) => fs.stat(path));

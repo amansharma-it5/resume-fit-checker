@@ -4,7 +4,12 @@ import { readFileSync } from "node:fs";
 const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], { encoding: "utf8" })
   .split(/\r?\n/)
   .filter((file) => file && file !== "pnpm-lock.yaml");
-const patterns = [/sb_secret_[A-Za-z0-9_-]{20,}/, /service_role[=:][^\s]{20,}/i, /gsk_[A-Za-z0-9]{20,}/];
+const patterns = [
+  /sb_secret_[A-Za-z0-9_-]{20,}/,
+  /service_role[=:][^\s]{20,}/i,
+  /gsk_[A-Za-z0-9]{20,}/,
+  /AIza[0-9A-Za-z_-]{30,}/,
+];
 const findings = [];
 for (const file of files) {
   let content;

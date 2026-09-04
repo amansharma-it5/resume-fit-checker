@@ -17,4 +17,6 @@ defaults to `false` until custom SMTP and production authentication are explicit
 
 `GROQ_MODEL`: Groq model identifier. Defaults to `openai/gpt-oss-20b` when omitted.
 
-Deploy Previews, branch deploys, and local development use staging. Production variables must point to production only after staging validation and explicit approval. Set secrets in Netlify Site configuration > Environment variables, scope them to Functions where supported, and never paste a secret into chat.
+`GEMINI_API_KEY`: Cloudflare Pages Function secret for the optional Checker AI Insights endpoint. In Cloudflare Dashboard, open **Workers & Pages** > **resume-fit-checker** > **Settings** > **Variables and Secrets**, then add it as an encrypted secret for both Preview and Production. Never prefix it with `VITE_`; it must not be available to the browser bundle.
+
+Deploy Previews, branch deploys, and local development use staging. Production variables must point to production only after staging validation and explicit approval. Legacy Netlify Functions retain their existing Netlify environment configuration; the Gemini Pages Function uses Cloudflare Pages secrets. Never paste a secret into chat.

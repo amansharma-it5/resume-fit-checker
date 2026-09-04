@@ -16,7 +16,12 @@ async function analyze(page: import("@playwright/test").Page, jd = jobDescriptio
 test("presents scored local ATS v1 evidence without provider traffic", async ({ page }) => {
   const providerCalls: string[] = [];
   page.on("request", (request) => {
-    if (request.url().includes("ai-rewrite") || request.url().includes("groq")) providerCalls.push(request.url());
+    if (
+      request.url().includes("ai-rewrite") ||
+      request.url().includes("groq") ||
+      request.url().includes("/api/ai/analyze")
+    )
+      providerCalls.push(request.url());
   });
   await analyze(page);
   await expect(page.getByText("Local ATS Engine v1")).toBeVisible();
@@ -29,6 +34,69 @@ test("presents scored local ATS v1 evidence without provider traffic", async ({ 
   await expect(page.getByText("Weight 18/100")).toBeVisible();
   await expect(page.locator(".checker-results-v1")).toBeFocused();
   expect(providerCalls).toEqual([]);
+});
+
+test("sends Gemini data only after explicit consent and keeps AI Insights separate", async ({ page }) => {
+  const calls: string[] = [];
+  await page.route("**/api/ai/analyze", async (route) => {
+    calls.push(route.request().postData() || "");
+    await route.fulfill({
+      json: {
+        provider: "gemini",
+        model: "gemini-3.7-flash",
+        insights: {
+          summary: "Relevant TypeScript experience is present.",
+          strengths: ["TypeScript"],
+          gaps: ["AWS is not evidenced"],
+          recommendations: ["Review cloud evidence carefully."],
+        },
+      },
+    });
+  });
+  await page.goto("/checker");
+  const selectedResume = "Avery Morgan built TypeScript services.";
+  const selectedJd = "TypeScript and AWS required.";
+  await page.getByLabel("Or paste resume text").fill(selectedResume);
+  await page.getByLabel("Job description").fill(selectedJd);
+  await expect(page.getByRole("button", { name: "Analyze with AI" })).toBeDisabled();
+  expect(calls).toEqual([]);
+  await page.getByLabel(/Send the entered resume and JD content to Google Gemini/).check();
+  await page.getByRole("button", { name: "Analyze with AI" }).click();
+  await expect(page.getByText("AI Analysis:")).toBeVisible();
+  expect(calls).toHaveLength(1);
+  expect(JSON.parse(calls[0])).toEqual({ resumeText: selectedResume, jobDescription: selectedJd });
+  await expect(page.getByText("Local ATS Engine v1")).toHaveCount(0);
+});
+
+test("shows a safe AI failure and allows an explicit retry without changing Local ATS", async ({ page }) => {
+  let calls = 0;
+  await page.route("**/api/ai/analyze", async (route) => {
+    calls += 1;
+    if (calls === 1) {
+      await route.fulfill({ status: 503, json: { error: "provider details must not be rendered" } });
+      return;
+    }
+    await route.fulfill({
+      json: {
+        insights: {
+          summary: "Relevant TypeScript work is present.",
+          strengths: ["TypeScript"],
+          gaps: ["Kubernetes is not evidenced"],
+          recommendations: ["Review only facts you can support."],
+        },
+      },
+    });
+  });
+  await analyze(page);
+  await expect(page.getByText("Local ATS Engine v1")).toBeVisible();
+  await page.getByLabel(/Send the entered resume and JD content to Google Gemini/).check();
+  await page.getByRole("button", { name: "Analyze with AI" }).click();
+  await expect(page.locator(".ai-insights [role='status']")).toContainText("AI Insights are unavailable");
+  await expect(page.getByText("provider details must not be rendered")).toHaveCount(0);
+  await page.getByRole("button", { name: "Analyze with AI" }).click();
+  await expect(page.getByText("AI Analysis:")).toBeVisible();
+  expect(calls).toBe(2);
+  await expect(page.getByText(/Overall local ATS score/)).toBeVisible();
 });
 
 test("explains missing JD eligibility instead of showing a fabricated overall score", async ({ page }) => {
