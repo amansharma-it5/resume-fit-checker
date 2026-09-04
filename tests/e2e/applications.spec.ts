@@ -70,7 +70,7 @@ test("projects a current target analysis as read-only readiness and marks it sta
   await createTargetWithCurrentAnalysis(page);
   await page.getByRole("link", { name: "Track application" }).click();
   await page.getByRole("button", { name: "Create application" }).click();
-  await expect(page.getByRole("heading", { name: "Readiness" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Readiness", exact: true })).toBeVisible();
   await expect(page.getByText(/Local ATS score/)).toBeVisible();
   await expect(page.getByRole("link", { name: "Linked resume is available." })).toHaveAttribute(
     "href",
