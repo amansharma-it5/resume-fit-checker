@@ -76,3 +76,9 @@ Limitations: Local ATS v1 uses documented deterministic rules rather than semant
 Implemented: a read-only, browser-local Application Readiness projection that joins existing records by stable ID, reuses target freshness semantics, exposes explicit preparation links, and focuses the existing user-confirmed follow-up form. Applications do not run Local ATS analysis, call a provider, copy resume/JD/evidence content, create follow-ups automatically, or update application status automatically.
 
 Limitations: Phase 14 is not application intelligence. Historical score comparison, ATS v2, predictive signals, external notifications, calendar/email integrations, provider-backed assistance, and automatic reminders or status updates remain deferred. See `docs/phase-14-connected-applications.md`.
+
+# Phase 15.1: Gemini AI Foundation
+
+Implemented: an optional Checker-only, consent-gated AI Insights request through a same-origin Cloudflare Pages Function. It returns a bounded structured summary, strengths, gaps, and recommendations from Gemini without changing deterministic Local ATS scoring or persisting AI output.
+
+Limitations: Gemini availability and quotas depend on the configured Cloudflare Pages secret and Google account. AI Insights are transient, require user review, and do not include rewriting, tailoring, cover-letter, interview, application, history, or multi-provider features. See `docs/phase-15-gemini-foundation.md`.

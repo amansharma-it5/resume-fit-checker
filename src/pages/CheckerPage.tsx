@@ -26,6 +26,7 @@ import {
 import { getGuestAnalysisOverrides, saveGuestAnalysisOverrides } from "../lib/guest-db";
 import { checkerCategories, checkerRecommendations, eligibilityLabel } from "../ats/presentation";
 type Verification = any;
+type AiInsights = { summary: string; strengths: string[]; gaps: string[]; recommendations: string[] };
 function opaqueAnalysisIdentity(resume: string, fileName: string, role: string, jd: string) {
   let hash = 2166136261;
   for (const char of `${fileName}\u0000${role}\u0000${resume}\u0000${jd}`)
@@ -57,7 +58,15 @@ export function CheckerPage() {
   const [approvedContext, setApprovedContext] = useState("");
   const [verification, setVerification] = useState<Verification>(null);
   const [aiBusy, setAiBusy] = useState(false);
+  const [geminiConsent, setGeminiConsent] = useState(false);
+  const [aiInsights, setAiInsights] = useState<AiInsights | null>(null);
+  const [aiInsightsStatus, setAiInsightsStatus] = useState("");
+  const [geminiBusy, setGeminiBusy] = useState(false);
   const resultsRef = useRef<HTMLElement>(null);
+  function clearAiInsights() {
+    setAiInsights(null);
+    setAiInsightsStatus("");
+  }
   useEffect(() => {
     void migrateLegacySummariesOnce()
       .then(() => listAnalysisSummaries())
@@ -97,6 +106,26 @@ export function CheckerPage() {
     setError(false);
     setStatus("Analysis complete. Only a privacy-safe summary was saved in IndexedDB.");
     requestAnimationFrame(() => resultsRef.current?.focus());
+  }
+  async function analyzeWithGemini() {
+    if (!geminiConsent || !resumeText.trim() || !jd.trim() || geminiBusy) return;
+    setGeminiBusy(true);
+    setAiInsightsStatus("Sending this resume and job description to Google Gemini for AI Insights.");
+    try {
+      const response = await fetch("/api/ai/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resumeText, jobDescription: jd }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload?.insights) throw new Error("AI Insights are unavailable. Try again later.");
+      setAiInsights(payload.insights);
+      setAiInsightsStatus("AI Insights are ready for review. Local ATS scores remain separate.");
+    } catch {
+      setAiInsightsStatus("AI Insights are unavailable. Check your connection and retry explicitly.");
+    } finally {
+      setGeminiBusy(false);
+    }
   }
   const overrideIdentity = opaqueAnalysisIdentity(resumeText, fileName, role, jd);
   const displayAnalysis = useMemo(
@@ -259,6 +288,7 @@ export function CheckerPage() {
                 onChange={(e) => {
                   setResumeText(e.target.value);
                   setFileName("Pasted resume");
+                  clearAiInsights();
                 }}
                 rows={9}
               />{" "}
@@ -273,7 +303,15 @@ export function CheckerPage() {
             </label>{" "}
             <label>
               {" "}
-              Job description <textarea value={jd} onChange={(e) => setJd(e.target.value)} rows={12} />{" "}
+              Job description{" "}
+              <textarea
+                value={jd}
+                onChange={(e) => {
+                  setJd(e.target.value);
+                  clearAiInsights();
+                }}
+                rows={12}
+              />{" "}
             </label>{" "}
           </div>{" "}
         </div>{" "}
@@ -291,6 +329,59 @@ export function CheckerPage() {
           Analyze resume{" "}
         </button>{" "}
         <StatusMessage message={status} error={error} />{" "}
+        <section className="ai-insights" aria-labelledby="ai-insights-title">
+          <h3 id="ai-insights-title">AI Insights</h3>
+          <p>
+            Optional external analysis. Local ATS remains deterministic and separate; AI Insights do not add or change a
+            score.
+          </p>
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={geminiConsent}
+              onChange={(event) => setGeminiConsent(event.target.checked)}
+            />
+            Send the entered resume and JD content to Google Gemini for processing.
+          </label>
+          <p className="privacy-note">
+            Nothing is sent until you explicitly select Analyze with AI. Results are not saved.
+          </p>
+          <button
+            className="primary"
+            disabled={!geminiConsent || !resumeText.trim() || !jd.trim() || geminiBusy}
+            onClick={() => void analyzeWithGemini()}
+          >
+            {geminiBusy ? "Analyzing with AI…" : "Analyze with AI"}
+          </button>
+          <p role="status" aria-live="polite">
+            {aiInsightsStatus}
+          </p>
+          {aiInsights && (
+            <div className="ai-insights-result" aria-label="AI Insights result">
+              <p>
+                <strong>AI Analysis:</strong> {aiInsights.summary}
+              </p>
+              <h4>Strengths</h4>
+              <ul>
+                {aiInsights.strengths.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+              <h4>Gaps</h4>
+              <ul>
+                {aiInsights.gaps.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+              <h4>Recommendations</h4>
+              <ul>
+                {aiInsights.recommendations.map((item, index) => (
+                  <li key={index}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
       </section>{" "}
       {displayAnalysis && (
         <section className="results checker-results-v1" aria-labelledby="results-title" ref={resultsRef} tabIndex={-1}>
