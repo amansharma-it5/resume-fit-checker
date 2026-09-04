@@ -16,6 +16,7 @@ import {
   listGuestApplications,
   removeGuestApplication,
   removeGuestFollowUp,
+  resolveApplicationReadiness,
   restoreGuestApplication,
   serializeApplicationsCsv,
   updateGuestApplication,
@@ -150,6 +151,10 @@ export function ApplicationsPage() {
         selected.coverLetterId && !letters.some((item) => item.id === selected.coverLetterId) ? "cover letter" : "",
       ].filter(Boolean)
     : [];
+  const readiness = useMemo(
+    () => (selected ? resolveApplicationReadiness(selected, { resumes, targets, letters, sessions }) : null),
+    [letters, resumes, selected, sessions, targets],
+  );
 
   useEffect(() => {
     if (!selected) {
@@ -297,6 +302,7 @@ export function ApplicationsPage() {
           letters={letters}
           sessions={sessions}
           missingLinks={missingLinks}
+          readiness={readiness}
           status={status}
           onChange={(key, value) => updateDraft("edit", key, value)}
           onSave={() => void save()}
@@ -694,6 +700,7 @@ function ApplicationDetail({
   letters,
   sessions,
   missingLinks,
+  readiness,
   status,
   onChange,
   onSave,
@@ -721,6 +728,7 @@ function ApplicationDetail({
   letters: CoverLetterDocument[];
   sessions: InterviewPracticeSession[];
   missingLinks: string[];
+  readiness: ReturnType<typeof resolveApplicationReadiness> | null;
   status: string;
   onChange: <K extends keyof ApplicationDraft>(key: K, value: ApplicationDraft[K]) => void;
   onSave: () => void;
@@ -764,6 +772,7 @@ function ApplicationDetail({
             remains safely available.
           </p>
         )}
+        {readiness && <ApplicationReadiness readiness={readiness} />}
         <ApplicationFields
           draft={draft}
           resumes={resumes}
@@ -862,5 +871,30 @@ function ApplicationDetail({
         </ol>
       </section>
     </>
+  );
+}
+
+function ApplicationReadiness({ readiness }: { readiness: ReturnType<typeof resolveApplicationReadiness> }) {
+  return (
+    <section className="application-readiness" aria-labelledby="application-readiness-title">
+      <div>
+        <h3 id="application-readiness-title">Readiness</h3>
+        <p>Local preparation signals from linked records. This view does not run ATS analysis.</p>
+      </div>
+      {readiness.ats.overall !== null && (
+        <p className="readiness-score">
+          <strong>{readiness.ats.overall}</strong> Local ATS score
+          {readiness.ats.engineVersion ? ` · ${readiness.ats.engineVersion}` : ""}
+        </p>
+      )}
+      <ul>
+        {readiness.items.map((item) => (
+          <li key={item.id} className={`readiness-${item.state}`}>
+            <strong>{item.label}: </strong>
+            {item.href ? <Link to={item.href}>{item.message}</Link> : item.message}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

@@ -2381,6 +2381,46 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
 .backup-recovery-page > section {
   padding: clamp(16px, 2vw, 24px);
 }
+.application-readiness {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f9fafb;
+}
+.application-readiness h3,
+.application-readiness p {
+  margin: 0;
+}
+.application-readiness ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 1.2rem;
+}
+.application-readiness li {
+  overflow-wrap: anywhere;
+}
+.readiness-ready strong {
+  color: #168a5b;
+}
+.readiness-attention strong,
+.readiness-stale strong,
+.readiness-ineligible strong {
+  color: #b7791f;
+}
+.readiness-missing strong {
+  color: #b42318;
+}
+.readiness-score {
+  color: #344054;
+}
+.readiness-score strong {
+  color: #352474;
+  font-size: 1.2rem;
+}
 .target-create > h2,
 .target-detail > h2,
 .cover-letter-print > h2,

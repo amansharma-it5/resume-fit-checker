@@ -5,7 +5,12 @@ import {
   type ApplicationActivity,
   type ApplicationRecord,
   type ApplicationStatus,
+  type CoverLetterDocument,
+  type InterviewPracticeSession,
+  type JobTarget,
+  type ResumeDocument,
 } from "../types";
+import { targetAnalysisState } from "../ats/editor-targets";
 
 export type ApplicationDraft = {
   company: string;
@@ -30,6 +35,177 @@ const MAX_HISTORY = 50;
 const clean = (value: string | undefined, maximum = 1000) =>
   (value || "").replace(/\s+/g, " ").trim().slice(0, maximum);
 const cleanNotes = (value: string | undefined, maximum = 10000) => (value || "").trim().slice(0, maximum);
+
+export type ApplicationReadinessState = "ready" | "attention" | "missing" | "stale" | "ineligible";
+export type ApplicationReadinessItem = {
+  id: "resume" | "target" | "ats" | "cover-letter" | "interview";
+  label: string;
+  state: ApplicationReadinessState;
+  message: string;
+  href?: string;
+};
+
+/**
+ * A read-only projection of existing local records. It deliberately does not
+ * invoke the ATS engine or retain source-document text.
+ */
+export function resolveApplicationReadiness(
+  application: ApplicationRecord,
+  records: {
+    resumes: ResumeDocument[];
+    targets: JobTarget[];
+    letters: CoverLetterDocument[];
+    sessions: InterviewPracticeSession[];
+  },
+) {
+  const resume = application.resumeId ? records.resumes.find((item) => item.id === application.resumeId) : undefined;
+  const target = application.jobTargetId
+    ? records.targets.find((item) => item.id === application.jobTargetId)
+    : undefined;
+  const letter = application.coverLetterId
+    ? records.letters.find((item) => item.id === application.coverLetterId)
+    : undefined;
+  const linkedSessions = records.sessions.filter((item) => application.interviewSessionIds.includes(item.id));
+  const missingSessionCount = application.interviewSessionIds.filter(
+    (id) => !linkedSessions.some((item) => item.id === id),
+  ).length;
+  const targetResume = target ? records.resumes.find((item) => item.id === target.tailoredResumeId) : undefined;
+
+  const items: ApplicationReadinessItem[] = [
+    !application.resumeId
+      ? { id: "resume", label: "Resume linked", state: "missing", message: "No resume is linked to this application." }
+      : resume && resume.status === "active"
+        ? {
+            id: "resume",
+            label: "Resume linked",
+            state: "ready",
+            message: "Linked resume is available.",
+            href: `/resumes/${resume.id}/edit`,
+          }
+        : { id: "resume", label: "Resume linked", state: "missing", message: "Linked resume is missing or deleted." },
+    !application.jobTargetId
+      ? {
+          id: "target",
+          label: "Job target linked",
+          state: "missing",
+          message: "No job target is linked to this application.",
+        }
+      : target
+        ? {
+            id: "target",
+            label: "Job target linked",
+            state: "ready",
+            message: "Linked job target is available.",
+            href: `/targets/${target.id}`,
+          }
+        : {
+            id: "target",
+            label: "Job target linked",
+            state: "missing",
+            message: "Linked job target is missing or deleted.",
+          },
+  ];
+
+  let ats: ApplicationReadinessItem;
+  if (!target) {
+    ats = {
+      id: "ats",
+      label: "ATS analysis current",
+      state: "attention",
+      message: "Link a job target to review Local ATS status.",
+    };
+  } else if (!targetResume || targetResume.status !== "active") {
+    ats = {
+      id: "ats",
+      label: "ATS analysis current",
+      state: "missing",
+      message: "The target's tailored resume is missing or deleted.",
+    };
+  } else if (!target.latestAnalysis) {
+    ats = {
+      id: "ats",
+      label: "ATS analysis current",
+      state: "attention",
+      message: "Local ATS analysis has not been run for this target.",
+      href: `/targets/${target.id}`,
+    };
+  } else if (target.latestAnalysis.analysisEligibility && target.latestAnalysis.analysisEligibility !== "scored") {
+    ats = {
+      id: "ats",
+      label: "ATS analysis current",
+      state: "ineligible",
+      message: "Local ATS analysis is ineligible; add the missing resume or job-description detail before scoring.",
+      href: `/targets/${target.id}`,
+    };
+  } else {
+    const state = targetAnalysisState(target, targetResume.editorVersion || 0);
+    ats = {
+      id: "ats",
+      label: "ATS analysis current",
+      state: state.state === "current" ? "ready" : "stale",
+      message: state.message,
+      href: `/targets/${target.id}`,
+    };
+  }
+  items.push(ats);
+  items.push(
+    !application.coverLetterId
+      ? {
+          id: "cover-letter",
+          label: "Cover letter prepared",
+          state: "attention",
+          message: "No cover letter is linked.",
+        }
+      : letter
+        ? {
+            id: "cover-letter",
+            label: "Cover letter prepared",
+            state: "ready",
+            message: "Linked cover letter is available.",
+            href: "/cover-letters",
+          }
+        : {
+            id: "cover-letter",
+            label: "Cover letter prepared",
+            state: "missing",
+            message: "Linked cover letter is missing or deleted.",
+          },
+    !application.interviewSessionIds.length
+      ? {
+          id: "interview",
+          label: "Interview practice started",
+          state: "attention",
+          message: "No interview practice session is linked.",
+        }
+      : missingSessionCount
+        ? {
+            id: "interview",
+            label: "Interview practice started",
+            state: "missing",
+            message: `${missingSessionCount} linked interview session${missingSessionCount === 1 ? " is" : "s are"} missing or deleted.`,
+          }
+        : {
+            id: "interview",
+            label: "Interview practice started",
+            state: "ready",
+            message: `${linkedSessions.length} linked interview session${linkedSessions.length === 1 ? "" : "s"} available.`,
+            href: "/interview-practice",
+          },
+  );
+
+  return {
+    items,
+    ats: {
+      state: ats.state,
+      overall:
+        ats.state === "ready" && typeof target?.latestAnalysis?.overall === "number"
+          ? target.latestAnalysis.overall
+          : null,
+      engineVersion: target?.latestAnalysis?.engineVersion,
+      rulesetVersion: target?.latestAnalysis?.rulesetVersion,
+    },
+  };
+}
 
 export function safeApplicationUrl(value: string | undefined) {
   const input = clean(value, 2048);
