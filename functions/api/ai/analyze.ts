@@ -30,6 +30,7 @@ export async function handleAiAnalysis(context: Context, fetchFn: typeof fetch =
     return json(413, { error: "Resume or job-description text is too long for AI analysis.", code: "INPUT_TOO_LARGE" });
   const result = await requestGeminiInsights({ resumeText, jobDescription }, env, fetchFn);
   if (!result.ok) {
+    console.info(result.diagnostic);
     const status = result.code === "GEMINI_RATE_LIMITED" ? 429 : result.code === "GEMINI_UNAVAILABLE" ? 503 : 502;
     return json(status, { error: "AI Insights are unavailable. Try again later.", code: result.code });
   }

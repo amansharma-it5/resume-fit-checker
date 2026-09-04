@@ -3,6 +3,22 @@ export const MAX_AI_INPUT_CHARS = 24_000;
 
 export type AiInsights = { summary: string; strengths: string[]; gaps: string[]; recommendations: string[] };
 export type GeminiEnv = { GEMINI_API_KEY?: string };
+export type GeminiFailureCategory =
+  | "missing_binding"
+  | "auth"
+  | "permission"
+  | "model_not_found"
+  | "quota"
+  | "timeout"
+  | "upstream_unavailable"
+  | "malformed_response"
+  | "other";
+export type GeminiDiagnostic = {
+  geminiBindingPresent: boolean;
+  upstreamStatus: number | null;
+  failureCategory: GeminiFailureCategory;
+  requestTimedOut: boolean;
+};
 type FetchLike = typeof fetch;
 
 const schema = {
@@ -40,12 +56,40 @@ export function normalizeAiInsights(value: unknown): AiInsights | null {
     : null;
 }
 
+function diagnostic(
+  geminiBindingPresent: boolean,
+  upstreamStatus: number | null,
+  failureCategory: GeminiFailureCategory,
+  requestTimedOut = false,
+): GeminiDiagnostic {
+  return { geminiBindingPresent, upstreamStatus, failureCategory, requestTimedOut };
+}
+
+function categoryForStatus(status: number): GeminiFailureCategory {
+  if (status === 401) return "auth";
+  if (status === 403) return "permission";
+  if (status === 404) return "model_not_found";
+  if (status === 429) return "quota";
+  if (status >= 500) return "upstream_unavailable";
+  return "other";
+}
+
+function isAbortError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
+}
+
 export async function requestGeminiInsights(
   input: { resumeText: string; jobDescription: string },
   env: GeminiEnv,
   fetchFn: FetchLike = fetch,
 ) {
-  if (!env.GEMINI_API_KEY) return { ok: false as const, code: "GEMINI_UNAVAILABLE" };
+  const apiKey = env.GEMINI_API_KEY;
+  if (!apiKey)
+    return {
+      ok: false as const,
+      code: "GEMINI_UNAVAILABLE",
+      diagnostic: diagnostic(false, null, "missing_binding"),
+    };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
@@ -53,7 +97,7 @@ export async function requestGeminiInsights(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_ANALYSIS_MODEL}:generateContent`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         signal: controller.signal,
         body: JSON.stringify({
           systemInstruction: {
@@ -73,20 +117,45 @@ export async function requestGeminiInsights(
         }),
       },
     );
-    if (response.status === 429) return { ok: false as const, code: "GEMINI_RATE_LIMITED" };
-    if (!response.ok) return { ok: false as const, code: "GEMINI_UNAVAILABLE" };
+    if (response.status === 429)
+      return {
+        ok: false as const,
+        code: "GEMINI_RATE_LIMITED",
+        diagnostic: diagnostic(true, response.status, "quota"),
+      };
+    if (!response.ok)
+      return {
+        ok: false as const,
+        code: "GEMINI_UNAVAILABLE",
+        diagnostic: diagnostic(true, response.status, categoryForStatus(response.status)),
+      };
     const json = await response.json();
     const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
     let parsed: unknown;
     try {
       parsed = JSON.parse(text);
     } catch {
-      return { ok: false as const, code: "GEMINI_INVALID_RESPONSE" };
+      return {
+        ok: false as const,
+        code: "GEMINI_INVALID_RESPONSE",
+        diagnostic: diagnostic(true, response.status, "malformed_response"),
+      };
     }
     const insights = normalizeAiInsights(parsed);
-    return insights ? { ok: true as const, insights } : { ok: false as const, code: "GEMINI_INVALID_RESPONSE" };
-  } catch {
-    return { ok: false as const, code: "GEMINI_UNAVAILABLE" };
+    return insights
+      ? { ok: true as const, insights }
+      : {
+          ok: false as const,
+          code: "GEMINI_INVALID_RESPONSE",
+          diagnostic: diagnostic(true, response.status, "malformed_response"),
+        };
+  } catch (error) {
+    const timedOut = isAbortError(error);
+    return {
+      ok: false as const,
+      code: "GEMINI_UNAVAILABLE",
+      diagnostic: diagnostic(true, null, timedOut ? "timeout" : "other", timedOut),
+    };
   } finally {
     clearTimeout(timeout);
   }
