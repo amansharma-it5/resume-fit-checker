@@ -146,6 +146,19 @@ describe("AiDraftPanel", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
+  it("explains rate limiting without starting another request", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ code: "GEMINI_RATE_LIMITED" }), { status: 429 }));
+    vi.stubGlobal("fetch", fetcher);
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(screen.getByLabelText(/I understand the selected resume field/i));
+    await user.click(screen.getByRole("button", { name: "Generate AI draft" }));
+    await waitFor(() => expect(announce).toHaveBeenLastCalledWith(expect.stringContaining("rate limited")));
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(apply).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: "Review AI draft" })).not.toBeInTheDocument();
+  });
+
   it("surfaces a normalized failure and keeps keyboard focus on Generate after cancellation", async () => {
     vi.stubGlobal(
       "fetch",
