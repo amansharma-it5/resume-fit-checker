@@ -82,3 +82,9 @@ Limitations: Phase 14 is not application intelligence. Historical score comparis
 Implemented: an optional Checker-only, consent-gated AI Insights request through a same-origin Cloudflare Pages Function. It returns a bounded structured summary, strengths, gaps, and recommendations from Gemini without changing deterministic Local ATS scoring or persisting AI output.
 
 Limitations: Gemini availability and quotas depend on the configured Cloudflare Pages secret and Google account. AI Insights are transient, require user review, and do not include rewriting, tailoring, cover-letter, interview, application, history, or multi-provider features. See `docs/phase-15-gemini-foundation.md`.
+
+# Phase 15.2: Evidence-Safe AI Drafting
+
+Implemented: optional, consent-gated Gemini drafting for one selected Editor field at a time: headline, summary, existing career-objective section, skills phrasing, or one experience bullet. The proposal remains transient until the user accepts it. Provider output and user edits are checked against bounded, relevant resume evidence before display and acceptance; accepted text uses the existing reducer, undo/redo, autosave, optimistic-version, and target-freshness paths.
+
+Limitations: this is not full-resume tailoring or automatic keyword insertion. AI drafts do not create scores, hiring predictions, history, or new persistence, and they do not change Local ATS ownership. See `docs/phase-15.2-evidence-safe-ai-drafting.md`.

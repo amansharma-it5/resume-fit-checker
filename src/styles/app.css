@@ -2540,6 +2540,53 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
   border-color: #fecdca;
   background: #fffbfa;
 }
+.ai-draft-panel {
+  display: grid;
+  gap: 0.8rem;
+}
+.ai-draft-panel > p,
+.ai-draft-panel > label {
+  margin: 0;
+}
+.ai-draft-context,
+.ai-draft-status {
+  color: var(--muted);
+  font-size: var(--type-meta);
+}
+.ai-draft-proposal {
+  display: grid;
+  gap: 0.8rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+.ai-draft-proposal h3 {
+  margin: 0;
+}
+.ai-draft-diff {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.ai-draft-diff > div {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+}
+.ai-draft-diff > div:last-child {
+  border-color: #c7d7fe;
+  background: #f5f7ff;
+}
+.ai-draft-diff p,
+.ai-draft-warnings {
+  overflow-wrap: anywhere;
+}
+.ai-draft-warnings {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: #8a4b11;
+}
 .skip-link {
   color: #fff;
   background: #4959db;
@@ -2728,6 +2775,9 @@ button.danger:hover,
     align-items: flex-start;
     flex-direction: column;
   }
+  .ai-draft-diff {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media print {
@@ -2747,6 +2797,7 @@ button.danger:hover,
   .filters,
   .view-toggle,
   .copilot-panel,
+  .ai-draft-panel,
   .rewrite-lab,
   .validation-summary,
   .error-summary {

@@ -35,6 +35,7 @@ import { createEditorHistory, editorReducer, type EditorAction } from "../resume
 import { saveSnapshotIsCurrent } from "../resume-builder/autosave";
 import { extractStructuredSections, importExtractedResume, type ExtractionSection } from "../resume-builder/importer";
 import { getTemplate } from "../resume-builder/templates";
+import { buildDraftFields } from "../lib/ai-drafting";
 import type {
   ResumeSection,
   ResumeSectionType,
@@ -47,6 +48,7 @@ import { ResumePreview } from "./resume-editor/ResumePreview";
 import { SectionEditor } from "./resume-editor/SectionEditor";
 import { TemplateGallery } from "./resume-editor/TemplateGallery";
 import { CopilotPanel, type CopilotTarget } from "./resume-editor/CopilotPanel";
+import { AiDraftPanel } from "./resume-editor/AiDraftPanel";
 import { ExportPanel } from "./resume-editor/ExportPanel";
 
 type SelectedBullet = { sectionId: string; entryId: string; bulletId: string; text: string };
@@ -332,6 +334,29 @@ export function ResumeEditorPage() {
       }
     return targets.filter((target) => target.text.trim());
   }, [dispatchUserEdit, resume]);
+  const aiDraftFields = useMemo(
+    () =>
+      buildDraftFields(resume, (field, text) => {
+        if (field.bulletId) {
+          dispatchUserEdit({
+            type: "update-bullet",
+            sectionId: field.sectionId,
+            entryId: field.entryId,
+            bulletId: field.bulletId,
+            text,
+          });
+          return;
+        }
+        dispatchUserEdit({
+          type: "update-field",
+          sectionId: field.sectionId,
+          entryId: field.entryId,
+          field: field.field,
+          value: text,
+        });
+      }),
+    [dispatchUserEdit, resume],
+  );
 
   const analyze = useCallback(() => {
     const request = ++analysisRequest.current;
@@ -688,6 +713,12 @@ export function ResumeEditorPage() {
             requestedTargetIndex={copilotTargetIndex}
             onAnnouncement={setAnalysisNotice}
             onInspected={() => markOnboardingStep("rewrite")}
+          />
+          <AiDraftPanel
+            fields={aiDraftFields}
+            role={targetRole}
+            jobDescription={jobDescription}
+            onAnnouncement={setAnalysisNotice}
           />
           <details className="editor-tool">
             <summary>Templates and layout</summary>

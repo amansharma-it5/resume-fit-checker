@@ -461,6 +461,80 @@ test("Copilot controls stay keyboard reachable and contained with long synthetic
   expect(measurement.scrollWidth <= measurement.viewport, JSON.stringify(measurement)).toBe(true);
 });
 
+test("evidence-safe AI drafting requires consent, keeps proposals transient, and accepts through normal undo", async ({
+  page,
+}) => {
+  const requests: Array<Record<string, string>> = [];
+  await page.route("**/api/ai/draft", async (route) => {
+    requests.push(JSON.parse(route.request().postData() || "{}"));
+    await route.fulfill({
+      json: {
+        draft: "Platform engineer building TypeScript services for internal teams.",
+        evidenceWarnings: [],
+        provider: "gemini",
+      },
+    });
+  });
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  const summary = page.getByRole("textbox", { name: /^Summary/ });
+  await summary.fill("Platform engineer building TypeScript services.");
+  const panel = page.locator(".ai-draft-panel");
+  await panel.getByLabel("Resume field to draft").selectOption({ label: "Professional summary" });
+  await expect(panel.getByRole("button", { name: "Generate AI draft" })).toBeDisabled();
+  expect(requests).toEqual([]);
+  await panel.getByLabel(/I understand the selected resume field/i).check();
+  await panel.getByRole("button", { name: "Generate AI draft" }).click();
+  await expect(panel.getByRole("heading", { name: "Review AI draft" })).toBeVisible();
+  expect(requests).toHaveLength(1);
+  expect(requests[0]).toMatchObject({
+    draftType: "SUMMARY",
+    currentText: "Platform engineer building TypeScript services.",
+  });
+  expect(JSON.stringify(requests[0])).not.toContain("cover letter");
+  expect(JSON.stringify(requests[0])).not.toContain("interview");
+  await expect(summary).toHaveValue("Platform engineer building TypeScript services.");
+  await panel.getByRole("button", { name: "Accept AI draft" }).click();
+  await expect(summary).toHaveValue("Platform engineer building TypeScript services for internal teams.");
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(summary).toHaveValue("Platform engineer building TypeScript services.");
+});
+
+test("AI drafting rejects fabricated edits, has one editor announcement, and remains contained on mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.route("**/api/ai/draft", (route) =>
+    route.fulfill({ json: { draft: "Built TypeScript services for internal teams.", evidenceWarnings: [] } }),
+  );
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Create resume" }).click();
+  await page.locator(".document-row").first().getByRole("link", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Add bullet" }).first().click();
+  const bullet = page.getByLabel("Bullet 1");
+  await bullet.fill("Built TypeScript services for internal teams.");
+  const panel = page.locator(".ai-draft-panel");
+  await panel.getByLabel("Resume field to draft").selectOption({ label: "Experience bullet" });
+  await panel.getByLabel(/I understand the selected resume field/i).check();
+  await panel.getByRole("button", { name: "Generate AI draft" }).click();
+  await panel.getByLabel("Edit AI draft before accepting").fill("Built Kubernetes services by 40%.");
+  await panel.getByRole("button", { name: "Accept AI draft" }).click();
+  await expect(page.getByRole("status", { name: "Editor notifications" })).toContainText("More information required");
+  await expect(bullet).toHaveValue("Built TypeScript services for internal teams.");
+  await panel.getByRole("button", { name: "Reject AI draft" }).click();
+  await expect(panel.getByRole("button", { name: "Generate AI draft" })).toBeFocused();
+  const liveRegions = await page
+    .locator("[role='status']")
+    .evaluateAll((nodes) => nodes.filter((node) => node.textContent?.includes("AI draft rejected")).length);
+  expect(liveRegions).toBe(1);
+  const dimensions = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(dimensions.scrollWidth <= dimensions.clientWidth, JSON.stringify(dimensions)).toBe(true);
+});
+
 test("exports a sanitized ATS-friendly plain-text resume without hidden sections", async ({ page }) => {
   await page.goto("/dashboard");
   await page.getByRole("button", { name: "Create resume" }).click();
