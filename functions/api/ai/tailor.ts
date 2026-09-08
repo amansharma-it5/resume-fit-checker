@@ -63,6 +63,8 @@ export async function handleAiTailor(
     },
     env,
     fetchFn,
+    undefined,
+    request.signal,
   );
   if (!result.ok) {
     console.info(result.diagnostic);

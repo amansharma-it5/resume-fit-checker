@@ -1,10 +1,17 @@
 import type { CoverLetterDocument, ResumeDocument } from "../types";
-import { resumeToPlainText } from "../resume-builder/model";
-import { isStructuredResume } from "../resume-builder/model";
+import { isStructuredResume, resumeToPlainText } from "../resume-builder/model";
+import type { StructuredResume } from "../resume-builder/types";
 import { sanitizeExportFilename } from "../resume-builder/export";
 import { validateCopilotSuggestion } from "./copilot-safety";
 
 const clean = (value: string, maximum = 4000) => value.replace(/\s+/g, " ").trim().slice(0, maximum);
+
+export type CoverLetterAiDraft = {
+  opening: string;
+  bodyParagraphs: string[];
+  closing: string;
+  evidenceWarnings: string[];
+};
 
 export function createCoverLetter(input: {
   resume: ResumeDocument;
@@ -57,7 +64,55 @@ export function localEvidenceDraft(letter: CoverLetterDocument, resumeText: stri
     opening: `I am writing to apply for the ${letter.role} role at ${letter.company}.`,
     experience: evidence,
     roleFit: "My resume evidence above is the basis for this draft.",
+    closing: "I would welcome the opportunity to discuss how this experience could contribute to the team.",
   };
+}
+
+function fieldText(value: string | boolean | string[]) {
+  return Array.isArray(value) ? value.join(" ") : typeof value === "string" ? value : "";
+}
+
+function entryEvidence(entry: StructuredResume["sections"][number]["entries"][number]) {
+  return [...Object.values(entry.fields).map(fieldText), ...entry.bullets.map((bullet) => bullet.text)]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Builds bounded, in-memory evidence from relevant resume sections for one cover-letter request. */
+export function buildCoverLetterEvidence(resume: ResumeDocument) {
+  if (!isStructuredResume(resume.structuredData)) return "";
+  const relevant = resume.structuredData.sections
+    .filter((section) => section.visible && ["summary", "experience", "skills", "projects"].includes(section.type))
+    .flatMap((section) => section.entries.filter((entry) => entry.visible).map(entryEvidence));
+  return [...new Set(relevant)].filter(Boolean).join("\n").replace(/\s+/g, " ").trim().slice(0, 6_000);
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Validates the complete structured draft; role/company are context, resume evidence authorizes candidate facts. */
+export function validateCoverLetterDraft(
+  draft: CoverLetterAiDraft,
+  resumeEvidence: string,
+  targetRole: string,
+  company: string,
+  jobDescription = "",
+) {
+  const text = [draft.opening, ...draft.bodyParagraphs, draft.closing].join("\n");
+  const context = `${resumeEvidence}\n${targetRole}\n${company}`;
+  const result = validateCopilotSuggestion(text, context);
+  const unsupported = [...result.unsupported];
+  if (company.trim()) {
+    const companyClaim = new RegExp(
+      `\\b${escapeRegExp(company.trim())}\\b[^.!?\\n]{0,140}\\b(?:award|awarded|mission|product|platform|culture|funding|revenue|growth|industry-leading|innovative|market leader)\\b`,
+      "i",
+    ).exec(text);
+    if (companyClaim && !jobDescription.toLocaleLowerCase().includes(companyClaim[0].toLocaleLowerCase()))
+      unsupported.push(companyClaim[0].trim());
+  }
+  return { ok: unsupported.length === 0, unsupported: [...new Set(unsupported)] };
 }
 
 /** Job-description text is deliberately excluded from evidence: it can guide wording, never authorize candidate facts. */

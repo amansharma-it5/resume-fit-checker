@@ -100,3 +100,9 @@ Limits: 12 fields per explicit batch; conservative vocabulary/evidence validatio
 Implemented for review: a transient, guided Resume Editor orchestration panel that requires an existing Job Target and current Local ATS result, builds a deterministic priority plan, labels unsupported requirements as gaps, delegates only to the existing drafting/tailoring/editor/checker actions, and supports compatible in-memory before/after comparison. It does not add a second scorer, a new persistence model, a free-form chatbot, or an automatic mutation path. See `docs/phase-15.4-ai-resume-agent.md`.
 
 Deferred: Gemini-backed plan explanations, conversational memory, autonomous tools, background execution, ATS v2, cloud sync, and AI cover-letter/interview expansion.
+
+# Phase 15.5: Evidence-Safe AI Cover Letters
+
+Implemented for review: explicit, transient cover-letter drafting through the same-origin Cloudflare Gemini boundary. The workflow sends only bounded selected resume evidence and target context, validates structured output and user edits against resume evidence, and uses the existing editor acceptance, history, undo/redo, versioning, and autosave path. It does not change Local ATS scoring or persist AI proposals. See `docs/phase-15.5-ai-cover-letter.md`.
+
+Limitations: provider access, quota, and availability remain external dependencies; this is not full-resume tailoring, automatic generation, AI history, or a guarantee that any generated claim is true.
