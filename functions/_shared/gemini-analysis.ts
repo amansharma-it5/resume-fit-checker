@@ -147,9 +147,10 @@ type StructuredGeminiRequest<T> = {
   schema: Record<string, unknown>;
   maxOutputTokens: number;
   normalize: (value: unknown) => T | null;
+  requireComplete?: boolean;
 };
 
-async function requestGeminiStructured<T>(
+export async function requestGeminiStructured<T>(
   requestConfig: StructuredGeminiRequest<T>,
   env: GeminiEnv,
   fetchFn: FetchLike = fetch,
@@ -221,6 +222,15 @@ async function requestGeminiStructured<T>(
     }
     const text = (json as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }> })?.candidates?.[0]
       ?.content?.parts?.[0]?.text;
+    if (
+      requestConfig.requireComplete &&
+      (json as { candidates?: Array<{ finishReason?: unknown }> })?.candidates?.[0]?.finishReason !== "STOP"
+    )
+      return {
+        ok: false as const,
+        code: "GEMINI_INVALID_RESPONSE",
+        diagnostic: diagnostic(true, response.status, "malformed_response"),
+      };
     if (typeof text !== "string")
       return {
         ok: false as const,

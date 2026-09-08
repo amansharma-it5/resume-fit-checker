@@ -2544,6 +2544,58 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
   display: grid;
   gap: 0.8rem;
 }
+
+.tailoring-panel,
+.tailoring-panel > div,
+.tailoring-proposal {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tailoring-panel fieldset {
+  min-width: 0;
+  margin: 12px 0;
+}
+.editor-tool.tailoring-panel .checkbox-field {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-height: 44px;
+  gap: 9px;
+  text-align: left;
+}
+.editor-tool.tailoring-panel .checkbox-field input {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  flex: 0 0 18px;
+  margin: 0;
+}
+.tailoring-panel h2:focus-visible {
+  outline: 3px solid #4959db;
+  outline-offset: 3px;
+}
+.tailoring-panel textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.tailoring-panel .button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tailoring-proposal {
+  border-top: 1px solid #e4e7ec;
+  padding: 16px 0;
+}
+.tailoring-status {
+  min-height: 1.5em;
+}
+@media print {
+  .tailoring-panel {
+    display: none !important;
+  }
+}
 .ai-draft-panel > p,
 .ai-draft-panel > label {
   margin: 0;
