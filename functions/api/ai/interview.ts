@@ -137,7 +137,7 @@ export async function handleAiInterview(context: Context, fetchFn: typeof fetch 
     return json(400, { error: "Choose a supported AI interview operation.", code: "INVALID_MODE" });
   }
 
-  const result = await requestGeminiInterview(input, env, fetchFn);
+  const result = await requestGeminiInterview(input, env, fetchFn, undefined, request.signal);
   if (!result.ok) {
     console.info(result.diagnostic);
     const status = result.code === "GEMINI_RATE_LIMITED" ? 429 : result.code === "GEMINI_UNAVAILABLE" ? 503 : 502;

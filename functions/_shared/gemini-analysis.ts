@@ -478,6 +478,7 @@ export async function requestGeminiInterview(
   env: GeminiEnv,
   fetchFn: FetchLike = fetch,
   waitFn: WaitForRetry = waitForRetry,
+  requestSignal?: AbortSignal,
 ) {
   const questionMode = input.mode === "questions";
   const result = await requestGeminiStructured<AiInterviewQuestionSet | AiInterviewFeedback>(
@@ -496,6 +497,7 @@ export async function requestGeminiInterview(
     env,
     fetchFn,
     waitFn,
+    requestSignal,
   );
   return result.ok ? { ok: true as const, output: result.output } : result;
 }
