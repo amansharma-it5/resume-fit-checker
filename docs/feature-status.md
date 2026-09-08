@@ -88,3 +88,9 @@ Limitations: Gemini availability and quotas depend on the configured Cloudflare 
 Implemented: optional, consent-gated Gemini drafting for one selected Editor field at a time: headline, summary, existing career-objective section, skills phrasing, or one experience bullet. The proposal remains transient until the user accepts it. Provider output and user edits are checked against bounded, relevant resume evidence before display and acceptance; accepted text uses the existing reducer, undo/redo, autosave, optimistic-version, and target-freshness paths.
 
 Limitations: this is not full-resume tailoring or automatic keyword insertion. AI drafts do not create scores, hiring predictions, history, or new persistence, and they do not change Local ATS ownership. See `docs/phase-15.2-evidence-safe-ai-drafting.md`.
+
+# Phase 15.3: Job-Specific Resume Tailoring
+
+Implemented for review: consent-gated, coordinated tailoring of selected eligible Editor fields through one server-side Gemini endpoint. Proposals and unmet JD requirements remain separate and transient. Per-proposal acceptance rechecks evidence and source freshness before using existing edit/undo/save behavior. Local ATS ownership, versions and target freshness are unchanged.
+
+Limits: 12 fields per explicit batch; conservative vocabulary/evidence validation may reject valid paraphrases and is not semantic verification. Accept All, autonomous edits, AI persistence and Phase 15.4 remain deferred. See `docs/phase-15.3-full-resume-tailoring.md`.

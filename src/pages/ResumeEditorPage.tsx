@@ -49,6 +49,7 @@ import { SectionEditor } from "./resume-editor/SectionEditor";
 import { TemplateGallery } from "./resume-editor/TemplateGallery";
 import { CopilotPanel, type CopilotTarget } from "./resume-editor/CopilotPanel";
 import { AiDraftPanel } from "./resume-editor/AiDraftPanel";
+import { TailoringPanel } from "./resume-editor/TailoringPanel";
 import { ExportPanel } from "./resume-editor/ExportPanel";
 
 type SelectedBullet = { sectionId: string; entryId: string; bulletId: string; text: string };
@@ -718,6 +719,13 @@ export function ResumeEditorPage() {
             fields={aiDraftFields}
             role={targetRole}
             jobDescription={jobDescription}
+            onAnnouncement={setAnalysisNotice}
+          />
+          <TailoringPanel
+            fields={aiDraftFields}
+            role={targetRole}
+            jobDescription={jobDescription}
+            targetLabel={linkedTarget ? `${linkedTarget.role} at ${linkedTarget.company}` : undefined}
             onAnnouncement={setAnalysisNotice}
           />
           <details className="editor-tool">
