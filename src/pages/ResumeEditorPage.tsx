@@ -51,6 +51,7 @@ import { CopilotPanel, type CopilotTarget } from "./resume-editor/CopilotPanel";
 import { AiDraftPanel } from "./resume-editor/AiDraftPanel";
 import { TailoringPanel } from "./resume-editor/TailoringPanel";
 import { ExportPanel } from "./resume-editor/ExportPanel";
+import { ResumeAgentPanel } from "./resume-editor/ResumeAgentPanel";
 
 type SelectedBullet = { sectionId: string; entryId: string; bulletId: string; text: string };
 
@@ -106,6 +107,7 @@ export function ResumeEditorPage() {
   const [analysisStatus, setAnalysisStatus] = useState<"idle" | "calculating" | "updated" | "error">("idle");
   const [analysisNotice, setAnalysisNotice] = useState("");
   const [copilotTargetIndex, setCopilotTargetIndex] = useState<number | undefined>();
+  const [agentDraftFieldId, setAgentDraftFieldId] = useState<string | undefined>();
   const [rewrite, setRewrite] = useState<any>(null);
   const [rewriteLoading, setRewriteLoading] = useState(false);
   const [consent, setConsent] = useState(false);
@@ -432,6 +434,48 @@ export function ResumeEditorPage() {
     setAnalysisNotice(`Copilot opened for: ${issueText}`);
   }
 
+  function focusAgentSurface(selector: string, message: string) {
+    const surface = document.querySelector<HTMLElement>(selector);
+    if (!surface) {
+      setAnalysisNotice("That workflow is not available in the current editor.");
+      return;
+    }
+    surface.scrollIntoView({ behavior: "smooth", block: "center" });
+    const heading = surface.querySelector<HTMLElement>("h2, h3");
+    if (heading) {
+      heading.setAttribute("tabindex", "-1");
+      heading.focus({ preventScroll: true });
+    }
+    setAnalysisNotice(message);
+  }
+
+  function openTailoringFromAgent() {
+    const trigger = document.querySelector<HTMLButtonElement>(".tailoring-panel > button");
+    if (!trigger) {
+      setAnalysisNotice("The tailoring workflow is not available in the current editor.");
+      return;
+    }
+    trigger.scrollIntoView({ behavior: "smooth", block: "center" });
+    trigger.click();
+    setAnalysisNotice("Tailoring workflow opened. Review and accept each proposal explicitly.");
+  }
+
+  function openTargetedDraftFromAgent(fieldId: string) {
+    setAgentDraftFieldId(fieldId);
+    focusAgentSurface(".ai-draft-panel", "Targeted drafting opened. Consent is required before any provider request.");
+  }
+
+  function openAtsReviewFromAgent() {
+    const summary = Array.from(document.querySelectorAll("summary")).find(
+      (item) => item.textContent?.trim() === "ATS check",
+    );
+    if (summary instanceof HTMLElement) {
+      const details = summary.closest("details");
+      if (details && !details.open) summary.click();
+    }
+    focusAgentSurface(".ats-review-tool", "Local ATS review opened. Scores remain deterministic and local.");
+  }
+
   function applyRewrite(text: string) {
     if (!selectedBullet) return;
     dispatchUserEdit({ type: "update-bullet", ...selectedBullet, text });
@@ -715,10 +759,28 @@ export function ResumeEditorPage() {
             onAnnouncement={setAnalysisNotice}
             onInspected={() => markOnboardingStep("rewrite")}
           />
+          <ResumeAgentPanel
+            resumeId={resume.id}
+            targetId={targetId}
+            target={
+              linkedTarget ? { id: linkedTarget.id, role: linkedTarget.role, company: linkedTarget.company } : null
+            }
+            analysis={analysis}
+            analysisState={linkedTargetState?.state || null}
+            analysisResumeVersion={analysisResumeVersion}
+            fields={aiDraftFields}
+            onRunAnalysis={analyze}
+            onOpenTailoring={openTailoringFromAgent}
+            onOpenTargetedDraft={openTargetedDraftFromAgent}
+            onOpenEditorSection={selectSection}
+            onOpenGaps={openAtsReviewFromAgent}
+            onAnnouncement={setAnalysisNotice}
+          />
           <AiDraftPanel
             fields={aiDraftFields}
             role={targetRole}
             jobDescription={jobDescription}
+            requestedFieldId={agentDraftFieldId}
             onAnnouncement={setAnalysisNotice}
           />
           <TailoringPanel
@@ -918,7 +980,7 @@ export function ResumeEditorPage() {
               <p>No saved versions yet.</p>
             )}
           </details>
-          <details className="editor-tool">
+          <details className="editor-tool ats-review-tool">
             <summary>ATS check</summary>
             {!jobDescription.trim() && (
               <p className="guidance-note">

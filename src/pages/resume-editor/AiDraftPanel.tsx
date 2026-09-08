@@ -7,11 +7,13 @@ export function AiDraftPanel({
   fields,
   role,
   jobDescription,
+  requestedFieldId,
   onAnnouncement,
 }: {
   fields: DraftField[];
   role: string;
   jobDescription: string;
+  requestedFieldId?: string;
   onAnnouncement: (message: string) => void;
 }) {
   const [fieldId, setFieldId] = useState(fields[0]?.id || "");
@@ -28,6 +30,10 @@ export function AiDraftPanel({
   useEffect(() => {
     if (field && !fields.some((item) => item.id === fieldId)) setFieldId(field.id);
   }, [field, fieldId, fields]);
+
+  useEffect(() => {
+    if (requestedFieldId && fields.some((item) => item.id === requestedFieldId)) setFieldId(requestedFieldId);
+  }, [fields, requestedFieldId]);
 
   useEffect(() => {
     if (!restoreGenerateFocus) return;
