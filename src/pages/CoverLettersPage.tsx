@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { downloadCoverLetterPlainText, createCoverLetter, localEvidenceDraft } from "../lib/cover-letters";
+import {
+  buildCoverLetterEvidence,
+  downloadCoverLetterPlainText,
+  createCoverLetter,
+  localEvidenceDraft,
+  type CoverLetterAiDraft,
+} from "../lib/cover-letters";
 import { getGuestTarget, listGuestCoverLetters, listGuestResumes, putGuestCoverLetter } from "../lib/guest-db";
 import { isStructuredResume, resumeToPlainText } from "../resume-builder/model";
 import type { CoverLetterDocument, ResumeDocument } from "../types";
@@ -62,6 +68,41 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
       });
   }, [load, repository, targetId]);
   const selected = useMemo(() => resumes.find((item) => item.id === resumeId), [resumes, resumeId]);
+  const resumeEvidence = useMemo(() => (selected ? buildCoverLetterEvidence(selected) : ""), [selected]);
+  const currentDraft = useMemo(
+    () =>
+      letter
+        ? { opening: letter.opening, bodyParagraphs: letter.experience, closing: letter.closing }
+        : { opening: "", bodyParagraphs: [], closing: "" },
+    [letter],
+  );
+  const fallbackDraft = useMemo<CoverLetterAiDraft | null>(() => {
+    if (!letter || !resumeEvidence) return null;
+    const local = localEvidenceDraft(letter, resumeEvidence);
+    return local.status === "ready"
+      ? {
+          opening: local.opening,
+          bodyParagraphs: local.experience,
+          closing: local.closing,
+          evidenceWarnings: [],
+        }
+      : null;
+  }, [letter, resumeEvidence]);
+  const sourceKey = useMemo(
+    () =>
+      letter
+        ? [
+            letter.id,
+            letter.resumeId,
+            selected?.updatedAt || "missing-resume",
+            letter.jobTargetId || "no-target",
+            letter.company,
+            letter.role,
+            letter.jobDescription,
+          ].join("\u001f")
+        : "",
+    [letter, selected],
+  );
   async function create() {
     if (!selected || !company.trim() || !role.trim() || !jd.trim()) {
       setMessage("Choose a resume and add company, role, and job description before creating a letter.");
@@ -78,6 +119,13 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
     replaceLetter(saved);
     setMessage("Cover letter created locally. Review and save it before exporting.");
     await load();
+  }
+  function openLetter(item: CoverLetterDocument) {
+    setResumeId(item.resumeId);
+    setCompany(item.company);
+    setRole(item.role);
+    setJd(item.jobDescription);
+    replaceLetter(item);
   }
   async function save(snapshot = letter) {
     if (!snapshot) return;
@@ -172,7 +220,7 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
                         {item.company} · {item.role}
                       </p>
                     </div>
-                    <button onClick={() => setLetter(item)}>Open</button>
+                    <button onClick={() => openLetter(item)}>Open</button>
                     <Link className="button-link" to={`/applications?letter=${item.id}`}>
                       Track application
                     </Link>
@@ -304,15 +352,23 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
             <textarea rows={3} value={letter.closing} onChange={(e) => update("closing", e.target.value)} />
           </label>
           <CoverLetterAssistant
-            text={letter.opening}
-            evidence={
-              selected && isStructuredResume(selected.structuredData) ? resumeToPlainText(selected.structuredData) : ""
-            }
+            candidateName={letter.sender.name}
+            resumeEvidence={resumeEvidence}
             company={letter.company}
             role={letter.role}
             jd={letter.jobDescription}
+            current={currentDraft}
+            fallbackDraft={fallbackDraft}
+            sourceKey={sourceKey}
             onAnnouncement={setMessage}
-            onAccept={(value) => update("opening", value)}
+            onAccept={(draft) =>
+              change({
+                ...letter,
+                opening: draft.opening,
+                experience: draft.bodyParagraphs,
+                closing: draft.closing,
+              })
+            }
           />
           <button
             onClick={() => {
