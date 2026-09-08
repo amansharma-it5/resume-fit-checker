@@ -74,6 +74,10 @@ export function AiDraftPanel({
           announce(`More information required: ${warnings.join(", ")}. Your resume was not changed.`);
           return;
         }
+        if (blocked.code === "GEMINI_RATE_LIMITED") {
+          announce("AI drafting is rate limited. Try again later when you are ready.");
+          return;
+        }
       }
       if (
         !response.ok ||

@@ -26,6 +26,10 @@ function provider(
   return vi.fn(async () => response);
 }
 
+function structuredProviderText(text: string) {
+  return provider(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] })));
+}
+
 describe("Gemini drafting Pages Function", () => {
   it("accepts only strict, normalized targeted drafting requests", async () => {
     const fetcher = provider();
@@ -79,6 +83,43 @@ describe("Gemini drafting Pages Function", () => {
         )
       ).status,
     ).toBe(502);
+  });
+
+  it("rejects malformed, truncated, and non-conforming structured output without exposing it", async () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const malformedResponses = [
+      provider(new Response("{", { status: 200 })),
+      structuredProviderText('{"draft":'),
+      structuredProviderText(JSON.stringify({ evidenceWarnings: [] })),
+      structuredProviderText(JSON.stringify({ draft: "", evidenceWarnings: [] })),
+      structuredProviderText(JSON.stringify({ draft: "Valid text", evidenceWarnings: [1] })),
+      structuredProviderText(JSON.stringify({ draft: "Valid text", evidenceWarnings: [], extra: "unexpected" })),
+      structuredProviderText('```json\n{"draft":"Valid text","evidenceWarnings":[]}\n```'),
+    ];
+    try {
+      for (const fetcher of malformedResponses) {
+        const response = await handleAiDraft(
+          { request: request(input), env: { GEMINI_API_KEY: "test-only-key" } },
+          fetcher,
+        );
+        expect(response.status).toBe(502);
+        await expect(response.json()).resolves.toEqual({
+          error: "AI drafting is unavailable. Try again later.",
+          code: "GEMINI_INVALID_RESPONSE",
+        });
+      }
+      expect(consoleInfo).toHaveBeenCalledWith({
+        geminiBindingPresent: true,
+        upstreamStatus: 200,
+        failureCategory: "malformed_response",
+        requestTimedOut: false,
+      });
+      const logs = JSON.stringify(consoleInfo.mock.calls);
+      expect(logs).not.toContain("Valid text");
+      expect(logs).not.toContain("unexpected");
+    } finally {
+      consoleInfo.mockRestore();
+    }
   });
 
   it("flags an unsupported provider claim without returning the fabricated draft", async () => {
@@ -164,5 +205,8 @@ describe("Gemini drafting Pages Function", () => {
       draft: "text",
       evidenceWarnings: ["x".repeat(220)],
     });
+    expect(normalizeAiDraft({ draft: "text" })).toBeNull();
+    expect(normalizeAiDraft({ draft: "text", evidenceWarnings: [1] })).toBeNull();
+    expect(normalizeAiDraft({ draft: "text", evidenceWarnings: [], extra: true })).toBeNull();
   });
 });

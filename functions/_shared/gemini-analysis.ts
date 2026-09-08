@@ -82,13 +82,21 @@ export function normalizeAiInsights(value: unknown): AiInsights | null {
 export function normalizeAiDraft(value: unknown): AiDraft | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
+  const keys = Object.keys(candidate);
+  if (
+    keys.length !== 2 ||
+    !keys.includes("draft") ||
+    !keys.includes("evidenceWarnings") ||
+    typeof candidate.draft !== "string" ||
+    !Array.isArray(candidate.evidenceWarnings) ||
+    !candidate.evidenceWarnings.every((warning) => typeof warning === "string")
+  )
+    return null;
   const draft = boundedText(candidate.draft, 1_200);
-  const evidenceWarnings = Array.isArray(candidate.evidenceWarnings)
-    ? candidate.evidenceWarnings
-        .map((item) => boundedText(item, 220))
-        .filter(Boolean)
-        .slice(0, 6)
-    : [];
+  const evidenceWarnings = candidate.evidenceWarnings
+    .map((item) => boundedText(item, 220))
+    .filter(Boolean)
+    .slice(0, 6);
   return draft ? { draft, evidenceWarnings } : null;
 }
 
@@ -201,8 +209,24 @@ async function requestGeminiStructured<T>(
         code: "GEMINI_UNAVAILABLE",
         diagnostic: diagnostic(true, response.status, categoryForStatus(response.status)),
       };
-    const json = await response.json();
-    const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+    let json: unknown;
+    try {
+      json = await response.json();
+    } catch {
+      return {
+        ok: false as const,
+        code: "GEMINI_INVALID_RESPONSE",
+        diagnostic: diagnostic(true, response.status, "malformed_response"),
+      };
+    }
+    const text = (json as { candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }> })?.candidates?.[0]
+      ?.content?.parts?.[0]?.text;
+    if (typeof text !== "string")
+      return {
+        ok: false as const,
+        code: "GEMINI_INVALID_RESPONSE",
+        diagnostic: diagnostic(true, response.status, "malformed_response"),
+      };
     let parsed: unknown;
     try {
       parsed = JSON.parse(text);

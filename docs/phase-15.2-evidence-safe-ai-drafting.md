@@ -34,6 +34,14 @@ Gemini output is React-memory-only. It appears as **Current** versus **AI draft*
 - **Edit**, **Reject**, **Regenerate**, and **Cancel** do not mutate the resume.
 - No proposal, raw provider response, prompt, resume/JD payload, or AI history is persisted to IndexedDB, local storage, Supabase, Applications, Job Targets, ATS history, or analytics.
 
+## Provider reliability limits
+
+Gemini responses are accepted only when they are valid JSON that exactly conforms to the requested draft contract: a non-empty `draft` string and an `evidenceWarnings` array, with no extra fields. Invalid or truncated JSON, missing candidate text, missing required fields, empty drafts, and code-fenced JSON are rejected as normalized `GEMINI_INVALID_RESPONSE` failures; neither provider content nor diagnostics are returned to the browser.
+
+The shared transport has one server-side retry after 200 ms only for upstream HTTP `500`, `502`, `503`, or `504`, inside the existing 15-second deadline. It never retries `429`, authentication, permission, model, validation, or malformed-output failures. The browser never retries automatically. A rate-limited response tells the user to retry later.
+
+Gemini quota, rate limits, and occasional malformed or unavailable responses remain a third-party operational dependency. A broader public release may need paid quota and/or dedicated edge rate limiting in a later phase; neither is introduced here.
+
 ## Local ATS boundary
 
 Local ATS v1 remains deterministic and fully separate. `analysis-engine.js` is still the only ATS score owner. Targeted drafting neither invokes a scorer nor creates a score, engine version, ruleset version, hiring probability, or automatic analysis run. An accepted normal resume change can make an existing target analysis stale through the existing freshness contract only.
