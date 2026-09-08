@@ -24,6 +24,7 @@ export type GeminiFailureCategory =
   | "timeout"
   | "upstream_unavailable"
   | "malformed_response"
+  | "request_cancelled"
   | "other";
 export type GeminiDiagnostic = {
   geminiBindingPresent: boolean;
@@ -155,6 +156,7 @@ export async function requestGeminiStructured<T>(
   env: GeminiEnv,
   fetchFn: FetchLike = fetch,
   waitFn: WaitForRetry = waitForRetry,
+  requestSignal?: AbortSignal,
 ) {
   const apiKey = env.GEMINI_API_KEY;
   if (!apiKey)
@@ -164,8 +166,24 @@ export async function requestGeminiStructured<T>(
       diagnostic: diagnostic(false, null, "missing_binding"),
     };
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), GEMINI_REQUEST_TIMEOUT_MS);
+  let timedOut = false;
+  let requestCancelled = Boolean(requestSignal?.aborted);
+  const abortFromRequest = () => {
+    requestCancelled = true;
+    controller.abort();
+  };
+  if (requestSignal) requestSignal.addEventListener("abort", abortFromRequest, { once: true });
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, GEMINI_REQUEST_TIMEOUT_MS);
+  const cancelledResult = () => ({
+    ok: false as const,
+    code: "GEMINI_REQUEST_CANCELLED",
+    diagnostic: diagnostic(true, null, "request_cancelled"),
+  });
   try {
+    if (requestCancelled) return cancelledResult();
     const request = {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
@@ -182,12 +200,16 @@ export async function requestGeminiStructured<T>(
     };
     let response: Response | null = null;
     for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (requestCancelled) return cancelledResult();
       response = await fetchFn(
         `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_ANALYSIS_MODEL}:generateContent`,
         request,
       );
+      if (requestCancelled) return cancelledResult();
       if (attempt === 0 && isRetryableUpstreamStatus(response.status)) {
+        if (requestCancelled) return cancelledResult();
         await waitFn(GEMINI_RETRY_DELAY_MS, controller.signal);
+        if (requestCancelled) return cancelledResult();
         continue;
       }
       break;
@@ -256,14 +278,16 @@ export async function requestGeminiStructured<T>(
           diagnostic: diagnostic(true, response.status, "malformed_response"),
         };
   } catch (error) {
-    const timedOut = isAbortError(error);
+    const aborted = isAbortError(error);
+    if (requestCancelled && !timedOut) return cancelledResult();
     return {
       ok: false as const,
       code: "GEMINI_UNAVAILABLE",
-      diagnostic: diagnostic(true, null, timedOut ? "timeout" : "other", timedOut),
+      diagnostic: diagnostic(true, null, timedOut || aborted ? "timeout" : "other", timedOut || aborted),
     };
   } finally {
     clearTimeout(timeout);
+    requestSignal?.removeEventListener("abort", abortFromRequest);
   }
 }
 
@@ -272,6 +296,7 @@ export async function requestGeminiInsights(
   env: GeminiEnv,
   fetchFn: FetchLike = fetch,
   waitFn: WaitForRetry = waitForRetry,
+  requestSignal?: AbortSignal,
 ) {
   const result = await requestGeminiStructured(
     {
@@ -285,6 +310,7 @@ export async function requestGeminiInsights(
     env,
     fetchFn,
     waitFn,
+    requestSignal,
   );
   return result.ok ? { ok: true as const, insights: result.output } : result;
 }
@@ -294,6 +320,7 @@ export async function requestGeminiDraft(
   env: GeminiEnv,
   fetchFn: FetchLike = fetch,
   waitFn: WaitForRetry = waitForRetry,
+  requestSignal?: AbortSignal,
 ) {
   const result = await requestGeminiStructured(
     {
@@ -307,6 +334,7 @@ export async function requestGeminiDraft(
     env,
     fetchFn,
     waitFn,
+    requestSignal,
   );
   return result.ok ? { ok: true as const, draft: result.output } : result;
 }

@@ -66,6 +66,8 @@ export async function handleAiDraft(context: Context, fetchFn: typeof fetch = fe
     },
     env,
     fetchFn,
+    undefined,
+    request.signal,
   );
   if (!result.ok) {
     console.info(result.diagnostic);
