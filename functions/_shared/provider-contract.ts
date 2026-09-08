@@ -7,6 +7,27 @@ export type ProviderFailureCode =
   | "MODEL_ERROR"
   | "REQUEST_CANCELLED";
 
+export type ProviderFailureCategory =
+  | "missing_binding"
+  | "auth_error"
+  | "permission"
+  | "model_not_found"
+  | "rate_limited"
+  | "upstream_unavailable"
+  | "transport_error"
+  | "timeout"
+  | "invalid_response"
+  | "request_cancelled";
+
+export type ProviderDiagnostic = {
+  providerBindingPresent: boolean;
+  upstreamStatus: number | null;
+  failureCategory: ProviderFailureCategory;
+  requestTimedOut: boolean;
+  requestCancelled: boolean;
+  attemptCount: number;
+};
+
 export type StructuredProviderRequest<T> = {
   systemInstruction: string;
   userText: string;
@@ -18,7 +39,7 @@ export type StructuredProviderRequest<T> = {
 
 export type ProviderResult<T> =
   | { ok: true; output: T; provider: string; model: string }
-  | { ok: false; code: ProviderFailureCode; provider: string; model: string };
+  | { ok: false; code: ProviderFailureCode; provider: string; model: string; diagnostic: ProviderDiagnostic };
 
 export interface StructuredTextProvider {
   request<T>(config: StructuredProviderRequest<T>, signal?: AbortSignal): Promise<ProviderResult<T>>;

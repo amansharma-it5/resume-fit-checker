@@ -51,6 +51,12 @@ describe("Groq provider evaluation contract", () => {
   it("fails safely when the server binding is missing", async () => {
     const result = await new GroqStructuredProvider({}).request(config);
     expect(result).toMatchObject({ ok: false, code: "AUTH_ERROR" });
+    if (!result.ok)
+      expect(result.diagnostic).toMatchObject({
+        providerBindingPresent: false,
+        failureCategory: "missing_binding",
+        attemptCount: 0,
+      });
   });
 
   it.each([
@@ -66,6 +72,24 @@ describe("Groq provider evaluation contract", () => {
       async () => new Response("sensitive provider body", { status }),
     ).request(config);
     expect(result).toMatchObject({ ok: false, code });
+    if (!result.ok)
+      expect(result.diagnostic).toMatchObject({
+        providerBindingPresent: true,
+        upstreamStatus: status,
+        failureCategory:
+          status === 401 || status === 403
+            ? status === 401
+              ? "auth_error"
+              : "permission"
+            : status === 404
+              ? "model_not_found"
+              : status === 429
+                ? "rate_limited"
+                : status >= 500
+                  ? "upstream_unavailable"
+                  : "transport_error",
+        attemptCount: status >= 500 ? 2 : 1,
+      });
     expect(JSON.stringify(result)).not.toContain("sensitive provider body");
   });
 
@@ -103,7 +127,9 @@ describe("Groq provider evaluation contract", () => {
       { GROQ_API_KEY: "synthetic" },
       async () => new Response(JSON.stringify({ choices: [{ message: { content: "not json" } }] }), { status: 200 }),
     );
-    expect(await malformed.request(config)).toMatchObject({ ok: false, code: "INVALID_RESPONSE" });
+    const malformedResult = await malformed.request(config);
+    expect(malformedResult).toMatchObject({ ok: false, code: "INVALID_RESPONSE" });
+    if (!malformedResult.ok) expect(malformedResult.diagnostic.failureCategory).toBe("invalid_response");
   });
 });
 
