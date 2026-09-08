@@ -225,7 +225,7 @@ describe("Gemini Pages Function contract", () => {
     const incoming = new AbortController();
     let providerSignal: AbortSignal | undefined;
     const fetcher = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
-      providerSignal = init?.signal;
+      providerSignal = init?.signal ?? undefined;
       return new Promise<Response>((_, reject) => {
         init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), {
           once: true,
