@@ -87,6 +87,7 @@ export function CoverLetterAssistant({
   const [editedDraft, setEditedDraft] = useState<CoverLetterAiDraft | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [activeRequestKey, setActiveRequestKey] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const requestId = useRef(0);
@@ -134,6 +135,7 @@ export function CoverLetterAssistant({
     const id = ++requestId.current;
     const request = new AbortController();
     controller.current = request;
+    setActiveRequestKey(requestKey);
     setBusy(true);
     setProposal(null);
     setEditedDraft(null);
@@ -190,6 +192,7 @@ export function CoverLetterAssistant({
     } finally {
       if (id === requestId.current) {
         inFlightKey.current = null;
+        setActiveRequestKey(null);
         setBusy(false);
       }
     }
@@ -199,6 +202,7 @@ export function CoverLetterAssistant({
     requestId.current += 1;
     controller.current?.abort();
     inFlightKey.current = null;
+    setActiveRequestKey(null);
     setBusy(false);
     setProposal(null);
     setEditedDraft(null);
@@ -262,7 +266,7 @@ export function CoverLetterAssistant({
             !company.trim() ||
             !jd.trim() ||
             !resumeEvidence.trim() ||
-            (busy && inFlightKey.current === requestKey)
+            (busy && activeRequestKey === requestKey)
           }
           onClick={() => void generate()}
         >
