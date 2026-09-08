@@ -125,7 +125,7 @@ test("cancels a delayed request without late output and keeps Generate usable", 
   await expect(page.getByLabel("Opening").first()).toHaveValue("");
 });
 
-test("replaces an in-flight request and discards the late response from request A", async ({ page }) => {
+test("cancels an in-flight request before a new explicit request and discards the late response", async ({ page }) => {
   let requests = 0;
   let releaseFirst: (() => void) | undefined;
   await page.route("**/api/ai/cover-letter", async (route) => {
@@ -142,7 +142,8 @@ test("replaces an in-flight request and discards the late response from request 
   await createLetter(page, true);
   await page.getByLabel(/consent to send/i).check();
   await page.getByRole("button", { name: "Generate with AI" }).click();
-  await page.getByRole("button", { name: "Replace request" }).click();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Generate with AI" }).click();
   await expect(page.getByRole("heading", { name: "AI Draft" })).toBeVisible();
   releaseFirst?.();
   await expect(page.locator("ins").first()).toHaveText(aiDraft.opening);
