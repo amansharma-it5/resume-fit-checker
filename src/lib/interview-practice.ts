@@ -1,15 +1,36 @@
 import { isStructuredResume, resumeToPlainText } from "../resume-builder/model";
+import { validateAiDraft } from "./ai-draft-safety";
 import type { InterviewPracticeQuestion, InterviewPracticeSession, ResumeDocument } from "../types";
+
+export type InterviewType = "MIXED" | "BEHAVIORAL" | "TECHNICAL";
+export type AiInterviewQuestionDraft = {
+  prompt: string;
+  category: "behavioral" | "technical" | "role-fit";
+  reason: string;
+  evidenceRefs: string[];
+};
+export type AiInterviewFeedback = {
+  strengths: string[];
+  gaps: string[];
+  starGuidance: string;
+  improvement: string;
+  examplePhrasing: string;
+  evidenceWarnings: string[];
+};
 
 const promptLike = /ignore\s+(previous|all)|system\s+instructions|reveal\s+(secrets?|prompt)|invent\s+/i;
 
-function linesFromEvidence(resume: ResumeDocument) {
+export function interviewResumeEvidence(resume: ResumeDocument) {
   if (!isStructuredResume(resume.structuredData)) return [];
   return resumeToPlainText(resume.structuredData)
     .split(/\n+/)
     .map((line) => line.trim())
     .filter((line) => line.length > 18 && !promptLike.test(line))
     .slice(0, 3);
+}
+
+function linesFromEvidence(resume: ResumeDocument) {
+  return interviewResumeEvidence(resume);
 }
 
 function question(
@@ -24,6 +45,7 @@ export function generateInterviewQuestions(
   role: string,
   company: string,
   jobDescription: string,
+  interviewType: InterviewType = "MIXED",
 ) {
   const evidence = linesFromEvidence(resume);
   const safeRole = role.trim() || "this role";
@@ -50,20 +72,31 @@ export function generateInterviewQuestions(
     questions.push(
       question({
         prompt: `Which evidence from your background is most relevant to the requirements for this ${safeRole} role?`,
-        category: "job",
+        category: "role-fit",
         reason: "The local job description guides this question; it is not candidate evidence.",
         evidence: [],
       }),
     );
   }
-  questions.push(
-    question({
-      prompt: "Tell me about a situation where you had to explain a difficult decision or trade-off.",
-      category: "behavioral",
-      reason: "This is a general behavioral practice question and does not assume a specific achievement.",
-      evidence: [],
-    }),
-  );
+  if (interviewType !== "TECHNICAL")
+    questions.push(
+      question({
+        prompt: "Tell me about a situation where you had to explain a difficult decision or trade-off.",
+        category: "behavioral",
+        reason: "This is a general behavioral practice question and does not assume a specific achievement.",
+        evidence: [],
+      }),
+    );
+  if (interviewType !== "BEHAVIORAL")
+    questions.push(
+      question({
+        prompt: `How would you approach a technical or domain challenge relevant to the ${safeRole} role?`,
+        category: "technical",
+        reason:
+          "This question tests your reasoning without assuming a technology or outcome not present in your resume.",
+        evidence: [],
+      }),
+    );
   return questions;
 }
 
@@ -73,6 +106,7 @@ export function createInterviewPracticeSession(input: {
   company: string;
   jobDescription?: string;
   jobTargetId?: string;
+  questions?: AiInterviewQuestionDraft[];
 }): InterviewPracticeSession {
   const now = new Date().toISOString();
   const company = input.company.trim().slice(0, 160);
@@ -87,11 +121,84 @@ export function createInterviewPracticeSession(input: {
     company,
     role,
     jobDescription,
-    questions: generateInterviewQuestions(input.resume, role, company, jobDescription),
+    questions: input.questions?.length
+      ? materializeInterviewQuestions(input.questions)
+      : generateInterviewQuestions(input.resume, role, company, jobDescription),
     createdAt: now,
     updatedAt: now,
     editorVersion: 0,
   };
+}
+
+export function materializeInterviewQuestions(drafts: AiInterviewQuestionDraft[]): InterviewPracticeQuestion[] {
+  return drafts.map((draft) =>
+    question({
+      prompt: draft.prompt,
+      category: draft.category,
+      reason: draft.reason,
+      evidence: [],
+    }),
+  );
+}
+
+export function validateAiInterviewQuestionSet(value: unknown, evidence: string[]) {
+  if (!value || typeof value !== "object") return { ok: false as const, unsupported: [] as string[] };
+  const questions = (value as { questions?: unknown }).questions;
+  if (!Array.isArray(questions) || questions.length < 3 || questions.length > 8)
+    return { ok: false as const, unsupported: [] as string[] };
+  const known = new Set(evidence);
+  const valid = questions.every((item) => {
+    if (!item || typeof item !== "object") return false;
+    const candidate = item as Record<string, unknown>;
+    return (
+      typeof candidate.prompt === "string" &&
+      Boolean(candidate.prompt.trim()) &&
+      typeof candidate.reason === "string" &&
+      Boolean(candidate.reason.trim()) &&
+      ["behavioral", "technical", "role-fit"].includes(String(candidate.category)) &&
+      Array.isArray(candidate.evidenceRefs) &&
+      candidate.evidenceRefs.every((ref) => typeof ref === "string" && known.has(ref))
+    );
+  });
+  return valid
+    ? { ok: true as const, questions: questions as AiInterviewQuestionDraft[] }
+    : { ok: false as const, unsupported: [] };
+}
+
+export function validateAiInterviewFeedback(value: unknown, evidence: string[], answer: string) {
+  if (!value || typeof value !== "object") return { ok: false as const, unsupported: [] as string[] };
+  const candidate = value as Record<string, unknown>;
+  const list = (key: string) =>
+    Array.isArray(candidate[key]) && candidate[key].every((item) => typeof item === "string")
+      ? (candidate[key] as string[])
+      : null;
+  const strengths = list("strengths");
+  const gaps = list("gaps");
+  const evidenceWarnings = list("evidenceWarnings");
+  const starGuidance = candidate.starGuidance;
+  const improvement = candidate.improvement;
+  const examplePhrasing = candidate.examplePhrasing;
+  if (
+    !strengths ||
+    !gaps ||
+    !evidenceWarnings ||
+    typeof starGuidance !== "string" ||
+    typeof improvement !== "string" ||
+    typeof examplePhrasing !== "string" ||
+    !improvement.trim()
+  )
+    return { ok: false as const, unsupported: [] as string[] };
+  const source = [...evidence, answer].join("\n");
+  const unsupported = [strengths, [starGuidance], [improvement], [examplePhrasing]]
+    .flat()
+    .filter(Boolean)
+    .flatMap((text) => validateAiDraft(text, source).unsupported);
+  return unsupported.length
+    ? { ok: false as const, unsupported: [...new Set(unsupported)] }
+    : {
+        ok: true as const,
+        feedback: { strengths, gaps, starGuidance, improvement, examplePhrasing, evidenceWarnings },
+      };
 }
 
 export function feedbackForAnswer(answer: string, evidence: string[]) {

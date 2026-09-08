@@ -70,7 +70,7 @@ export interface CoverLetterDocument {
 export interface InterviewPracticeQuestion {
   id: string;
   prompt: string;
-  category: "introduction" | "resume" | "behavioral" | "job" | "skills" | "custom";
+  category: "introduction" | "resume" | "behavioral" | "job" | "skills" | "technical" | "role-fit" | "custom";
   reason: string;
   evidence: string[];
   answer: string;
