@@ -203,6 +203,87 @@ describe("Gemini Pages Function contract", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(wait).toHaveBeenCalledTimes(1);
   });
+  it("stops before the provider when the incoming request is already cancelled", async () => {
+    const incoming = new AbortController();
+    incoming.abort();
+    const fetcher = vi.fn();
+    const result = await requestGeminiInsights(
+      { resumeText: "Resume", jobDescription: "JD" },
+      { GEMINI_API_KEY: "test-only-key" },
+      fetcher,
+      undefined,
+      incoming.signal,
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      code: "GEMINI_REQUEST_CANCELLED",
+      diagnostic: { failureCategory: "request_cancelled", requestTimedOut: false },
+    });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+  it("aborts an active provider request and does not retry after incoming cancellation", async () => {
+    const incoming = new AbortController();
+    let providerSignal: AbortSignal | undefined;
+    const fetcher = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      providerSignal = init?.signal;
+      return new Promise<Response>((_, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), {
+          once: true,
+        });
+        setTimeout(() => incoming.abort(), 0);
+      });
+    });
+    const result = await requestGeminiInsights(
+      { resumeText: "Resume", jobDescription: "JD" },
+      { GEMINI_API_KEY: "test-only-key" },
+      fetcher,
+      undefined,
+      incoming.signal,
+    );
+    expect(result).toMatchObject({ ok: false, code: "GEMINI_REQUEST_CANCELLED" });
+    expect(providerSignal?.aborted).toBe(true);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("does not start the retry when incoming cancellation occurs during the retry delay", async () => {
+    const incoming = new AbortController();
+    const fetcher = vi.fn(async () => new Response("temporary", { status: 503 }));
+    const wait = vi.fn(async () => {
+      incoming.abort();
+    });
+    const result = await requestGeminiInsights(
+      { resumeText: "Resume", jobDescription: "JD" },
+      { GEMINI_API_KEY: "test-only-key" },
+      fetcher,
+      wait,
+      incoming.signal,
+    );
+    expect(result).toMatchObject({ ok: false, code: "GEMINI_REQUEST_CANCELLED" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(wait).toHaveBeenCalledTimes(1);
+  });
+  it("keeps a later request independent after an earlier request is cancelled", async () => {
+    const incoming = new AbortController();
+    incoming.abort();
+    const independentProvider = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(insight) }] } }] })),
+    );
+    const cancelled = await requestGeminiInsights(
+      { resumeText: "Resume", jobDescription: "JD" },
+      { GEMINI_API_KEY: "test-only-key" },
+      independentProvider,
+      undefined,
+      incoming.signal,
+    );
+    const successful = await requestGeminiInsights(
+      { resumeText: "Resume", jobDescription: "JD" },
+      { GEMINI_API_KEY: "test-only-key" },
+      independentProvider,
+    );
+    expect(cancelled.ok).toBe(false);
+    expect(successful).toEqual({ ok: true, insights: insight });
+    expect(independentProvider).toHaveBeenCalledTimes(1);
+  });
   it("emits only redacted diagnostic categories while retaining normalized client failures", async () => {
     const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const secret = "test-only-secret-value";

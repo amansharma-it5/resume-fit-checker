@@ -33,7 +33,7 @@ export async function handleAiAnalysis(context: Context, fetchFn: typeof fetch =
     return json(400, { error: "Add both resume and job-description text.", code: "MISSING_INPUT" });
   if (resumeText.length > MAX_AI_INPUT_CHARS || jobDescription.length > MAX_AI_INPUT_CHARS)
     return json(413, { error: "Resume or job-description text is too long for AI analysis.", code: "INPUT_TOO_LARGE" });
-  const result = await requestGeminiInsights({ resumeText, jobDescription }, env, fetchFn);
+  const result = await requestGeminiInsights({ resumeText, jobDescription }, env, fetchFn, undefined, request.signal);
   if (!result.ok) {
     console.info(result.diagnostic);
     const status = result.code === "GEMINI_RATE_LIMITED" ? 429 : result.code === "GEMINI_UNAVAILABLE" ? 503 : 502;
