@@ -100,3 +100,9 @@ Limits: 12 fields per explicit batch; conservative vocabulary/evidence validatio
 Implemented for review: a transient, guided Resume Editor orchestration panel that requires an existing Job Target and current Local ATS result, builds a deterministic priority plan, labels unsupported requirements as gaps, delegates only to the existing drafting/tailoring/editor/checker actions, and supports compatible in-memory before/after comparison. It does not add a second scorer, a new persistence model, a free-form chatbot, or an automatic mutation path. See `docs/phase-15.4-ai-resume-agent.md`.
 
 Deferred: Gemini-backed plan explanations, conversational memory, autonomous tools, background execution, ATS v2, cloud sync, and AI cover-letter/interview expansion.
+
+# Phase 15.6: Evidence-Safe AI Interview Integration
+
+Implemented for review: optional, explicit Gemini question generation and per-answer interview feedback for a selected local Resume and Job Target. Question sets and feedback use the existing server-only Gemini transport, strict `interview-v1` structured contracts, evidence validation, transient state, bounded retry behavior, and deterministic local fallback. Existing local questions, answers, history, autosave, timer, export, print, and Local ATS behavior remain separate.
+
+Deferred: voice or speech analysis, camera, emotion detection, interview or hiring probabilities, persistent AI transcript history, unlimited chat, employer research, automatic actions, ATS v2, and broader provider-backed orchestration. See `docs/phase-15.6-ai-interview.md`.

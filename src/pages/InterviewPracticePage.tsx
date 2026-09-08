@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { createInterviewPracticeSession, feedbackForAnswer } from "../lib/interview-practice";
+import {
+  createInterviewPracticeSession,
+  feedbackForAnswer,
+  interviewResumeEvidence,
+  validateAiInterviewQuestionSet,
+  type AiInterviewQuestionDraft,
+  type InterviewType,
+} from "../lib/interview-practice";
 import { downloadInterviewPracticePlainText } from "../lib/interview-practice-export";
 import {
   deleteGuestInterviewSession,
@@ -31,9 +38,20 @@ export function InterviewPracticePage() {
   const [timerRunning, setTimerRunning] = useState(false);
   const [versionIndex, setVersionIndex] = useState("");
   const [customQuestion, setCustomQuestion] = useState("");
+  const [interviewType, setInterviewType] = useState<InterviewType>("MIXED");
+  const [aiQuestionConsent, setAiQuestionConsent] = useState(false);
+  const [aiQuestionSet, setAiQuestionSet] = useState<AiInterviewQuestionDraft[] | null>(null);
+  const [aiQuestionStatus, setAiQuestionStatus] = useState(
+    "AI question generation is optional and never starts automatically.",
+  );
+  const [aiQuestionBusy, setAiQuestionBusy] = useState(false);
+  const [aiQuestionContextKey, setAiQuestionContextKey] = useState("");
   const autosave = useRef<number | undefined>(undefined);
   const currentRef = useRef<InterviewPracticeSession | null>(null);
   const revision = useRef(0);
+  const aiQuestionController = useRef<AbortController | null>(null);
+  const aiQuestionRequest = useRef(0);
+  const aiQuestionContext = useRef("");
 
   const load = useCallback(async () => {
     const [nextResumes, nextSessions, nextTargets] = await Promise.all([
@@ -47,6 +65,16 @@ export function InterviewPracticePage() {
   }, []);
   useEffect(() => void load(), [load]);
   const selected = useMemo(() => resumes.find((resume) => resume.id === resumeId), [resumes, resumeId]);
+  const selectedTarget = useMemo(() => targets.find((target) => target.id === targetId), [targets, targetId]);
+  const aiQuestionResume = useMemo(
+    () => resumes.find((resume) => resume.id === (selectedTarget?.tailoredResumeId || resumeId)),
+    [resumes, resumeId, selectedTarget],
+  );
+  const aiQuestionEvidence = useMemo(
+    () => (aiQuestionResume ? interviewResumeEvidence(aiQuestionResume) : []),
+    [aiQuestionResume],
+  );
+  const currentAiQuestionContext = JSON.stringify([targetId, resumeId, role, company, jobDescription, interviewType]);
   const activeQuestion = current?.questions[index];
   const completedCount = current?.questions.filter((question) => question.completed).length || 0;
   const skippedCount = current?.questions.filter((question) => question.skipped).length || 0;
@@ -58,6 +86,92 @@ export function InterviewPracticePage() {
     const timer = window.setInterval(() => setTimerSeconds((seconds) => seconds + 1), 1000);
     return () => window.clearInterval(timer);
   }, [timerRunning]);
+
+  useEffect(
+    () => () => {
+      aiQuestionRequest.current += 1;
+      aiQuestionController.current?.abort();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setAiQuestionSet(null);
+    setAiQuestionStatus("AI question generation is optional and never starts automatically.");
+    setAiQuestionConsent(false);
+    aiQuestionContext.current = "";
+    setAiQuestionContextKey("");
+  }, [targetId, resumeId, role, company, jobDescription, interviewType]);
+
+  async function generateAiQuestions() {
+    if (
+      !aiQuestionConsent ||
+      aiQuestionBusy ||
+      !selectedTarget ||
+      !aiQuestionResume ||
+      !role.trim() ||
+      !jobDescription.trim() ||
+      !aiQuestionEvidence.length
+    ) {
+      setAiQuestionStatus("Choose a linked target and resume with evidence before requesting AI questions.");
+      return;
+    }
+    aiQuestionController.current?.abort();
+    const id = ++aiQuestionRequest.current;
+    const controller = new AbortController();
+    aiQuestionController.current = controller;
+    setAiQuestionBusy(true);
+    setAiQuestionSet(null);
+    setAiQuestionStatus("Generating an evidence-safe AI question set. Nothing has been saved yet.");
+    try {
+      const response = await fetch("/api/ai/interview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          mode: "questions",
+          interviewType,
+          targetRole: role.slice(0, 160),
+          company: company.slice(0, 160),
+          limitedJobDescription: jobDescription.slice(0, 2000),
+          resumeEvidence: aiQuestionEvidence.slice(0, 8).map((item) => item.slice(0, 700)),
+        }),
+      });
+      const payload: unknown = await response.json();
+      if (
+        id !== aiQuestionRequest.current ||
+        currentAiQuestionContext !== JSON.stringify([targetId, resumeId, role, company, jobDescription, interviewType])
+      )
+        return;
+      if (!response.ok) {
+        setAiQuestionStatus(
+          response.status === 429
+            ? "AI question generation is rate limited. Try again later, or use local practice questions."
+            : "AI question generation is unavailable. Your local practice data was not changed.",
+        );
+        return;
+      }
+      const checked = validateAiInterviewQuestionSet(
+        payload && typeof payload === "object" ? (payload as { questions?: unknown }).questions : null,
+        aiQuestionEvidence,
+      );
+      if (!checked.ok) {
+        setAiQuestionStatus("The AI question set could not be validated. Your local practice data was not changed.");
+        return;
+      }
+      aiQuestionContext.current = currentAiQuestionContext;
+      setAiQuestionContextKey(currentAiQuestionContext);
+      setAiQuestionSet(checked.questions);
+      setAiQuestionStatus("AI question set ready. Review it, then explicitly create a local session to use it.");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (id === aiQuestionRequest.current)
+        setAiQuestionStatus("AI question generation is unavailable. Try again later.");
+    } finally {
+      if (aiQuestionController.current === controller) aiQuestionController.current = null;
+      if (id === aiQuestionRequest.current) setAiQuestionBusy(false);
+    }
+  }
 
   async function create() {
     if (!selected || !role.trim()) {
@@ -71,6 +185,7 @@ export function InterviewPracticePage() {
         company,
         jobDescription,
         jobTargetId: targetId || undefined,
+        questions: aiQuestionContext.current === currentAiQuestionContext ? aiQuestionSet || undefined : undefined,
       }),
     );
     replace(saved);
@@ -214,20 +329,13 @@ export function InterviewPracticePage() {
           <p className={feedback.status === "review" ? "danger-text" : "privacy-note"}>{feedback.message}</p>
           <InterviewCoach
             question={activeQuestion.prompt}
+            questionCategory={activeQuestion.category}
             answer={activeQuestion.answer}
             evidence={activeQuestion.evidence}
             role={current.role}
             company={current.company}
             jd={current.jobDescription}
             onAnnouncement={setMessage}
-            onAccept={(value) => {
-              const questions = current.questions.map((item, itemIndex) =>
-                itemIndex === index
-                  ? { ...item, answerVersions: [...item.answerVersions, item.answer], answer: value }
-                  : item,
-              );
-              change({ ...current, questions });
-            }}
           />
           <div className="button-row">
             <button onClick={() => void save(current)} disabled={saving}>
@@ -407,9 +515,84 @@ export function InterviewPracticePage() {
             Job description (optional)
             <textarea rows={6} value={jobDescription} onChange={(event) => setJobDescription(event.target.value)} />
           </label>
+          <label>
+            Interview type
+            <select value={interviewType} onChange={(event) => setInterviewType(event.target.value as InterviewType)}>
+              <option value="MIXED">Mixed</option>
+              <option value="BEHAVIORAL">Behavioral</option>
+              <option value="TECHNICAL">Technical</option>
+            </select>
+          </label>
         </div>
-        <button className="primary" onClick={() => void create()}>
-          Create local practice session
+        <section className="editor-tool interview-ai-generator" aria-labelledby="ai-question-title">
+          <p className="eyebrow">Optional external AI</p>
+          <h3 id="ai-question-title">Generate job-specific questions</h3>
+          <p>
+            Gemini receives only the selected target, role/company, limited job description, and bounded resume
+            evidence. Questions remain in this tab until you explicitly create a local practice session.
+          </p>
+          <label className="checkbox-field" htmlFor="interview-question-consent">
+            <input
+              id="interview-question-consent"
+              type="checkbox"
+              checked={aiQuestionConsent}
+              disabled={aiQuestionBusy}
+              onChange={(event) => setAiQuestionConsent(event.target.checked)}
+            />
+            I consent to send selected interview context to Google Gemini to generate questions.
+          </label>
+          <div className="button-row">
+            <button
+              type="button"
+              disabled={
+                aiQuestionBusy ||
+                !aiQuestionConsent ||
+                !selectedTarget ||
+                !aiQuestionResume ||
+                !role.trim() ||
+                !jobDescription.trim() ||
+                !aiQuestionEvidence.length
+              }
+              onClick={() => void generateAiQuestions()}
+            >
+              {aiQuestionBusy ? "Generating AI questions..." : "Generate AI questions"}
+            </button>
+            <button
+              type="button"
+              disabled={!aiQuestionBusy}
+              onClick={() => {
+                aiQuestionRequest.current += 1;
+                aiQuestionController.current?.abort();
+                aiQuestionController.current = null;
+                setAiQuestionBusy(false);
+                setAiQuestionStatus("AI question generation cancelled. Nothing was saved.");
+              }}
+            >
+              Cancel question generation
+            </button>
+          </div>
+          <p className="assistant-feedback">{aiQuestionStatus}</p>
+          {aiQuestionSet && (
+            <section className="ai-draft-proposal" aria-labelledby="ai-question-preview-title">
+              <h4 id="ai-question-preview-title">Review AI question set</h4>
+              <p>AI-generated questions. No session has been created.</p>
+              <ol>
+                {aiQuestionSet.map((item) => (
+                  <li key={`${item.category}-${item.prompt}`}>
+                    <strong>{item.prompt}</strong>
+                    <p>Category: {item.category}</p>
+                    <p>{item.reason}</p>
+                    {item.evidenceRefs.length > 0 && <p>Resume evidence used: {item.evidenceRefs.join(" ")}</p>}
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+        </section>
+        <button className="primary" onClick={() => void create()} disabled={!selected || !role.trim()}>
+          {aiQuestionSet && aiQuestionContextKey === currentAiQuestionContext
+            ? "Create local session from reviewed AI questions"
+            : "Create local practice session"}
         </button>
       </section>
       <section>
