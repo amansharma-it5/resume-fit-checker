@@ -110,6 +110,32 @@ describe("InterviewCoach", () => {
     expect(announced).toHaveBeenLastCalledWith(expect.stringContaining("cancelled"));
   });
 
+  it("allows a new explicit request after cancellation without accepting the late old result", async () => {
+    let resolveFirst: ((response: Response) => void) | undefined;
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ feedback }), { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+    const user = userEvent.setup();
+    renderCoach();
+    await user.click(screen.getByLabelText(/consent to send this selected question/i));
+    await user.click(screen.getByRole("button", { name: "Request AI feedback" }));
+    await user.click(screen.getByRole("button", { name: "Cancel feedback" }));
+    await user.click(screen.getByRole("button", { name: "Request AI feedback" }));
+    await screen.findByRole("heading", { name: "AI Insights" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    resolveFirst?.(
+      new Response(JSON.stringify({ feedback: { ...feedback, improvement: "Old result." } }), { status: 200 }),
+    );
+    await waitFor(() => expect(screen.queryByText("Old result.")).not.toBeInTheDocument());
+  });
+
   it("shows a validated deterministic fallback for a provider failure and never auto-requests", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response("private provider details", { status: 503 }));
     vi.stubGlobal("fetch", fetch);
