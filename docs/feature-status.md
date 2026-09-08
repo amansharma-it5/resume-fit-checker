@@ -94,3 +94,9 @@ Limitations: this is not full-resume tailoring or automatic keyword insertion. A
 Implemented for review: consent-gated, coordinated tailoring of selected eligible Editor fields through one server-side Gemini endpoint. Proposals and unmet JD requirements remain separate and transient. Per-proposal acceptance rechecks evidence and source freshness before using existing edit/undo/save behavior. Local ATS ownership, versions and target freshness are unchanged.
 
 Limits: 12 fields per explicit batch; conservative vocabulary/evidence validation may reject valid paraphrases and is not semantic verification. Accept All, autonomous edits, AI persistence and Phase 15.4 remain deferred. See `docs/phase-15.3-full-resume-tailoring.md`.
+
+# Phase 15.4: AI Resume Agent
+
+Implemented for review: a transient, guided Resume Editor orchestration panel that requires an existing Job Target and current Local ATS result, builds a deterministic priority plan, labels unsupported requirements as gaps, delegates only to the existing drafting/tailoring/editor/checker actions, and supports compatible in-memory before/after comparison. It does not add a second scorer, a new persistence model, a free-form chatbot, or an automatic mutation path. See `docs/phase-15.4-ai-resume-agent.md`.
+
+Deferred: Gemini-backed plan explanations, conversational memory, autonomous tools, background execution, ATS v2, cloud sync, and AI cover-letter/interview expansion.
