@@ -65,7 +65,7 @@ export async function handleAiCoverLetter(context: Context, fetchFn: typeof fetc
       code: "MISSING_INPUT",
     });
 
-  const result = await requestGeminiCoverLetter(values, env, fetchFn);
+  const result = await requestGeminiCoverLetter(values, env, fetchFn, undefined, request.signal);
   if (!result.ok) {
     console.info(result.diagnostic);
     const status = result.code === "GEMINI_RATE_LIMITED" ? 429 : result.code === "GEMINI_INVALID_RESPONSE" ? 502 : 503;

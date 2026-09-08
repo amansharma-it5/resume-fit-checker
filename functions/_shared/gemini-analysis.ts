@@ -400,6 +400,7 @@ export async function requestGeminiCoverLetter(
   env: GeminiEnv,
   fetchFn: FetchLike = fetch,
   waitFn: WaitForRetry = waitForRetry,
+  requestSignal?: AbortSignal,
 ) {
   const result = await requestGeminiStructured(
     {
@@ -414,6 +415,7 @@ export async function requestGeminiCoverLetter(
     env,
     fetchFn,
     waitFn,
+    requestSignal,
   );
   return result.ok ? { ok: true as const, draft: result.output } : result;
 }
