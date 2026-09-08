@@ -267,6 +267,7 @@ export function compareAgentAtsSnapshots(before: AgentAtsSnapshot, after: AgentA
   )
     return null;
   const categoryChanges = Object.keys({ ...before.categories, ...after.categories })
+    .filter((key) => key !== "overall")
     .map((key) => ({ key, before: before.categories[key] ?? null, after: after.categories[key] ?? null }))
     .filter((item) => item.before !== item.after);
   return { before: before.overall, after: after.overall, categoryChanges, remainingGaps: after.remainingGaps };

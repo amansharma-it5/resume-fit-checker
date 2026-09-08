@@ -125,6 +125,9 @@ describe("AI Resume Agent orchestration contract", () => {
       { resumeId: "resume-1", targetId: target.id, resumeVersion: 2 },
     );
     expect(compareAgentAtsSnapshots(before, after)).toMatchObject({ before: 72, after: 79 });
+    expect(compareAgentAtsSnapshots(before, after)?.categoryChanges).toEqual([
+      { key: "contentQualityActionLanguage", before: 60, after: 75 },
+    ]);
     expect(compareAgentAtsSnapshots(before, { ...after, targetId: "other-target" })).toBeNull();
     expect(compareAgentAtsSnapshots(before, { ...after, engineVersion: "future-engine" })).toBeNull();
     expect(compareAgentAtsSnapshots(before, { ...after, overall: null })).toBeNull();
