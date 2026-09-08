@@ -36,7 +36,10 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("AI cover-letter endpoint", () => {
   it("returns a normalized structured draft with no-store and only bounded request context", async () => {
-    const fetcher = vi.fn(async () => provider());
+    const fetcher = vi.fn((...args: [RequestInfo | URL, RequestInit?]) => {
+      void args;
+      return Promise.resolve(provider());
+    });
     const response = await handleAiCoverLetter(
       { request: request(input), env: { GEMINI_API_KEY: "synthetic-secret" } },
       fetcher,
@@ -51,7 +54,10 @@ describe("AI cover-letter endpoint", () => {
   });
 
   it("rejects method, JSON, missing, extra, and oversized input without provider traffic", async () => {
-    const fetcher = vi.fn(async () => provider());
+    const fetcher = vi.fn((...args: [RequestInfo | URL, RequestInit?]) => {
+      void args;
+      return Promise.resolve(provider());
+    });
     expect(
       (
         await handleAiCoverLetter(
