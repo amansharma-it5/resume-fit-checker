@@ -1,6 +1,8 @@
 # Groq Provider Evaluation
 
-Status: evaluation-only; no production feature uses this adapter.
+Status: evaluation-only; no production feature uses this adapter. The branch
+includes a server-only evaluation route for four synthetic preview probes; it
+must be removed before any production integration decision.
 
 ## Scope
 
