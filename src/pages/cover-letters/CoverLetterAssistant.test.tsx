@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CoverLetterAssistant } from "./CoverLetterAssistant";
@@ -38,6 +38,27 @@ function renderAssistant() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("CoverLetterAssistant provider safety", () => {
+  it("allows only one identical in-flight request across rapid mouse and keyboard activation", async () => {
+    let release: (() => void) | undefined;
+    const pending = new Promise<Response>((resolve) => {
+      release = () => resolve(new Response(JSON.stringify(response), { status: 200 }));
+    });
+    const fetch = vi.fn().mockReturnValue(pending);
+    vi.stubGlobal("fetch", fetch);
+    const user = userEvent.setup();
+    renderAssistant();
+    await user.click(screen.getByLabelText(/consent to send/i));
+    const generate = screen.getByRole("button", { name: "Generate with AI" });
+    fireEvent.click(generate);
+    fireEvent.click(generate);
+    fireEvent.keyDown(generate, { key: "Enter" });
+    fireEvent.keyUp(generate, { key: "Enter" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Replace request" })).toBeDisabled();
+    release?.();
+    await screen.findByRole("heading", { name: "AI Draft" });
+  });
+
   it("requires unchecked consent and keeps the proposal transient until Use Draft", async () => {
     const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }));
     vi.stubGlobal("fetch", fetch);

@@ -90,6 +90,7 @@ export function CoverLetterAssistant({
   const [editing, setEditing] = useState(false);
   const controller = useRef<AbortController | null>(null);
   const requestId = useRef(0);
+  const inFlightKey = useRef<string | null>(null);
   const generateButton = useRef<HTMLButtonElement | null>(null);
   const openingInput = useRef<HTMLTextAreaElement | null>(null);
 
@@ -102,14 +103,33 @@ export function CoverLetterAssistant({
     return () => {
       requestId.current += 1;
       controller.current?.abort();
+      inFlightKey.current = null;
     };
   }, []);
 
+  const requestKey = JSON.stringify([
+    candidateName.slice(0, 160),
+    role.trim().slice(0, 160),
+    company.trim().slice(0, 160),
+    jd.trim().slice(0, 4_000),
+    resumeEvidence.slice(0, 6_000),
+    sourceKey,
+  ]);
   const activeDraft = proposal?.sourceKey === sourceKey ? editedDraft || proposal.draft : null;
   const stale = Boolean(proposal && proposal.sourceKey !== sourceKey);
 
   async function generate() {
     if (!consent || !role.trim() || !company.trim() || !jd.trim() || !resumeEvidence.trim()) return;
+    const requestKey = JSON.stringify([
+      candidateName.slice(0, 160),
+      role.trim().slice(0, 160),
+      company.trim().slice(0, 160),
+      jd.trim().slice(0, 4_000),
+      resumeEvidence.slice(0, 6_000),
+      sourceKey,
+    ]);
+    if (inFlightKey.current === requestKey) return;
+    inFlightKey.current = requestKey;
     controller.current?.abort();
     const id = ++requestId.current;
     const request = new AbortController();
@@ -168,13 +188,17 @@ export function CoverLetterAssistant({
       }
       announce(safeError(error instanceof Error ? error.message : "PROVIDER_FAILED"));
     } finally {
-      if (id === requestId.current) setBusy(false);
+      if (id === requestId.current) {
+        inFlightKey.current = null;
+        setBusy(false);
+      }
     }
   }
 
   function cancel() {
     requestId.current += 1;
     controller.current?.abort();
+    inFlightKey.current = null;
     setBusy(false);
     setProposal(null);
     setEditedDraft(null);
@@ -232,7 +256,14 @@ export function CoverLetterAssistant({
         <button
           ref={generateButton}
           className="primary"
-          disabled={!consent || !role.trim() || !company.trim() || !jd.trim() || !resumeEvidence.trim()}
+          disabled={
+            !consent ||
+            !role.trim() ||
+            !company.trim() ||
+            !jd.trim() ||
+            !resumeEvidence.trim() ||
+            (busy && inFlightKey.current === requestKey)
+          }
           onClick={() => void generate()}
         >
           {busy ? "Replace request" : proposal ? "Generate new draft" : "Generate with AI"}
