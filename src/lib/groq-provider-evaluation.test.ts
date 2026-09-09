@@ -97,6 +97,27 @@ describe("Groq provider evaluation contract", () => {
     expect(url).toBe("https://gateway.ai.cloudflare.com/v1/account/gateway/groq/chat/completions");
   });
 
+  it("builds the minimal Cloudflare evaluation request without optional fields", async () => {
+    let requestBody = "";
+    let authorization = "";
+    const provider = new GroqStructuredProvider({ GROQ_API_KEY: "synthetic-secret" }, async (_input, init) => {
+      requestBody = String(init?.body);
+      authorization = String(new Headers(init?.headers).get("Authorization"));
+      return new Response(JSON.stringify({ choices: [{ message: { content: "OK" } }] }), { status: 200 });
+    });
+    expect(
+      await provider.request({
+        ...config,
+        requestMode: "minimal",
+        responseMode: "text",
+        normalize: (value) => (typeof value === "string" && value.trim() ? { draft: value } : null),
+      }),
+    ).toMatchObject({ ok: true });
+    const body = JSON.parse(requestBody);
+    expect(Object.keys(body).sort()).toEqual(["messages", "model"]);
+    expect(authorization).toBe("Bearer synthetic-secret");
+  });
+
   it("fails safely when the server binding is missing", async () => {
     const result = await new GroqStructuredProvider({}).request(config);
     expect(result).toMatchObject({ ok: false, code: "AUTH_ERROR" });

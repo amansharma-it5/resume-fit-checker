@@ -123,9 +123,9 @@ export class GroqStructuredProvider implements StructuredTextProvider {
           { role: "system", content: config.systemInstruction },
           { role: "user", content: config.userText },
         ],
-        max_completion_tokens: config.maxOutputTokens,
       };
-      if (config.responseMode !== "text") {
+      if (config.requestMode !== "minimal") requestBody.max_completion_tokens = config.maxOutputTokens;
+      if (config.requestMode !== "minimal" && config.responseMode !== "text") {
         requestBody.response_format =
           config.responseMode === "json_object"
             ? { type: "json_object" }

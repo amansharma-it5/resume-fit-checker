@@ -34,6 +34,7 @@ export type StructuredProviderRequest<T> = {
   schema: Record<string, unknown>;
   schemaName: string;
   maxOutputTokens: number;
+  requestMode?: "minimal";
   responseMode?: "json_schema" | "json_object" | "text";
   normalize: (value: unknown) => T | null;
 };
