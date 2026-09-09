@@ -15,6 +15,50 @@ export const GROQ_RETRY_DELAY_MS = 200;
 export type GroqEnv = { GROQ_API_KEY?: string };
 export type GroqTransport = { baseUrl: string };
 type FetchLike = typeof fetch;
+type SafeFetchError = {
+  name: string | null;
+  message: string | null;
+  cause: string | null;
+  code: string | number | null;
+};
+
+function safeToken(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+  const token = value.replace(/[^A-Za-z0-9_.:-]/g, "").slice(0, 64);
+  return token || null;
+}
+
+function safeStringToken(value: unknown) {
+  const token = safeToken(value);
+  return typeof token === "string" ? token : null;
+}
+
+function safeMessage(value: unknown) {
+  if (typeof value !== "string") return null;
+  const message = value
+    .replace(/https?:\/\/[^\s]+/gi, "[url]")
+    .replace(/(?:authorization|bearer|api[-_ ]?key)\s*[:=]\s*[^\s]+/gi, "[redacted]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  const allowed =
+    /^(fetch failed|network error|connection (?:reset|closed)|dns(?: resolution)? error|tls(?:\/certificate)? error|timeout|aborted)$/i;
+  return allowed.test(message) ? message : "provider fetch failed";
+}
+
+function safeFetchError(error: unknown): SafeFetchError {
+  if (!error || typeof error !== "object") return { name: null, message: null, cause: null, code: null };
+  const record = error as Record<string, unknown>;
+  const cause = record.cause;
+  const causeRecord = cause && typeof cause === "object" ? (cause as Record<string, unknown>) : undefined;
+  return {
+    name: safeStringToken(record.name),
+    message: safeMessage(record.message),
+    cause: safeStringToken(causeRecord?.name ?? causeRecord?.code ?? cause),
+    code: safeToken(record.code ?? causeRecord?.code),
+  };
+}
 
 function isAbortError(error: unknown) {
   return typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
@@ -87,6 +131,7 @@ function failed(
   timedOut = false,
   cancelled = false,
   fetchErrorClass: ProviderFetchErrorClass = "http_status",
+  fetchError: SafeFetchError = { name: null, message: null, cause: null, code: null },
 ) {
   const diagnostic: ProviderDiagnostic = {
     providerBindingPresent: binding,
@@ -96,6 +141,10 @@ function failed(
     requestCancelled: cancelled,
     attemptCount: attempts,
     fetchErrorClass,
+    fetchErrorName: fetchError.name,
+    fetchErrorMessage: fetchError.message,
+    fetchErrorCause: fetchError.cause,
+    runtimeErrorCode: fetchError.code,
   };
   return { ok: false as const, code, ...base, diagnostic };
 }
@@ -249,6 +298,7 @@ export class GroqStructuredProvider implements StructuredTextProvider {
         timedOut,
         cancelled,
         cancelled ? "cancelled" : timedOut ? "timeout" : "fetch_exception",
+        safeFetchError(error),
       );
     } finally {
       lifecycle.dispose();

@@ -101,9 +101,12 @@ describe("Groq provider evaluation contract", () => {
   it("builds the minimal Cloudflare evaluation request without optional fields", async () => {
     let requestBody = "";
     let authorization = "";
+    let headers: string[] = [];
     const provider = new GroqStructuredProvider({ GROQ_API_KEY: "synthetic-secret" }, async (_input, init) => {
       requestBody = String(init?.body);
-      authorization = String(new Headers(init?.headers).get("Authorization"));
+      const outboundHeaders = new Headers(init?.headers);
+      authorization = String(outboundHeaders.get("Authorization"));
+      headers = [...outboundHeaders.keys()].sort();
       return new Response(JSON.stringify({ choices: [{ message: { content: "OK" } }] }), { status: 200 });
     });
     expect(
@@ -117,6 +120,7 @@ describe("Groq provider evaluation contract", () => {
     const body = JSON.parse(requestBody);
     expect(Object.keys(body).sort()).toEqual(["messages", "model"]);
     expect(authorization).toBe("Bearer synthetic-secret");
+    expect(headers).toEqual(["authorization", "content-type"]);
   });
 
   it("fails safely when the server binding is missing", async () => {
@@ -166,6 +170,10 @@ describe("Groq provider evaluation contract", () => {
                   : "transport_error",
         attemptCount: status >= 500 ? 2 : 1,
         fetchErrorClass: "http_status",
+        fetchErrorName: null,
+        fetchErrorMessage: null,
+        fetchErrorCause: null,
+        runtimeErrorCode: null,
       });
     expect(JSON.stringify(result)).not.toContain("sensitive provider body");
   });
@@ -224,6 +232,8 @@ describe("Groq provider evaluation contract", () => {
         requestTimedOut: false,
         requestCancelled: false,
         fetchErrorClass: "fetch_exception",
+        fetchErrorName: "Error",
+        fetchErrorMessage: "provider fetch failed",
       });
     expect(JSON.stringify(transport)).not.toMatch(/synthetic-secret|secret resume|provider body/);
 
@@ -231,7 +241,13 @@ describe("Groq provider evaluation contract", () => {
       throw new DOMException("timeout", "AbortError");
     }).request(config);
     expect(timeout).toMatchObject({ ok: false, code: "TIMEOUT" });
-    if (!timeout.ok) expect(timeout.diagnostic).toMatchObject({ fetchErrorClass: "timeout", requestTimedOut: true });
+    if (!timeout.ok)
+      expect(timeout.diagnostic).toMatchObject({
+        fetchErrorClass: "timeout",
+        requestTimedOut: true,
+        fetchErrorName: "AbortError",
+        fetchErrorMessage: "timeout",
+      });
 
     const controller = new AbortController();
     controller.abort();
@@ -241,7 +257,12 @@ describe("Groq provider evaluation contract", () => {
     );
     expect(cancelled).toMatchObject({ ok: false, code: "REQUEST_CANCELLED" });
     if (!cancelled.ok)
-      expect(cancelled.diagnostic).toMatchObject({ fetchErrorClass: "cancelled", requestCancelled: true });
+      expect(cancelled.diagnostic).toMatchObject({
+        fetchErrorClass: "cancelled",
+        requestCancelled: true,
+        fetchErrorName: null,
+        fetchErrorMessage: null,
+      });
   });
 
   it("exposes only safe diagnostics from the evaluation route", async () => {

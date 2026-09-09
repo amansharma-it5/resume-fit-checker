@@ -30,6 +30,10 @@ export type ProviderDiagnostic = {
   requestCancelled: boolean;
   attemptCount: number;
   fetchErrorClass: ProviderFetchErrorClass;
+  fetchErrorName: string | null;
+  fetchErrorMessage: string | null;
+  fetchErrorCause: string | null;
+  runtimeErrorCode: string | number | null;
 };
 
 export type StructuredProviderRequest<T> = {
