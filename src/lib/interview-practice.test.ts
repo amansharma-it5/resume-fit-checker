@@ -213,6 +213,44 @@ describe("interview practice", () => {
     expect(JSON.stringify(feedback)).not.toContain("provider");
   });
 
+  it("separates feedback observations and coaching recommendations from candidate facts", () => {
+    const safeFeedback = [
+      "You could discuss Kubernetes deployment considerations.",
+      "Consider explaining how you would validate the rollout.",
+      "Your answer does not explain the deployment decision.",
+      "You used Java services in your answer.",
+    ];
+    for (const feedback of safeFeedback)
+      expect(
+        validateInterviewFeedback({
+          feedback,
+          answer: "I built Java services with REST APIs.",
+          resumeEvidence: "Built Java services with REST APIs.",
+          targetEvidence: "Kubernetes required",
+        }),
+      ).toMatchObject({ ok: true });
+
+    expect(
+      validateInterviewFeedback({
+        feedback: "You could explain that you used Kubernetes.",
+        answer: "I built Java services.",
+        resumeEvidence: "Built Java services.",
+        targetEvidence: "Kubernetes required",
+      }),
+    ).toMatchObject({
+      ok: false,
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          failingRuleId: "feedback.candidate_claim_requires_answer_or_resume_evidence",
+          claimClass: "candidate_factual_assertion",
+          evidenceSourceRequired: true,
+          evidenceMatched: false,
+          feedbackSection: "summary",
+        }),
+      ]),
+    });
+  });
+
   it("keeps question and feedback validation pure and deterministic", () => {
     const input = {
       question: "Tell me how you used TypeScript.",

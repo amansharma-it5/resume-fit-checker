@@ -2,7 +2,12 @@ import { z } from "zod";
 import { GEMINI_ANALYSIS_MODEL, requestGeminiStructured, type GeminiEnv } from "../../_shared/gemini-analysis";
 import { GroqStructuredProvider, type GroqEnv } from "../../_shared/groq-analysis";
 import { isProviderAvailabilityFailure, type ProviderResponseDiagnostic } from "../../_shared/provider-contract";
-import { validateInterviewFeedback, validateInterviewQuestion } from "../../../src/lib/interview-safety";
+import {
+  validateInterviewFeedback,
+  validateInterviewQuestion,
+  type InterviewFeedbackDiagnostic,
+  type InterviewSafetyDiagnostic,
+} from "../../../src/lib/interview-safety";
 
 const MAX_BYTES = 40_000;
 const questionOutputSchema = z
@@ -175,10 +180,13 @@ function validationError(
     failingRuleId: string;
     rejectionCategory: string;
     failingFieldPath: string;
-    assertionDetected: boolean;
-    evidenceRequired: boolean;
-    evidenceMatched: boolean;
-    questionFormClass: string;
+    assertionDetected?: boolean;
+    evidenceRequired?: boolean;
+    evidenceMatched?: boolean;
+    questionFormClass?: string;
+    claimClass?: string;
+    evidenceSourceRequired?: boolean;
+    feedbackSection?: string;
   }> = [],
 ) {
   return json(422, { code: "UNSUPPORTED_INTERVIEW_OUTPUT", error: message, diagnostics });
@@ -290,28 +298,34 @@ export async function handleAiInterview(context: Context, fetchFn: typeof fetch 
     if (unsupported.length) {
       logQuestionValidation(
         checks.flatMap((check) =>
-          (check.diagnostics || []).map((diagnostic) => ({
-            validatorReached: diagnostic.validatorReached,
-            rejectionCategory: diagnostic.rejectionCategory,
-            failingRuleId: diagnostic.failingRuleId,
-            claimType: diagnostic.claimType,
-            evidenceSourceCategory: diagnostic.evidenceSourceCategory,
-            failingFieldPath: diagnostic.failingFieldPath,
-          })),
+          (check.diagnostics || []).map((diagnostic) => {
+            const questionDiagnostic = diagnostic as InterviewSafetyDiagnostic;
+            return {
+              validatorReached: questionDiagnostic.validatorReached,
+              rejectionCategory: questionDiagnostic.rejectionCategory,
+              failingRuleId: questionDiagnostic.failingRuleId,
+              claimType: questionDiagnostic.claimType,
+              evidenceSourceCategory: questionDiagnostic.evidenceSourceCategory,
+              failingFieldPath: questionDiagnostic.failingFieldPath,
+            };
+          }),
         ),
       );
       return validationError(
         "More information is required to verify these interview questions.",
         checks.flatMap((check) =>
-          (check.diagnostics || []).map((diagnostic) => ({
-            failingRuleId: diagnostic.failingRuleId,
-            rejectionCategory: diagnostic.rejectionCategory,
-            failingFieldPath: diagnostic.failingFieldPath,
-            assertionDetected: diagnostic.assertionDetected,
-            evidenceRequired: diagnostic.evidenceRequired,
-            evidenceMatched: diagnostic.evidenceMatched,
-            questionFormClass: diagnostic.questionFormClass,
-          })),
+          (check.diagnostics || []).map((diagnostic) => {
+            const questionDiagnostic = diagnostic as InterviewSafetyDiagnostic;
+            return {
+              failingRuleId: questionDiagnostic.failingRuleId,
+              rejectionCategory: questionDiagnostic.rejectionCategory,
+              failingFieldPath: questionDiagnostic.failingFieldPath,
+              assertionDetected: questionDiagnostic.assertionDetected,
+              evidenceRequired: questionDiagnostic.evidenceRequired,
+              evidenceMatched: questionDiagnostic.evidenceMatched,
+              questionFormClass: questionDiagnostic.questionFormClass,
+            };
+          }),
         ),
       );
     }
@@ -319,23 +333,44 @@ export async function handleAiInterview(context: Context, fetchFn: typeof fetch 
   }
 
   const output = result.output as FeedbackOutput;
-  const feedbackParts = [
-    output.summary,
-    ...output.strengths,
-    ...output.gaps,
-    output.starGuidance,
-    output.suggestedAnswer,
+  const feedbackParts: Array<{
+    section: InterviewFeedbackDiagnostic["feedbackSection"];
+    text: string;
+  }> = [
+    { section: "summary", text: output.summary },
+    ...output.strengths.map((text) => ({ section: "strengths" as const, text })),
+    ...output.gaps.map((text) => ({ section: "gaps" as const, text })),
+    { section: "starGuidance", text: output.starGuidance },
+    { section: "suggestedAnswer", text: output.suggestedAnswer },
   ];
-  const checks = feedbackParts.map((feedback) =>
+  const checks = feedbackParts.map(({ section, text }) =>
     validateInterviewFeedback({
-      feedback,
+      feedback: text,
       answer: input.answer ?? "",
       resumeEvidence: input.resumeEvidence,
       targetEvidence: input.jobDescription,
+      feedbackSection: section,
     }),
   );
   const unsupported = checks.flatMap((check) => [...check.unsupported, ...check.reasons]);
-  if (unsupported.length) return validationError("More information is required to verify this interview feedback.");
+  if (unsupported.length)
+    return validationError(
+      "More information is required to verify this interview feedback.",
+      checks.flatMap((check) =>
+        (check.diagnostics || []).map((diagnostic) => {
+          const feedbackDiagnostic = diagnostic as InterviewFeedbackDiagnostic;
+          return {
+            failingRuleId: feedbackDiagnostic.failingRuleId,
+            rejectionCategory: feedbackDiagnostic.rejectionCategory,
+            failingFieldPath: feedbackDiagnostic.failingFieldPath,
+            claimClass: feedbackDiagnostic.claimClass,
+            evidenceSourceRequired: feedbackDiagnostic.evidenceSourceRequired,
+            evidenceMatched: feedbackDiagnostic.evidenceMatched,
+            feedbackSection: feedbackDiagnostic.feedbackSection,
+          };
+        }),
+      ),
+    );
   return json(200, { ...output, provider: result.provider, model: result.model });
 }
 

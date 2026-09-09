@@ -138,7 +138,32 @@ describe("Groq Interview production endpoint", () => {
       fetcher,
     );
     expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ code: "UNSUPPORTED_INTERVIEW_OUTPUT" });
+    const responseBody = await response.json();
+    expect(responseBody).toMatchObject({ code: "UNSUPPORTED_INTERVIEW_OUTPUT" });
+    expect(responseBody.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          feedbackSection: expect.any(String),
+          claimClass: expect.any(String),
+          failingFieldPath: expect.any(String),
+        }),
+      ]),
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts a JD-topic coaching recommendation without treating it as candidate evidence", async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      groqResponse({
+        ...safeFeedback,
+        summary: "You could discuss Kubernetes deployment considerations.",
+      }),
+    );
+    const response = await handleAiInterview(
+      { request: request(feedbackInput()), env: { GROQ_API_KEY: "synthetic-groq" } },
+      fetcher,
+    );
+    expect(response.status).toBe(200);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 

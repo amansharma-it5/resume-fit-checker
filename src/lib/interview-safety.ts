@@ -2,7 +2,7 @@ export type InterviewSafetyResult = {
   ok: boolean;
   unsupported: string[];
   reasons: string[];
-  diagnostics?: InterviewSafetyDiagnostic[];
+  diagnostics?: Array<InterviewSafetyDiagnostic | InterviewFeedbackDiagnostic>;
 };
 
 export type InterviewSafetyDiagnostic = {
@@ -34,6 +34,37 @@ export type InterviewSafetyDiagnostic = {
     | "behavioral_question"
     | "experience_question"
     | "malformed_question";
+};
+
+export type InterviewFeedbackDiagnostic = {
+  validatorReached: true;
+  rejectionCategory:
+    | "unsupported_candidate_fact"
+    | "unsupported_skill"
+    | "unsupported_metric"
+    | "unsupported_duration"
+    | "unsupported_seniority"
+    | "unsupported_credential"
+    | "unsupported_employer"
+    | "unsupported_achievement"
+    | "responsibility_inflation"
+    | "technology_adjacency"
+    | "prompt_injection"
+    | "ats_score"
+    | "hiring_probability"
+    | "malformed_feedback_contract";
+  failingRuleId: string;
+  claimClass:
+    | "observation_about_answer"
+    | "coaching_recommendation"
+    | "hypothetical_improvement"
+    | "candidate_factual_assertion"
+    | "resume_grounded_fact"
+    | "unsupported_fact";
+  evidenceSourceRequired: boolean;
+  evidenceMatched: boolean;
+  feedbackSection: "summary" | "strengths" | "gaps" | "starGuidance" | "suggestedAnswer";
+  failingFieldPath: string;
 };
 
 const PROMPT_INJECTION =
@@ -153,7 +184,7 @@ function claimTokens(value: string) {
 function result(
   unsupported: string[],
   reasons: string[],
-  diagnostics: InterviewSafetyDiagnostic[] = [],
+  diagnostics: Array<InterviewSafetyDiagnostic | InterviewFeedbackDiagnostic> = [],
 ): InterviewSafetyResult {
   const output: InterviewSafetyResult = {
     ok: unsupported.length === 0 && reasons.length === 0,
@@ -230,6 +261,26 @@ function questionDiagnostic(input: {
   };
 }
 
+function feedbackDiagnostic(input: {
+  reason: InterviewFeedbackDiagnostic["rejectionCategory"];
+  rule: string;
+  claimClass: InterviewFeedbackDiagnostic["claimClass"];
+  evidenceSourceRequired: boolean;
+  evidenceMatched: boolean;
+  feedbackSection: InterviewFeedbackDiagnostic["feedbackSection"];
+}): InterviewFeedbackDiagnostic {
+  return {
+    validatorReached: true,
+    rejectionCategory: input.reason,
+    failingRuleId: input.rule,
+    claimClass: input.claimClass,
+    evidenceSourceRequired: input.evidenceSourceRequired,
+    evidenceMatched: input.evidenceMatched,
+    feedbackSection: input.feedbackSection,
+    failingFieldPath: input.feedbackSection,
+  };
+}
+
 /** Validates a generated question. JD terms may be topics, but not unsupported candidate facts. */
 export function validateInterviewQuestion(input: {
   question: string;
@@ -303,19 +354,113 @@ export function validateInterviewFeedback(input: {
   answer: string;
   resumeEvidence: string;
   targetEvidence?: string;
+  feedbackSection?: InterviewFeedbackDiagnostic["feedbackSection"];
 }): InterviewSafetyResult {
   const feedback = input.feedback.trim();
-  if (!feedback) return result([], ["empty_feedback"]);
-  if (PROMPT_INJECTION.test(feedback)) return result([], ["prompt_injection"]);
-  if (FORBIDDEN_OUTCOME.test(feedback)) return result([], ["forbidden_outcome_claim"]);
+  const feedbackSection = input.feedbackSection ?? "summary";
+  if (!feedback)
+    return result(
+      [],
+      ["empty_feedback"],
+      [
+        feedbackDiagnostic({
+          reason: "malformed_feedback_contract",
+          rule: "feedback.non_empty",
+          claimClass: "unsupported_fact",
+          evidenceSourceRequired: false,
+          evidenceMatched: false,
+          feedbackSection,
+        }),
+      ],
+    );
+  if (PROMPT_INJECTION.test(feedback))
+    return result(
+      [],
+      ["prompt_injection"],
+      [
+        feedbackDiagnostic({
+          reason: "prompt_injection",
+          rule: "feedback.prompt_injection",
+          claimClass: "unsupported_fact",
+          evidenceSourceRequired: false,
+          evidenceMatched: false,
+          feedbackSection,
+        }),
+      ],
+    );
+  if (FORBIDDEN_OUTCOME.test(feedback)) {
+    const hiring =
+      /\b(?:hiring|offer|interview)\s+(?:probability|likelihood|chance|pass\s+probability)|\b(?:likely|unlikely)\s+to\s+(?:pass|be hired|get hired|receive an offer)/i.test(
+        feedback,
+      );
+    return result(
+      [],
+      ["forbidden_outcome_claim"],
+      [
+        feedbackDiagnostic({
+          reason: hiring ? "hiring_probability" : "ats_score",
+          rule: hiring ? "feedback.hiring_probability" : "feedback.ats_score",
+          claimClass: "unsupported_fact",
+          evidenceSourceRequired: false,
+          evidenceMatched: false,
+          feedbackSection,
+        }),
+      ],
+    );
+  }
 
   const source = cleanEvidence(`${input.answer || ""}\n${input.resumeEvidence || ""}`);
-  const assertedText = candidateAssertion(feedback) ? feedback : "";
+  const recommendation =
+    /^(?:you could|you might|you can|consider|try|it may help to|explain|clarify|discuss|mention|add|include|describe how you would|what would you consider)\b/i.test(
+      feedback,
+    );
+  const recommendationMakesClaim =
+    recommendation &&
+    /\b(?:you|your|the candidate|i)\b[^.!?\n]{0,140}\b(?:have|has|had|used|use|built|worked|led|managed|implemented|delivered|achieved|earned|hold|holds|am|was|were|are|experience|background|increased|reduced|generated|saved|launched|won|grew|improved|demonstrated|certified|certification)\b/i.test(
+      feedback,
+    );
+  const assertedText = candidateAssertion(feedback) || recommendationMakesClaim ? feedback : "";
   if (!assertedText) return result([], []);
   const unsupported = claimTokens(assertedText).filter((claim) => !hasEvidence(source, claim));
+  const claimClass: InterviewFeedbackDiagnostic["claimClass"] = recommendationMakesClaim
+    ? "candidate_factual_assertion"
+    : candidateAssertion(feedback)
+      ? source && unsupported.length === 0
+        ? "resume_grounded_fact"
+        : "candidate_factual_assertion"
+      : "unsupported_fact";
   return result(
     unsupported,
     unsupported.map(() => "unsupported_candidate_claim"),
+    unsupported.map((claim) => {
+      const classification = claimType(claim, source);
+      const reason: InterviewFeedbackDiagnostic["rejectionCategory"] =
+        classification.rejectionCategory === "technology_adjacency"
+          ? "technology_adjacency"
+          : classification.rejectionCategory === "unsupported_skill"
+            ? "unsupported_skill"
+            : classification.rejectionCategory === "unsupported_metric"
+              ? "unsupported_metric"
+              : classification.rejectionCategory === "unsupported_experience"
+                ? "unsupported_duration"
+                : classification.rejectionCategory === "unsupported_certification"
+                  ? "unsupported_credential"
+                  : classification.rejectionCategory === "unsupported_employer"
+                    ? "unsupported_employer"
+                    : classification.rejectionCategory === "unsupported_achievement"
+                      ? "unsupported_achievement"
+                      : classification.claimType === "responsibility"
+                        ? "responsibility_inflation"
+                        : "unsupported_candidate_fact";
+      return feedbackDiagnostic({
+        reason,
+        rule: "feedback.candidate_claim_requires_answer_or_resume_evidence",
+        claimClass,
+        evidenceSourceRequired: true,
+        evidenceMatched: false,
+        feedbackSection,
+      });
+    }),
   );
 }
 
