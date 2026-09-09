@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { downloadCoverLetterPlainText, createCoverLetter, localEvidenceDraft } from "../lib/cover-letters";
+import {
+  downloadCoverLetterPlainText,
+  createCoverLetter,
+  localEvidenceDraft,
+  validateWholeCoverLetter,
+} from "../lib/cover-letters";
 import { getGuestTarget, listGuestCoverLetters, listGuestResumes, putGuestCoverLetter } from "../lib/guest-db";
 import { isStructuredResume, resumeToPlainText } from "../resume-builder/model";
 import type { CoverLetterDocument, ResumeDocument } from "../types";
@@ -108,6 +113,24 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
   };
   const update = (key: keyof CoverLetterDocument, value: string) => {
     if (letter) change({ ...letter, [key]: value });
+  };
+  const acceptAssistantOpening = (value: string) => {
+    if (!letter) return;
+    const resumeEvidence =
+      selected && isStructuredResume(selected.structuredData) ? resumeToPlainText(selected.structuredData) : "";
+    const next = { ...letter, opening: value };
+    const validation = validateWholeCoverLetter({
+      resumeEvidence,
+      targetEvidence: { role: letter.role, company: letter.company, jobDescription: letter.jobDescription },
+      opening: next.opening,
+      bodyParagraphs: [...next.experience, next.roleFit],
+      closing: next.closing,
+    });
+    if (!validation.ok) {
+      setMessage(validation.message);
+      return;
+    }
+    update("opening", value);
   };
   useEffect(() => {
     if (!letter) return;
@@ -312,7 +335,7 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
             role={letter.role}
             jd={letter.jobDescription}
             onAnnouncement={setMessage}
-            onAccept={(value) => update("opening", value)}
+            onAccept={acceptAssistantOpening}
           />
           <button
             onClick={() => {
