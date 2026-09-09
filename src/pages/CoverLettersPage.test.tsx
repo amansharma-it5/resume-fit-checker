@@ -36,7 +36,7 @@ async function createLetter(user: ReturnType<typeof userEvent.setup>) {
 describe("CoverLettersPage save recovery", () => {
   it("keeps unsaved text visible and recovers through manual Save after a storage failure", async () => {
     const stored = new Map<string, ReturnType<typeof createCoverLetter>>();
-    let failNextUpdate = true;
+    let failNextUpdate = false;
     const repository: CoverLetterRepository = {
       getTarget: vi.fn(),
       listLetters: vi.fn(async () => [...stored.values()]),
@@ -61,6 +61,8 @@ describe("CoverLettersPage save recovery", () => {
     const user = userEvent.setup();
     renderPage(repository);
     await createLetter(user);
+    await waitFor(() => expect(repository.putLetter).toHaveBeenCalledTimes(2));
+    failNextUpdate = true;
 
     const opening = screen.getByLabelText("Opening");
     await user.clear(opening);

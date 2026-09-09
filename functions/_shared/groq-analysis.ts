@@ -167,6 +167,22 @@ export const GROQ_DRAFT_SCHEMA = {
   additionalProperties: false,
 };
 
+export const GROQ_COVER_LETTER_SCHEMA = {
+  type: "object",
+  properties: {
+    opening: { type: "string", minLength: 1, maxLength: 4000 },
+    bodyParagraphs: {
+      type: "array",
+      minItems: 1,
+      maxItems: 6,
+      items: { type: "string", minLength: 1, maxLength: 4000 },
+    },
+    closing: { type: "string", minLength: 1, maxLength: 3000 },
+  },
+  required: ["opening", "bodyParagraphs", "closing"],
+  additionalProperties: false,
+};
+
 export class GroqStructuredProvider {
   readonly provider = "groq";
   readonly model = GROQ_ANALYSIS_MODEL;
