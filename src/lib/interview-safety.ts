@@ -24,6 +24,16 @@ export type InterviewSafetyDiagnostic = {
   claimType: string | null;
   evidenceSourceCategory: "resume_evidence" | "answer" | "target_context" | "none";
   failingFieldPath: string;
+  assertionDetected: boolean;
+  evidenceRequired: boolean;
+  evidenceMatched: boolean;
+  questionFormClass:
+    | "factual_candidate_assertion"
+    | "neutral_topic_question"
+    | "hypothetical_question"
+    | "behavioral_question"
+    | "experience_question"
+    | "malformed_question";
 };
 
 const PROMPT_INJECTION =
@@ -166,12 +176,45 @@ function neutralQuestion(value: string) {
   );
 }
 
+function experienceSeekingQuestion(value: string) {
+  return /^(?:tell me about|describe|can you describe)\s+(?:any\s+|your\s+|relevant\s+|prior\s+)?experience\b|^(?:do you have|have you had)\s+(?:any\s+|relevant\s+|prior\s+)?experience\b|^(?:what|which)\s+(?:relevant\s+|prior\s+)?experience\s+do\s+you\s+have\b/i.test(
+    value.trim(),
+  );
+}
+
+function factualCandidateAssertion(value: string) {
+  return /^(?:given|since)\s+(?:your|you)\b|^(?:with|based on)\s+your\b|^(?:at|from)\s+your\s+(?:previous|prior|last)\s+(?:employer|company|role)\b|^(?:you|the candidate)\b[^.!?\n]{0,140}\b(?:have|has|had|used|use|built|worked|led|managed|implemented|delivered|achieved|earned|hold|holds|am|was|were|are|experience|background|increased|reduced|generated|saved|launched|won|grew|improved|demonstrated)\b/i.test(
+    value.trim(),
+  );
+}
+
+function questionFormClass(value: string): InterviewSafetyDiagnostic["questionFormClass"] {
+  const question = value.trim();
+  if (!question) return "malformed_question";
+  if (experienceSeekingQuestion(question)) return "experience_question";
+  if (
+    /^(?:how would|how might|what would|what approach|which approach|walk me through how you would|describe how you would|in what ways would)\b/i.test(
+      question,
+    )
+  )
+    return "hypothetical_question";
+  if (neutralQuestion(question)) return "neutral_topic_question";
+  if (/^(?:tell me about|describe|can you describe)\s+(?:a|an|the)\s+(?:time|situation|example)\b/i.test(question))
+    return "behavioral_question";
+  if (factualCandidateAssertion(question)) return "factual_candidate_assertion";
+  return "neutral_topic_question";
+}
+
 function questionDiagnostic(input: {
   reason: InterviewSafetyDiagnostic["rejectionCategory"];
   claim: string | null;
   claimType?: string | null;
   source: InterviewSafetyDiagnostic["evidenceSourceCategory"];
   rule: string;
+  assertionDetected?: boolean;
+  evidenceRequired?: boolean;
+  evidenceMatched?: boolean;
+  questionFormClass?: InterviewSafetyDiagnostic["questionFormClass"];
 }): InterviewSafetyDiagnostic {
   return {
     validatorReached: true,
@@ -180,6 +223,10 @@ function questionDiagnostic(input: {
     claimType: input.claimType ?? (input.claim ? claimType(input.claim, "").claimType : null),
     evidenceSourceCategory: input.source,
     failingFieldPath: "question.prompt",
+    assertionDetected: input.assertionDetected ?? true,
+    evidenceRequired: input.evidenceRequired ?? true,
+    evidenceMatched: input.evidenceMatched ?? false,
+    questionFormClass: input.questionFormClass ?? "factual_candidate_assertion",
   };
 }
 
@@ -200,6 +247,10 @@ export function validateInterviewQuestion(input: {
           claim: null,
           source: "none",
           rule: "question.non_empty",
+          assertionDetected: false,
+          evidenceRequired: false,
+          evidenceMatched: false,
+          questionFormClass: "malformed_question",
         }),
       ],
     );
@@ -213,11 +264,16 @@ export function validateInterviewQuestion(input: {
           claim: null,
           source: "none",
           rule: "question.prompt_injection",
+          assertionDetected: false,
+          evidenceRequired: false,
+          evidenceMatched: false,
+          questionFormClass: "malformed_question",
         }),
       ],
     );
 
-  if (!candidateAssertion(question) || neutralQuestion(question)) return result([], []);
+  const formClass = questionFormClass(question);
+  if (formClass !== "factual_candidate_assertion") return result([], []);
   const source = cleanEvidence(input.resumeEvidence || "");
   const unsupported = claimTokens(question).filter((claim) => !hasEvidence(source, claim));
   const diagnostics = unsupported.map((claim) => {
@@ -228,6 +284,10 @@ export function validateInterviewQuestion(input: {
       claimType: classification.claimType,
       source: "resume_evidence",
       rule: "question.candidate_claim_requires_resume_evidence",
+      assertionDetected: true,
+      evidenceRequired: true,
+      evidenceMatched: false,
+      questionFormClass: formClass,
     });
   });
   return result(

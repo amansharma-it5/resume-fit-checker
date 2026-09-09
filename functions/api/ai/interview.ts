@@ -169,8 +169,19 @@ function logFailure(input: {
   });
 }
 
-function validationError(message: string, unsupported: string[]) {
-  return json(422, { code: "UNSUPPORTED_INTERVIEW_OUTPUT", error: message, unsupported });
+function validationError(
+  message: string,
+  diagnostics: Array<{
+    failingRuleId: string;
+    rejectionCategory: string;
+    failingFieldPath: string;
+    assertionDetected: boolean;
+    evidenceRequired: boolean;
+    evidenceMatched: boolean;
+    questionFormClass: string;
+  }> = [],
+) {
+  return json(422, { code: "UNSUPPORTED_INTERVIEW_OUTPUT", error: message, diagnostics });
 }
 
 function logQuestionValidation(diagnostics: Array<Record<string, unknown>> | undefined) {
@@ -289,7 +300,20 @@ export async function handleAiInterview(context: Context, fetchFn: typeof fetch 
           })),
         ),
       );
-      return validationError("More information is required to verify these interview questions.", unsupported);
+      return validationError(
+        "More information is required to verify these interview questions.",
+        checks.flatMap((check) =>
+          (check.diagnostics || []).map((diagnostic) => ({
+            failingRuleId: diagnostic.failingRuleId,
+            rejectionCategory: diagnostic.rejectionCategory,
+            failingFieldPath: diagnostic.failingFieldPath,
+            assertionDetected: diagnostic.assertionDetected,
+            evidenceRequired: diagnostic.evidenceRequired,
+            evidenceMatched: diagnostic.evidenceMatched,
+            questionFormClass: diagnostic.questionFormClass,
+          })),
+        ),
+      );
     }
     return json(200, { ...output, provider: result.provider, model: result.model });
   }
@@ -311,8 +335,7 @@ export async function handleAiInterview(context: Context, fetchFn: typeof fetch 
     }),
   );
   const unsupported = checks.flatMap((check) => [...check.unsupported, ...check.reasons]);
-  if (unsupported.length)
-    return validationError("More information is required to verify this interview feedback.", unsupported);
+  if (unsupported.length) return validationError("More information is required to verify this interview feedback.");
   return json(200, { ...output, provider: result.provider, model: result.model });
 }
 

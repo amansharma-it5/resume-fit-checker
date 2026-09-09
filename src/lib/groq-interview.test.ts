@@ -98,7 +98,19 @@ describe("Groq Interview production endpoint", () => {
       fetcher,
     );
     expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ code: "UNSUPPORTED_INTERVIEW_OUTPUT" });
+    const responseBody = await response.json();
+    expect(responseBody).toMatchObject({ code: "UNSUPPORTED_INTERVIEW_OUTPUT" });
+    if (_label === "unsupported candidate question")
+      expect(responseBody.diagnostics).toEqual([
+        expect.objectContaining({
+          failingRuleId: "question.candidate_claim_requires_resume_evidence",
+          questionFormClass: "factual_candidate_assertion",
+          assertionDetected: true,
+          evidenceRequired: true,
+          evidenceMatched: false,
+          failingFieldPath: "question.prompt",
+        }),
+      ]);
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(log).toHaveBeenCalledWith(
       expect.objectContaining({
