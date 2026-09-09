@@ -48,6 +48,40 @@ describe("Groq provider evaluation contract", () => {
     expect(requestBody).not.toContain("synthetic-secret");
   });
 
+  it.each([
+    ["text", false],
+    ["json_object", true],
+    ["json_schema", true],
+  ] as const)("builds the documented %s probe request shape", async (responseMode, hasResponseFormat) => {
+    let requestBody = "";
+    const provider = new GroqStructuredProvider({ GROQ_API_KEY: "synthetic-secret" }, async (_input, init) => {
+      requestBody = String(init?.body);
+      const content = responseMode === "text" ? "Synthetic response" : JSON.stringify({ draft: "Synthetic response" });
+      return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 });
+    });
+    const result = await provider.request({
+      ...config,
+      responseMode,
+      normalize: (value) =>
+        responseMode === "text"
+          ? typeof value === "string" && value.trim()
+            ? { draft: value }
+            : null
+          : config.normalize(value),
+    });
+    expect(result).toMatchObject({ ok: true });
+    const body = JSON.parse(requestBody);
+    expect(body.model).toBe(GROQ_ANALYSIS_MODEL);
+    expect(body.max_completion_tokens).toBe(500);
+    expect(body.response_format).toEqual(
+      hasResponseFormat
+        ? responseMode === "json_object"
+          ? { type: "json_object" }
+          : expect.objectContaining({ type: "json_schema" })
+        : undefined,
+    );
+  });
+
   it("fails safely when the server binding is missing", async () => {
     const result = await new GroqStructuredProvider({}).request(config);
     expect(result).toMatchObject({ ok: false, code: "AUTH_ERROR" });

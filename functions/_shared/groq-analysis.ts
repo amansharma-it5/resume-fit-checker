@@ -115,18 +115,21 @@ export class GroqStructuredProvider implements StructuredTextProvider {
     let attemptCount = 0;
     let lastStatus: number | null = null;
     try {
-      const body = JSON.stringify({
+      const requestBody: Record<string, unknown> = {
         model: this.model,
         messages: [
           { role: "system", content: config.systemInstruction },
           { role: "user", content: config.userText },
         ],
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: config.schemaName, strict: true, schema: config.schema },
-        },
         max_completion_tokens: config.maxOutputTokens,
-      });
+      };
+      if (config.responseMode !== "text") {
+        requestBody.response_format =
+          config.responseMode === "json_object"
+            ? { type: "json_object" }
+            : { type: "json_schema", json_schema: { name: config.schemaName, strict: true, schema: config.schema } };
+      }
+      const body = JSON.stringify(requestBody);
       let response: Response | undefined;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         if (lifecycle.signal.aborted)
@@ -170,11 +173,13 @@ export class GroqStructuredProvider implements StructuredTextProvider {
       const content = json.choices?.[0]?.message?.content;
       if (typeof content !== "string")
         return failed(base, "INVALID_RESPONSE", true, "invalid_response", response.status, attemptCount);
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(content);
-      } catch {
-        return failed(base, "INVALID_RESPONSE", true, "invalid_response", response.status, attemptCount);
+      let parsed: unknown = content;
+      if (config.responseMode !== "text") {
+        try {
+          parsed = JSON.parse(content);
+        } catch {
+          return failed(base, "INVALID_RESPONSE", true, "invalid_response", response.status, attemptCount);
+        }
       }
       const output = config.normalize(parsed);
       return output
