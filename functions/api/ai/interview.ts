@@ -173,6 +173,10 @@ function validationError(message: string, unsupported: string[]) {
   return json(422, { code: "UNSUPPORTED_INTERVIEW_OUTPUT", error: message, unsupported });
 }
 
+function logQuestionValidation(diagnostics: Array<Record<string, unknown>> | undefined) {
+  for (const diagnostic of diagnostics || []) console.info(diagnostic);
+}
+
 export async function handleAiInterview(context: Context, fetchFn: typeof fetch = defaultFetch) {
   const { request, env } = context;
   if (request.method !== "POST") return json(405, { code: "METHOD_NOT_ALLOWED", error: "Use POST for Interview AI." });
@@ -272,8 +276,21 @@ export async function handleAiInterview(context: Context, fetchFn: typeof fetch 
       }),
     );
     const unsupported = checks.flatMap((check) => [...check.unsupported, ...check.reasons]);
-    if (unsupported.length)
+    if (unsupported.length) {
+      logQuestionValidation(
+        checks.flatMap((check) =>
+          (check.diagnostics || []).map((diagnostic) => ({
+            validatorReached: diagnostic.validatorReached,
+            rejectionCategory: diagnostic.rejectionCategory,
+            failingRuleId: diagnostic.failingRuleId,
+            claimType: diagnostic.claimType,
+            evidenceSourceCategory: diagnostic.evidenceSourceCategory,
+            failingFieldPath: diagnostic.failingFieldPath,
+          })),
+        ),
+      );
       return validationError("More information is required to verify these interview questions.", unsupported);
+    }
     return json(200, { ...output, provider: result.provider, model: result.model });
   }
 

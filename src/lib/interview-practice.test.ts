@@ -94,6 +94,35 @@ describe("interview practice", () => {
     ).toMatchObject({ ok: false, unsupported: expect.arrayContaining(["Kubernetes"]) });
   });
 
+  it("allows neutral hypothetical questions without weakening factual-claim rejection", () => {
+    const neutralQuestions = [
+      "How would you handle Kubernetes in this role?",
+      "What would you consider when designing a Kubernetes workflow?",
+      "Walk me through how you would approach this technical scenario.",
+      "What is your approach to the role's Kubernetes requirements?",
+    ];
+    for (const question of neutralQuestions)
+      expect(validateInterviewQuestion({ question, resumeEvidence: "Built Java services." })).toMatchObject({
+        ok: true,
+      });
+    expect(
+      validateInterviewQuestion({
+        question: "You have 8 years of Kubernetes experience, correct?",
+        resumeEvidence: "Built Java services.",
+      }),
+    ).toMatchObject({
+      ok: false,
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          rejectionCategory: "unsupported_skill",
+          failingRuleId: "question.candidate_claim_requires_resume_evidence",
+          evidenceSourceCategory: "resume_evidence",
+          failingFieldPath: "question.prompt",
+        }),
+      ]),
+    });
+  });
+
   it.each([
     ["unsupported skill", "You used Kubernetes in production.", "Built Java services."],
     ["unsupported metric", "You improved performance by 40%.", "Improved performance."],

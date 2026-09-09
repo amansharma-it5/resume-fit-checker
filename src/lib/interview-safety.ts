@@ -2,6 +2,28 @@ export type InterviewSafetyResult = {
   ok: boolean;
   unsupported: string[];
   reasons: string[];
+  diagnostics?: InterviewSafetyDiagnostic[];
+};
+
+export type InterviewSafetyDiagnostic = {
+  validatorReached: true;
+  rejectionCategory:
+    | "unsupported_candidate_assertion"
+    | "unsupported_skill"
+    | "unsupported_experience"
+    | "unsupported_certification"
+    | "unsupported_employer"
+    | "unsupported_achievement"
+    | "unsupported_metric"
+    | "unsupported_seniority"
+    | "technology_adjacency"
+    | "prompt_injection"
+    | "jd_as_candidate_evidence"
+    | "malformed_question_contract";
+  failingRuleId: string;
+  claimType: string | null;
+  evidenceSourceCategory: "resume_evidence" | "answer" | "target_context" | "none";
+  failingFieldPath: string;
 };
 
 const PROMPT_INJECTION =
@@ -64,6 +86,43 @@ function hasEvidence(source: string, claim: string) {
   return termPattern(claim).test(source);
 }
 
+function claimType(claim: string, source: string) {
+  if (
+    (claim === "JavaScript" && hasEvidence(source, "Java")) ||
+    (claim === "Java" && hasEvidence(source, "JavaScript"))
+  )
+    return { rejectionCategory: "technology_adjacency" as const, claimType: "technology" };
+  if (
+    (claim === "React Native" && hasEvidence(source, "React")) ||
+    (claim === "React" && hasEvidence(source, "React Native"))
+  )
+    return { rejectionCategory: "technology_adjacency" as const, claimType: "technology" };
+  if (
+    (claim === "Kubernetes" && hasEvidence(source, "Docker")) ||
+    (claim === "Docker" && hasEvidence(source, "Kubernetes"))
+  )
+    return { rejectionCategory: "technology_adjacency" as const, claimType: "technology" };
+  if (claim === "AWS" && /\bAWS\s+(?:Certified|Certification)\b/i.test(source))
+    return { rejectionCategory: "technology_adjacency" as const, claimType: "certification" };
+  if (TECHNICAL.some((term) => term.toLowerCase() === claim.toLowerCase()))
+    return { rejectionCategory: "unsupported_skill" as const, claimType: "skill" };
+  if (new RegExp(METRIC.source, "i").test(claim))
+    return { rejectionCategory: "unsupported_metric" as const, claimType: "metric" };
+  if (new RegExp(DURATION.source, "i").test(claim))
+    return { rejectionCategory: "unsupported_experience" as const, claimType: "duration" };
+  if (new RegExp(CERTIFICATION.source, "i").test(claim))
+    return { rejectionCategory: "unsupported_certification" as const, claimType: "certification" };
+  if (new RegExp(SENIORITY.source, "i").test(claim))
+    return { rejectionCategory: "unsupported_seniority" as const, claimType: "seniority" };
+  if (new RegExp(EMPLOYER.source, "i").test(claim))
+    return { rejectionCategory: "unsupported_employer" as const, claimType: "employer" };
+  if (new RegExp(RESPONSIBILITY.source, "i").test(claim))
+    return { rejectionCategory: "unsupported_candidate_assertion" as const, claimType: "responsibility" };
+  if (new RegExp(ACHIEVEMENT.source, "i").test(claim))
+    return { rejectionCategory: "unsupported_achievement" as const, claimType: "achievement" };
+  return { rejectionCategory: "unsupported_candidate_assertion" as const, claimType: "candidate_fact" };
+}
+
 function unique(values: string[]) {
   return [...new Map(values.map((value) => [value.toLowerCase(), value])).values()];
 }
@@ -81,12 +140,18 @@ function claimTokens(value: string) {
   return unique(claims);
 }
 
-function result(unsupported: string[], reasons: string[]): InterviewSafetyResult {
-  return {
+function result(
+  unsupported: string[],
+  reasons: string[],
+  diagnostics: InterviewSafetyDiagnostic[] = [],
+): InterviewSafetyResult {
+  const output: InterviewSafetyResult = {
     ok: unsupported.length === 0 && reasons.length === 0,
     unsupported: unique(unsupported),
     reasons: unique(reasons),
   };
+  if (diagnostics.length) output.diagnostics = diagnostics;
+  return output;
 }
 
 function candidateAssertion(value: string) {
@@ -96,9 +161,26 @@ function candidateAssertion(value: string) {
 }
 
 function neutralQuestion(value: string) {
-  return /^(?:how would|how might|what would|what approach|which approach|tell me about|can you describe|what is your approach)\b/i.test(
+  return /^(?:how would|how might|what would|what approach|which approach|tell me about|can you describe|what is your approach|walk me through how you would|describe how you would|what would you consider|in what ways would)\b/i.test(
     value.trim(),
   );
+}
+
+function questionDiagnostic(input: {
+  reason: InterviewSafetyDiagnostic["rejectionCategory"];
+  claim: string | null;
+  claimType?: string | null;
+  source: InterviewSafetyDiagnostic["evidenceSourceCategory"];
+  rule: string;
+}): InterviewSafetyDiagnostic {
+  return {
+    validatorReached: true,
+    rejectionCategory: input.reason,
+    failingRuleId: input.rule,
+    claimType: input.claimType ?? (input.claim ? claimType(input.claim, "").claimType : null),
+    evidenceSourceCategory: input.source,
+    failingFieldPath: "question.prompt",
+  };
 }
 
 /** Validates a generated question. JD terms may be topics, but not unsupported candidate facts. */
@@ -108,15 +190,50 @@ export function validateInterviewQuestion(input: {
   targetEvidence?: string;
 }): InterviewSafetyResult {
   const question = input.question.trim();
-  if (!question) return result([], ["empty_question"]);
-  if (PROMPT_INJECTION.test(question)) return result([], ["prompt_injection"]);
+  if (!question)
+    return result(
+      [],
+      ["empty_question"],
+      [
+        questionDiagnostic({
+          reason: "malformed_question_contract",
+          claim: null,
+          source: "none",
+          rule: "question.non_empty",
+        }),
+      ],
+    );
+  if (PROMPT_INJECTION.test(question))
+    return result(
+      [],
+      ["prompt_injection"],
+      [
+        questionDiagnostic({
+          reason: "prompt_injection",
+          claim: null,
+          source: "none",
+          rule: "question.prompt_injection",
+        }),
+      ],
+    );
 
   if (!candidateAssertion(question) || neutralQuestion(question)) return result([], []);
   const source = cleanEvidence(input.resumeEvidence || "");
   const unsupported = claimTokens(question).filter((claim) => !hasEvidence(source, claim));
+  const diagnostics = unsupported.map((claim) => {
+    const classification = claimType(claim, source);
+    return questionDiagnostic({
+      reason: classification.rejectionCategory,
+      claim,
+      claimType: classification.claimType,
+      source: "resume_evidence",
+      rule: "question.candidate_claim_requires_resume_evidence",
+    });
+  });
   return result(
     unsupported,
     unsupported.map(() => "unsupported_candidate_claim"),
+    diagnostics,
   );
 }
 
