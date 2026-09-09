@@ -120,6 +120,7 @@ describe("Groq Cover Letter production endpoint", () => {
   });
 
   it("normalizes malformed provider output without exposing provider data", async () => {
+    const diagnostic = vi.spyOn(console, "info").mockImplementation(() => {});
     const fetcher = vi.fn(async () => groqResponse({ opening: "" }));
     const result = await handleAiCoverLetter(
       { request: request(input), env: { GROQ_API_KEY: "synthetic-groq" } },
@@ -130,6 +131,25 @@ describe("Groq Cover Letter production endpoint", () => {
       code: "AI_INVALID_RESPONSE",
       error: "Cover-letter AI is unavailable. Try again later.",
     });
+    expect(diagnostic).toHaveBeenCalledWith({
+      primaryProvider: "groq",
+      primaryAttempted: true,
+      primaryFailureCategory: "invalid_response",
+      primaryUpstreamStatus: 200,
+      primaryTimedOut: false,
+      primaryCancelled: false,
+      primaryAttemptCount: 1,
+      fallbackAllowed: false,
+      fallbackAttempted: false,
+      fallbackProvider: "gemini",
+      fallbackFailureCategory: null,
+      fallbackUpstreamStatus: null,
+      fallbackTimedOut: false,
+      fallbackAttemptCount: 0,
+      finalFailureCategory: "invalid_response",
+      finalHTTPStatus: 502,
+    });
+    diagnostic.mockRestore();
   });
 
   it("rejects non-POST and malformed input before provider use", async () => {
