@@ -51,3 +51,14 @@ resume/JD content.
 
 The recommendation must be based on measured results. Until that measurement,
 Groq is not a production provider and Gemini remains unchanged.
+
+## Gateway connectivity result
+
+On the exact evaluation Preview commit, one synthetic non-streaming text probe
+through the implicit `default` AI Gateway returned `503 PROVIDER_UNAVAILABLE`
+in approximately 286 ms. The direct Groq path had also returned a normalized
+503 while the Groq Playground worked, so this does not establish a request
+schema defect. No JSON Object, JSON Schema, or feature probes were sent after
+the Gateway failure. The account has no named Gateway with safe request
+telemetry available for this evaluation, and no production provider path was
+changed.
