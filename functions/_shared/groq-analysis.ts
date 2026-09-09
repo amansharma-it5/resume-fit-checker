@@ -3,6 +3,7 @@ import type {
   ProviderFailureCategory,
   ProviderFailureCode,
   ProviderFetchErrorClass,
+  InvalidResponseStage,
   ProviderResult,
   StructuredProviderRequest,
 } from "./provider-contract";
@@ -157,6 +158,16 @@ function failed(
 
 const defaultFetch: FetchLike = (input, init) => globalThis.fetch(input, init);
 
+function invalidResponse<T>(
+  config: StructuredProviderRequest<T>,
+  stage: InvalidResponseStage,
+  status: number,
+  attempts: number,
+) {
+  config.onResponseDiagnostic?.({ invalidResponseStage: stage });
+  return failed("INVALID_RESPONSE", true, "invalid_response", status, attempts, "malformed_response");
+}
+
 export const GROQ_DRAFT_SCHEMA = {
   type: "object",
   properties: {
@@ -164,6 +175,22 @@ export const GROQ_DRAFT_SCHEMA = {
     evidenceWarnings: { type: "array", items: { type: "string" } },
   },
   required: ["draft", "evidenceWarnings"],
+  additionalProperties: false,
+};
+
+export const GROQ_COVER_LETTER_SCHEMA = {
+  type: "object",
+  properties: {
+    opening: { type: "string", minLength: 1, maxLength: 4000 },
+    bodyParagraphs: {
+      type: "array",
+      minItems: 1,
+      maxItems: 6,
+      items: { type: "string", minLength: 1, maxLength: 4000 },
+    },
+    closing: { type: "string", minLength: 1, maxLength: 3000 },
+  },
+  required: ["opening", "bodyParagraphs", "closing"],
   additionalProperties: false,
 };
 
@@ -239,6 +266,7 @@ export class GroqStructuredProvider {
       }
       lifecycle.dispose();
       lastStatus = response.status;
+      config.onResponseDiagnostic?.({ providerHttpResponseReceived: true, providerHttpStatus: response.status });
       if (attempt === 0 && retryable(response.status)) {
         try {
           await this.waitFn(GROQ_RETRY_DELAY_MS, retrySignal);
@@ -272,24 +300,49 @@ export class GroqStructuredProvider {
         "http_status",
       );
 
+    let envelope: unknown;
     try {
-      const json = (await response.json()) as { choices?: Array<{ message?: { content?: unknown } }> };
-      const content = json.choices?.[0]?.message?.content;
-      if (typeof content !== "string")
-        return failed(
-          "INVALID_RESPONSE",
-          true,
-          "invalid_response",
-          response.status,
-          attemptCount,
-          "malformed_response",
-        );
-      const output = config.normalize(JSON.parse(content));
-      return output
-        ? { ok: true, output, provider: this.provider, model: this.model }
-        : failed("INVALID_RESPONSE", true, "invalid_response", response.status, attemptCount, "malformed_response");
+      envelope = await response.json();
+      config.onResponseDiagnostic?.({ providerEnvelopeParsed: true });
     } catch {
-      return failed("INVALID_RESPONSE", true, "invalid_response", response.status, attemptCount, "malformed_response");
+      return invalidResponse(config, "provider_envelope", response.status, attemptCount);
     }
+    if (!envelope || typeof envelope !== "object" || !Array.isArray((envelope as { choices?: unknown }).choices))
+      return invalidResponse(config, "unexpected_provider_shape", response.status, attemptCount);
+    const choice = (envelope as { choices: unknown[] }).choices[0];
+    if (!choice || typeof choice !== "object" || !("message" in choice))
+      return invalidResponse(config, "missing_message", response.status, attemptCount);
+    config.onResponseDiagnostic?.({ assistantMessagePresent: true });
+    const message = (choice as { message?: unknown }).message;
+    if (!message || typeof message !== "object" || !("content" in message))
+      return invalidResponse(config, "missing_message", response.status, attemptCount);
+    const content = (message as { content?: unknown }).content;
+    if (typeof content !== "string" || !content.trim())
+      return invalidResponse(config, "missing_structured_payload", response.status, attemptCount);
+    config.onResponseDiagnostic?.({ structuredPayloadPresent: true });
+    let parsedContent: unknown;
+    try {
+      parsedContent = JSON.parse(content);
+      config.onResponseDiagnostic?.({ structuredJsonParsed: true });
+    } catch {
+      return invalidResponse(config, "json_parse", response.status, attemptCount);
+    }
+    if (config.validateStructuredOutput && !config.validateStructuredOutput(parsedContent)) {
+      config.onResponseDiagnostic?.({ schemaValidationPassed: false });
+      return invalidResponse(config, "strict_schema", response.status, attemptCount);
+    }
+    if (config.validateStructuredOutput) config.onResponseDiagnostic?.({ schemaValidationPassed: true });
+    let output: T | null;
+    try {
+      output = config.normalize(parsedContent);
+    } catch {
+      output = null;
+    }
+    if (!output) {
+      config.onResponseDiagnostic?.({ contractNormalizationPassed: false });
+      return invalidResponse(config, "contract_normalization", response.status, attemptCount);
+    }
+    config.onResponseDiagnostic?.({ contractNormalizationPassed: true });
+    return { ok: true, output, provider: this.provider, model: this.model };
   }
 }

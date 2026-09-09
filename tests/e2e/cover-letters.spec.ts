@@ -36,27 +36,34 @@ async function createLetter(page: import("@playwright/test").Page) {
 test("requires consent and sends only bounded selected evidence before accepting an AI suggestion", async ({
   page,
 }) => {
-  let payload: Record<string, string> | undefined;
-  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
-    payload = route.request().postDataJSON() as Record<string, string>;
+  let payload: Record<string, unknown> | undefined;
+  await page.route("**/api/ai/cover-letter", async (route) => {
+    payload = route.request().postDataJSON() as Record<string, unknown>;
     await route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ rewrittenBullet: "I am writing to apply for the Engineer role at Example Labs." }),
+      body: JSON.stringify({
+        opening: "I am writing to apply for the Engineer role at Example Labs.",
+        bodyParagraphs: ["I am ready to contribute."],
+        closing: "Thank you for your consideration.",
+        provider: "groq",
+        model: "openai/gpt-oss-120b",
+      }),
     });
   });
   await createLetter(page);
   await page.getByLabel("Opening").fill("I am writing to apply for the Engineer role at Example Labs.");
-  await expect(page.getByRole("button", { name: "Generate suggestion" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Generate cover letter" })).toBeDisabled();
   await page.getByLabel(/consent to send/i).check();
-  await page.getByRole("button", { name: "Generate suggestion" }).click();
-  await expect(page.getByRole("button", { name: "Accept" })).toBeVisible();
-  expect(payload?.bullet).toContain("Engineer role");
-  expect(payload?.jdExcerpt).not.toContain("complete resume");
-  expect(payload?.approvedContext.length).toBeLessThanOrEqual(2000);
-  await page.getByRole("button", { name: "Accept" }).click();
-  await expect(page.getByText("Suggestion accepted.").first()).toBeVisible();
+  await page.getByRole("button", { name: "Generate cover letter" }).click();
+  await expect(page.getByRole("button", { name: "Use Draft" })).toBeVisible();
+  expect(String(payload?.resumeEvidence || "").length).toBeLessThanOrEqual(12000);
+  expect(JSON.stringify(payload?.targetEvidence)).not.toContain("complete resume");
+  await page.getByRole("button", { name: "Use Draft" }).click();
+  await expect(page.getByText("AI cover letter accepted.").first()).toBeVisible();
   await page.getByRole("button", { name: "Undo" }).click();
-  await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
+  await expect(page.getByRole("textbox", { name: "Opening", exact: true })).toHaveValue(
+    "I am writing to apply for the Engineer role at Example Labs.",
+  );
 });
 
 test("keeps independently created local cover letters separate", async ({ page }) => {
@@ -91,34 +98,38 @@ test("creates a letter from an isolated job target and keeps prompt-like JD text
 
 test("cancels a delayed cover-letter suggestion without changing the editor", async ({ page }) => {
   let release: (() => void) | undefined;
-  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+  await page.route("**/api/ai/cover-letter", async (route) => {
     await new Promise<void>((resolve) => {
       release = resolve;
     });
     await route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ rewrittenBullet: "I am writing to apply for the Engineer role at Example Labs." }),
+      body: JSON.stringify({
+        opening: "I am writing to apply for the Engineer role at Example Labs.",
+        bodyParagraphs: ["I am ready to contribute."],
+        closing: "Thank you for your consideration.",
+      }),
     });
   });
   await createLetter(page);
   await page.getByLabel("Opening").fill("I am writing to apply for the Engineer role at Example Labs.");
   await page.getByLabel(/consent to send/i).check();
-  await page.getByRole("button", { name: "Generate suggestion" }).click();
+  await page.getByRole("button", { name: "Generate cover letter" }).click();
   await page.getByRole("button", { name: "Cancel" }).click();
-  await expect(page.locator(".dashboard-page > [role='status']")).toHaveText("Suggestion request cancelled.");
-  await expect(page.locator("[role='status']").filter({ hasText: "Suggestion request cancelled." })).toHaveCount(1);
-  await expect(page.locator(".assistant-feedback")).toHaveText("Suggestion request cancelled.");
+  await expect(page.locator(".dashboard-page > [role='status']")).toHaveText("Cover-letter request cancelled.");
+  await expect(page.locator("[role='status']").filter({ hasText: "Cover-letter request cancelled." })).toHaveCount(1);
+  await expect(page.locator(".assistant-feedback")).toHaveText("Cover-letter request cancelled.");
   release?.();
-  await expect(page.getByRole("button", { name: "Accept" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Use Draft" })).toHaveCount(0);
   await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
-  await expect(page.getByRole("button", { name: "Generate suggestion" })).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Generate suggestion" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Generate cover letter" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Generate cover letter" })).toBeFocused();
 });
 
 test("a newer replacement request wins over a late older response", async ({ page }) => {
   let releaseFirst: (() => void) | undefined;
   let requests = 0;
-  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+  await page.route("**/api/ai/cover-letter", async (route) => {
     requests++;
     if (requests === 1) {
       await new Promise<void>((resolve) => {
@@ -126,46 +137,58 @@ test("a newer replacement request wins over a late older response", async ({ pag
       });
       await route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({ rewrittenBullet: "Old response." }),
+        body: JSON.stringify({
+          opening: "Old response.",
+          bodyParagraphs: ["Old body."],
+          closing: "Old closing.",
+        }),
       });
       return;
     }
     await route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ rewrittenBullet: "I am writing to apply for the Engineer role at Example Labs." }),
+      body: JSON.stringify({
+        opening: "I am writing to apply for the Engineer role at Example Labs.",
+        bodyParagraphs: ["I am ready to contribute."],
+        closing: "Thank you for your consideration.",
+      }),
     });
   });
   await createLetter(page);
   await page.getByLabel("Opening").fill("I am writing to apply for the Engineer role at Example Labs.");
   await page.getByLabel(/consent to send/i).check();
-  await page.getByRole("button", { name: "Generate suggestion" }).click();
+  await page.getByRole("button", { name: "Generate cover letter" }).click();
   await expect(page.getByRole("button", { name: "Replace request" })).toBeEnabled();
   await page.getByRole("button", { name: "Replace request" }).click();
-  await expect(page.getByRole("button", { name: "Accept" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Use Draft" })).toBeVisible();
   releaseFirst?.();
-  await expect(page.locator("ins")).toHaveText("I am writing to apply for the Engineer role at Example Labs.");
-  await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
+  await expect(
+    page
+      .getByLabel("Current and AI cover-letter")
+      .getByText("I am writing to apply for the Engineer role at Example Labs.", {
+        exact: true,
+      }),
+  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Opening", exact: true })).toHaveValue(
+    "I am writing to apply for the Engineer role at Example Labs.",
+  );
 });
 
 test("keeps provider failures local, safe, and explicitly reviewable", async ({ page }) => {
-  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+  await page.route("**/api/ai/cover-letter", async (route) => {
     await route.fulfill({
       status: 429,
       contentType: "application/json",
-      body: JSON.stringify({ error: "internal provider token and stack trace" }),
+      body: JSON.stringify({ code: "AI_RATE_LIMITED", error: "internal provider token and stack trace" }),
     });
   });
   await createLetter(page);
   await page.getByLabel("Opening").fill("I am writing to apply for the Engineer role at Example Labs.");
   await page.getByLabel(/consent to send/i).check();
-  await page.getByRole("button", { name: "Generate suggestion" }).click();
-  await expect(page.locator(".dashboard-page > [role='status']")).toHaveText(
-    "AI unavailable. Showing a deterministic local fallback.",
-  );
-  await expect(page.locator(".assistant-feedback")).toHaveText(
-    "AI unavailable. Showing a deterministic local fallback.",
-  );
-  await expect(page.getByRole("button", { name: "Accept" })).toBeVisible();
+  await page.getByRole("button", { name: "Generate cover letter" }).click();
+  await expect(page.locator(".dashboard-page > [role='status']")).toHaveText("AI is rate limited. Try again later.");
+  await expect(page.locator(".assistant-feedback")).toHaveText("AI is rate limited. Try again later.");
+  await expect(page.getByRole("button", { name: "Use Draft" })).toHaveCount(0);
   await expect(page.getByText(/provider token|stack trace/i)).toHaveCount(0);
   await expect(page.getByLabel("Opening")).toHaveValue("I am writing to apply for the Engineer role at Example Labs.");
 });
@@ -192,7 +215,7 @@ test("renders a semantic cover-letter-only print surface for Letter and A4", asy
       }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Save" })).toBeHidden();
-  await expect(page.getByRole("heading", { name: "Cover letter assistant" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "AI cover letter" })).toBeHidden();
   await page.emulateMedia({ media: "screen" });
   await page.getByLabel("Print page size").selectOption("letter");
   await expect(page.getByLabel("Printable cover letter")).toHaveAttribute("data-page-size", "letter");

@@ -5,6 +5,7 @@ import {
   createCoverLetter,
   localEvidenceDraft,
   validateWholeCoverLetter,
+  type CoverLetterAiDraft,
 } from "../lib/cover-letters";
 import { getGuestTarget, listGuestCoverLetters, listGuestResumes, putGuestCoverLetter } from "../lib/guest-db";
 import { isStructuredResume, resumeToPlainText } from "../resume-builder/model";
@@ -114,23 +115,40 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
   const update = (key: keyof CoverLetterDocument, value: string) => {
     if (letter) change({ ...letter, [key]: value });
   };
-  const acceptAssistantOpening = (value: string) => {
-    if (!letter) return;
+  const acceptAssistantDraft = (draft: CoverLetterAiDraft) => {
+    if (!letter) return false;
+    if (
+      !draft.opening.trim() ||
+      !draft.bodyParagraphs.length ||
+      draft.bodyParagraphs.some((paragraph) => !paragraph.trim()) ||
+      !draft.closing.trim()
+    ) {
+      setMessage("The AI cover letter must contain a complete opening, body, and closing.");
+      return false;
+    }
     const resumeEvidence =
       selected && isStructuredResume(selected.structuredData) ? resumeToPlainText(selected.structuredData) : "";
-    const next = { ...letter, opening: value };
+    const experienceCount = letter.experience.length;
+    const next = {
+      ...letter,
+      opening: draft.opening,
+      experience: draft.bodyParagraphs.slice(0, experienceCount),
+      roleFit: draft.bodyParagraphs.slice(experienceCount).join("\n\n"),
+      closing: draft.closing,
+    };
     const validation = validateWholeCoverLetter({
       resumeEvidence,
       targetEvidence: { role: letter.role, company: letter.company, jobDescription: letter.jobDescription },
       opening: next.opening,
-      bodyParagraphs: [...next.experience, next.roleFit],
+      bodyParagraphs: [...next.experience, ...(next.roleFit.trim() ? [next.roleFit] : [])],
       closing: next.closing,
     });
     if (!validation.ok) {
       setMessage(validation.message);
-      return;
+      return false;
     }
-    update("opening", value);
+    change(next);
+    return true;
   };
   useEffect(() => {
     if (!letter) return;
@@ -327,7 +345,11 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
             <textarea rows={3} value={letter.closing} onChange={(e) => update("closing", e.target.value)} />
           </label>
           <CoverLetterAssistant
-            text={letter.opening}
+            current={{
+              opening: letter.opening,
+              bodyParagraphs: [...letter.experience, ...(letter.roleFit.trim() ? [letter.roleFit] : [])],
+              closing: letter.closing,
+            }}
             evidence={
               selected && isStructuredResume(selected.structuredData) ? resumeToPlainText(selected.structuredData) : ""
             }
@@ -335,7 +357,7 @@ export function CoverLettersPage({ repository = guestCoverLetterRepository }: { 
             role={letter.role}
             jd={letter.jobDescription}
             onAnnouncement={setMessage}
-            onAccept={acceptAssistantOpening}
+            onAccept={acceptAssistantDraft}
           />
           <button
             onClick={() => {

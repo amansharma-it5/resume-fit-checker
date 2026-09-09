@@ -79,6 +79,12 @@ export function validateCoverLetterSuggestion(suggestion: string, resumeEvidence
       };
 }
 
+export type CoverLetterAiDraft = {
+  opening: string;
+  bodyParagraphs: string[];
+  closing: string;
+};
+
 export type CoverLetterTargetEvidence = {
   role: string;
   company: string;
@@ -94,6 +100,7 @@ export type WholeCoverLetterInput = {
 };
 
 const RESPONSIBILITY_CLAIM = /\b(?:led|managed|owned|directed|architected|supervised|mentored|spearheaded|oversaw)\b/gi;
+const SENIORITY_CLAIM = /\b(?:senior|junior|lead|principal|staff|director|executive)\b/gi;
 const COMPANY_FACT_TERMS =
   "mission|culture|funding|funded|market leader|industry leader|award[- ]winning|product|products|growth|customers|revenue";
 const DURATION_CLAIM = /\b\d+\+?\s+(?:years?|months?)\b/gi;
@@ -137,6 +144,9 @@ export function validateWholeCoverLetter(input: WholeCoverLetterInput) {
   const unsupported = [...validateAiDraft(validationText, evidence).unsupported];
 
   for (const claim of validationText.match(RESPONSIBILITY_CLAIM) || []) {
+    if (!supportedClaim(claim, evidence)) unsupported.push(claim);
+  }
+  for (const claim of validationText.match(SENIORITY_CLAIM) || []) {
     if (!supportedClaim(claim, evidence)) unsupported.push(claim);
   }
   for (const claim of validationText.match(DURATION_CLAIM) || []) {
