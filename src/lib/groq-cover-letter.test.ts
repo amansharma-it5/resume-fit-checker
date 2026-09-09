@@ -148,7 +148,73 @@ describe("Groq Cover Letter production endpoint", () => {
       fallbackAttemptCount: 0,
       finalFailureCategory: "invalid_response",
       finalHTTPStatus: 502,
+      providerHttpResponseReceived: true,
+      providerHttpStatus: 200,
+      providerEnvelopeParsed: true,
+      assistantMessagePresent: true,
+      structuredPayloadPresent: true,
+      structuredJsonParsed: true,
+      schemaValidationPassed: false,
+      contractNormalizationPassed: false,
+      wholeLetterValidatorReached: false,
+      invalidResponseStage: "strict_schema",
     });
+    diagnostic.mockRestore();
+  });
+
+  it.each([
+    ["missing opening", { bodyParagraphs: safeOutput.bodyParagraphs, closing: safeOutput.closing }],
+    ["wrong body type", { opening: safeOutput.opening, bodyParagraphs: "not an array", closing: safeOutput.closing }],
+    ["missing closing", { opening: safeOutput.opening, bodyParagraphs: safeOutput.bodyParagraphs }],
+  ])("classifies %s as strict schema failure", async (_label, value) => {
+    const fetcher = vi.fn(async () => groqResponse(value));
+    const result = await handleAiCoverLetter(
+      { request: request(input), env: { GROQ_API_KEY: "synthetic-groq" } },
+      fetcher,
+    );
+    expect(result.status).toBe(502);
+  });
+
+  it("classifies malformed structured JSON separately from schema failure", async () => {
+    const diagnostic = vi.spyOn(console, "info").mockImplementation(() => {});
+    const fetcher = vi.fn(
+      async () => new Response(JSON.stringify({ choices: [{ message: { content: "{not-json" } }] }), { status: 200 }),
+    );
+    const result = await handleAiCoverLetter(
+      { request: request(input), env: { GROQ_API_KEY: "synthetic-groq" } },
+      fetcher,
+    );
+    expect(result.status).toBe(502);
+    expect(diagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerHttpResponseReceived: true,
+        providerEnvelopeParsed: true,
+        assistantMessagePresent: true,
+        structuredPayloadPresent: true,
+        structuredJsonParsed: false,
+        invalidResponseStage: "json_parse",
+      }),
+    );
+    diagnostic.mockRestore();
+  });
+
+  it("classifies a body-count mismatch as Cover contract normalization", async () => {
+    const diagnostic = vi.spyOn(console, "info").mockImplementation(() => {});
+    const fetcher = vi.fn(async () =>
+      groqResponse({ ...safeOutput, bodyParagraphs: [...safeOutput.bodyParagraphs, "An extra paragraph."] }),
+    );
+    const result = await handleAiCoverLetter(
+      { request: request(input), env: { GROQ_API_KEY: "synthetic-groq" } },
+      fetcher,
+    );
+    expect(result.status).toBe(502);
+    expect(diagnostic).toHaveBeenCalledWith(
+      expect.objectContaining({
+        schemaValidationPassed: true,
+        contractNormalizationPassed: false,
+        invalidResponseStage: "contract_normalization",
+      }),
+    );
     diagnostic.mockRestore();
   });
 

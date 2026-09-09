@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { GEMINI_ANALYSIS_MODEL, requestGeminiStructured, type GeminiEnv } from "../../_shared/gemini-analysis";
 import { GROQ_COVER_LETTER_SCHEMA, GroqStructuredProvider, type GroqEnv } from "../../_shared/groq-analysis";
-import { isProviderAvailabilityFailure } from "../../_shared/provider-contract";
+import { isProviderAvailabilityFailure, type ProviderResponseDiagnostic } from "../../_shared/provider-contract";
 import { validateWholeCoverLetter, type CoverLetterAiDraft } from "../../../src/lib/cover-letters";
 
 const MAX_BYTES = 50_000;
@@ -39,6 +39,19 @@ type ProviderDiagnosticLike = {
   requestCancelled?: boolean;
   attemptCount?: number;
 };
+
+const emptyResponseDiagnostic = (): ProviderResponseDiagnostic => ({
+  providerHttpResponseReceived: false,
+  providerHttpStatus: null,
+  providerEnvelopeParsed: false,
+  assistantMessagePresent: false,
+  structuredPayloadPresent: false,
+  structuredJsonParsed: false,
+  schemaValidationPassed: false,
+  contractNormalizationPassed: false,
+  wholeLetterValidatorReached: false,
+  invalidResponseStage: null,
+});
 
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
@@ -90,6 +103,7 @@ function logProviderTrace(input: {
   fallbackAttempted: boolean;
   fallback?: ProviderDiagnosticLike;
   fallbackAttemptCount: number;
+  response?: ProviderResponseDiagnostic;
   finalFailureCategory: string | null;
   finalHTTPStatus: number;
 }) {
@@ -110,6 +124,7 @@ function logProviderTrace(input: {
     fallbackAttemptCount: input.fallbackAttemptCount,
     finalFailureCategory: input.finalFailureCategory,
     finalHTTPStatus: input.finalHTTPStatus,
+    ...(input.response ?? emptyResponseDiagnostic()),
   });
 }
 
@@ -131,6 +146,7 @@ export async function handleAiCoverLetter(context: Context, fetchFn: typeof fetc
 
   const input = parsed.data;
   const expectedBodyCount = Math.max(1, input.bodyParagraphs.length);
+  let primaryResponseDiagnostic = emptyResponseDiagnostic();
   const requestConfig = {
     schemaName: "groq_cover_letter_v1",
     schema: GROQ_COVER_LETTER_SCHEMA,
@@ -138,6 +154,10 @@ export async function handleAiCoverLetter(context: Context, fetchFn: typeof fetc
     systemInstruction: systemInstruction(),
     userText: JSON.stringify(input),
     normalize: (value: unknown) => normalizeCoverLetter(value, expectedBodyCount),
+    validateStructuredOutput: (value: unknown) => coverLetterOutputSchema.safeParse(value).success,
+    onResponseDiagnostic: (diagnostic: Partial<ProviderResponseDiagnostic>) => {
+      primaryResponseDiagnostic = { ...primaryResponseDiagnostic, ...diagnostic };
+    },
   };
   let providerCallCount = 0;
   const trackedFetch: typeof fetch = (input, init) => {
@@ -193,6 +213,7 @@ export async function handleAiCoverLetter(context: Context, fetchFn: typeof fetc
       fallbackAttempted,
       fallback: fallbackDiagnostic,
       fallbackAttemptCount,
+      response: primaryResponseDiagnostic,
       finalFailureCategory: (result.diagnostic as ProviderDiagnosticLike).failureCategory ?? null,
       finalHTTPStatus,
     });
@@ -209,6 +230,7 @@ export async function handleAiCoverLetter(context: Context, fetchFn: typeof fetc
       fallbackAttempted: true,
       fallback: fallbackDiagnostic,
       fallbackAttemptCount,
+      response: primaryResponseDiagnostic,
       finalFailureCategory: null,
       finalHTTPStatus: 200,
     });

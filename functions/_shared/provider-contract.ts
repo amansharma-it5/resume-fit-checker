@@ -37,6 +37,28 @@ export type ProviderDiagnostic = {
   runtimeErrorCode: string | number | null;
 };
 
+export type InvalidResponseStage =
+  | "provider_envelope"
+  | "missing_message"
+  | "missing_structured_payload"
+  | "json_parse"
+  | "strict_schema"
+  | "contract_normalization"
+  | "unexpected_provider_shape";
+
+export type ProviderResponseDiagnostic = {
+  providerHttpResponseReceived: boolean;
+  providerHttpStatus: number | null;
+  providerEnvelopeParsed: boolean;
+  assistantMessagePresent: boolean;
+  structuredPayloadPresent: boolean;
+  structuredJsonParsed: boolean;
+  schemaValidationPassed: boolean;
+  contractNormalizationPassed: boolean;
+  wholeLetterValidatorReached: boolean;
+  invalidResponseStage: InvalidResponseStage | null;
+};
+
 export type ProviderFallbackDiagnostic = {
   primaryProvider: "groq";
   primaryAttempted: true;
@@ -57,6 +79,8 @@ export type StructuredProviderRequest<T> = {
   schemaName: string;
   maxOutputTokens: number;
   normalize: (value: unknown) => T | null;
+  validateStructuredOutput?: (value: unknown) => boolean;
+  onResponseDiagnostic?: (diagnostic: Partial<ProviderResponseDiagnostic>) => void;
 };
 
 export type ProviderResult<T> =
