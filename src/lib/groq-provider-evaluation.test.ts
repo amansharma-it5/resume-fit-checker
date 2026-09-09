@@ -435,6 +435,29 @@ describe("Groq provider evaluation contract", () => {
     });
     expect(JSON.stringify(body)).not.toMatch(/GROQ_API_KEY|synthetic|resume|job|prompt/);
   });
+
+  it("keeps structured evaluation probes on the bound default fetch", async () => {
+    const originalFetch = globalThis.fetch;
+    let invoked = false;
+    try {
+      globalThis.fetch = (async () => {
+        invoked = true;
+        return response({ message: "OK" });
+      }) as typeof fetch;
+      const result = await handleGroqEvaluation({
+        request: new Request("https://example.test/api/evaluation/groq", {
+          method: "POST",
+          body: JSON.stringify({ kind: "probe", mode: "json_object" }),
+          headers: { "Content-Type": "application/json" },
+        }),
+        env: { GROQ_API_KEY: "synthetic-secret" },
+      });
+      expect(result.status).toBe(200);
+      expect(invoked).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 describe("synthetic provider-neutral safety benchmark", () => {

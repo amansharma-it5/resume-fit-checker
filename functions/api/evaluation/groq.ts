@@ -56,7 +56,9 @@ export async function handleGroqEvaluation({ request, env }: Context) {
   if (kind === "probe" && (probeMode === "text" || probeMode === "json_object" || probeMode === "json_schema")) {
     const transportMode = body && typeof body === "object" && "transport" in body ? body.transport : undefined;
     const transport = transportMode === "gateway" ? { baseUrl: GROQ_AI_GATEWAY_BASE_URL } : undefined;
-    const result = await new GroqStructuredProvider(env, fetch, undefined, transport).request({
+    const result = await (
+      transport ? new GroqStructuredProvider(env, undefined, undefined, transport) : new GroqStructuredProvider(env)
+    ).request({
       schemaName: "groq_probe_v1",
       schema: {
         type: "object",
