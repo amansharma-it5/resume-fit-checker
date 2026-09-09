@@ -28,6 +28,12 @@ export function InterviewCoach({
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    summary: string;
+    strengths: string[];
+    gaps: string[];
+    starGuidance: string;
+  } | null>(null);
   const controller = useRef<AbortController | null>(null);
   const timeout = useRef<number | undefined>(undefined);
   const generateButton = useRef<HTMLButtonElement | null>(null);
@@ -45,32 +51,55 @@ export function InterviewCoach({
     timeout.current = window.setTimeout(() => request.abort(), 15_000);
     setBusy(true);
     setFailed(false);
+    setFeedback(null);
     announce("Generating an evidence-checked coaching suggestion.");
     try {
-      const response = await fetch("/.netlify/functions/ai-rewrite", {
+      const response = await fetch("/api/ai/interview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: request.signal,
         body: JSON.stringify({
-          bullet: answer.slice(0, 1000),
-          approvedContext: evidence.join("\n").slice(0, 2000),
+          operation: "feedback",
+          interviewType: "mixed",
+          resumeEvidence: evidence.join("\n").slice(0, 2_000),
           role: role.slice(0, 120),
           company: company.slice(0, 160),
-          jdExcerpt: jd.slice(0, 1200),
-          coachingAction: mode,
+          jobDescription: jd.slice(0, 1_200),
           question: question.slice(0, 800),
+          answer: answer.slice(0, 4_000),
+          coachingAction: mode,
         }),
       });
-      const payload = (await response.json()) as { rewrittenBullet?: unknown };
-      if (!response.ok || typeof payload.rewrittenBullet !== "string") throw new Error("PROVIDER_FAILED");
+      const payload = (await response.json()) as {
+        summary?: unknown;
+        strengths?: unknown;
+        gaps?: unknown;
+        starGuidance?: unknown;
+        suggestedAnswer?: unknown;
+      };
+      if (
+        !response.ok ||
+        typeof payload.summary !== "string" ||
+        !Array.isArray(payload.strengths) ||
+        !Array.isArray(payload.gaps) ||
+        typeof payload.starGuidance !== "string" ||
+        typeof payload.suggestedAnswer !== "string"
+      )
+        throw new Error("PROVIDER_FAILED");
       if (controller.current !== request) return;
-      const checked = validate(payload.rewrittenBullet);
+      const checked = validate(payload.suggestedAnswer);
       if (checked.status === "review" || checked.status === "more-information") {
         announce(checked.message);
         return;
       }
       setSource("ai");
-      setSuggestion(payload.rewrittenBullet);
+      setFeedback({
+        summary: payload.summary,
+        strengths: payload.strengths.filter((item): item is string => typeof item === "string"),
+        gaps: payload.gaps.filter((item): item is string => typeof item === "string"),
+        starGuidance: payload.starGuidance,
+      });
+      setSuggestion(payload.suggestedAnswer);
       announce("AI suggestion ready for review.");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
@@ -95,7 +124,7 @@ export function InterviewCoach({
       <h3 id="interview-coach-title">Evidence-safe coaching</h3>
       <p>
         AI is optional. Only this answer, selected question, direct resume evidence, role/company, and limited JD
-        context are sent after consent.
+        context are sent to the configured AI provider after consent.
       </p>
       <label>
         Coaching action
@@ -140,6 +169,27 @@ export function InterviewCoach({
       )}
       {suggestion !== null && (
         <>
+          {feedback && (
+            <div aria-label="AI interview feedback">
+              <h4>AI feedback</h4>
+              <p>{feedback.summary}</p>
+              <strong>What was strong</strong>
+              <ul>
+                {feedback.strengths.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              <strong>What to clarify</strong>
+              <ul>
+                {feedback.gaps.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+              <p>
+                <strong>STAR guidance:</strong> {feedback.starGuidance}
+              </p>
+            </div>
+          )}
           <div className="copilot-diff">
             <del>{answer}</del>
             <ins>{suggestion}</ins>
