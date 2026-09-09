@@ -18,6 +18,11 @@ existing Gemini path may be used as a provider-availability fallback. Safety,
 schema, authentication, model, rate-limit, stale-source, and validation
 failures never fall back to another provider.
 
+When fallback is used, server diagnostics retain only provider names, the
+failure category, upstream status, timeout/cancellation flags, attempt count,
+and the normalized fallback reason. Provider keys, headers, request content,
+and response bodies are never retained or logged.
+
 ## Supported flows
 
 Targeted drafting supports headline, summary, objective, skills phrasing, and

@@ -8,7 +8,7 @@ import {
   type GeminiEnv,
 } from "../../_shared/gemini-analysis";
 import { GROQ_DRAFT_SCHEMA, GroqStructuredProvider, type GroqEnv } from "../../_shared/groq-analysis";
-import { isProviderAvailabilityFailure } from "../../_shared/provider-contract";
+import { isProviderAvailabilityFailure, toFallbackDiagnostic } from "../../_shared/provider-contract";
 import { validateAiDraft } from "../../../src/lib/ai-draft-safety";
 
 const MAX_CURRENT_TEXT_CHARS = 2_000;
@@ -92,9 +92,10 @@ export async function handleAiDraft(context: Context, fetchFn: typeof fetch = de
       result = { ok: true, draft: groqResult.output, provider: groqResult.provider, model: groqResult.model };
     else if (isProviderAvailabilityFailure(groqResult.code) && env.GEMINI_API_KEY) {
       const fallback = await requestGeminiDraft(input, env, fetchFn);
-      result = fallback.ok
-        ? { ok: true, draft: fallback.draft, provider: "gemini", model: GEMINI_ANALYSIS_MODEL }
-        : fallback;
+      if (fallback.ok) {
+        console.info(toFallbackDiagnostic(groqResult.diagnostic, true));
+        result = { ok: true, draft: fallback.draft, provider: "gemini", model: GEMINI_ANALYSIS_MODEL };
+      } else result = fallback;
     } else result = groqResult;
   } else {
     const geminiResult = await requestGeminiDraft(input, env, fetchFn);

@@ -112,6 +112,7 @@ describe("production Groq draft and tailoring integration", () => {
   });
 
   it("uses Gemini only after Groq availability failure and preserves the normalized draft contract", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
     const fetcher = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(groqResponse(null, 503))
@@ -127,6 +128,113 @@ describe("production Groq draft and tailoring integration", () => {
     expect(result.status).toBe(200);
     expect(await result.json()).toMatchObject({ provider: "gemini" });
     expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(console.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        primaryProvider: "groq",
+        primaryAttempted: true,
+        primaryFailureCategory: "upstream_unavailable",
+        primaryUpstreamStatus: 503,
+        primaryTimedOut: false,
+        primaryCancelled: false,
+        primaryAttemptCount: 2,
+        fallbackUsed: true,
+        fallbackProvider: "gemini",
+        fallbackReason: "provider_unavailable",
+      }),
+    );
+    const diagnosticLog = JSON.stringify(vi.mocked(console.info).mock.calls);
+    expect(diagnosticLog).not.toContain("synthetic-groq");
+    expect(diagnosticLog).not.toContain("synthetic-gemini");
+    expect(diagnosticLog).not.toContain("Built Java services");
+    expect(diagnosticLog).not.toContain("Kubernetes");
+  });
+
+  it.each([400, 401, 403, 404, 429])("does not fall back for upstream status %s", async (status) => {
+    const fetcher = vi.fn(async () => groqResponse(null, status));
+    const result = await handleAiDraft(
+      {
+        request: request(draftInput, "/api/ai/draft"),
+        env: { GROQ_API_KEY: "synthetic-groq", GEMINI_API_KEY: "synthetic-gemini" },
+      },
+      fetcher,
+    );
+    expect(result.status).toBe(status === 429 ? 429 : 503);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back once for a timeout and records only the safe timeout diagnostic", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const timeout = Object.assign(new Error("provider timeout with sensitive request context"), { name: "AbortError" });
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValueOnce(timeout)
+      .mockResolvedValueOnce(geminiResponse({ draft: "Built Java services.", evidenceWarnings: [] }));
+    const result = await handleAiDraft(
+      {
+        request: request(draftInput, "/api/ai/draft"),
+        env: { GROQ_API_KEY: "synthetic-groq", GEMINI_API_KEY: "synthetic-gemini" },
+      },
+      fetcher,
+    );
+    expect(result.status).toBe(200);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(console.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        primaryFailureCategory: "timeout",
+        primaryUpstreamStatus: null,
+        primaryTimedOut: true,
+        primaryAttemptCount: 1,
+        fallbackReason: "timeout",
+      }),
+    );
+    expect(JSON.stringify(vi.mocked(console.info).mock.calls)).not.toContain("provider timeout");
+  });
+
+  it("does not fall back when Groq returns malformed structured output", async () => {
+    const fetcher = vi.fn(async () => groqResponse({ draft: "" }));
+    const result = await handleAiDraft(
+      {
+        request: request(draftInput, "/api/ai/draft"),
+        env: { GROQ_API_KEY: "synthetic-groq", GEMINI_API_KEY: "synthetic-gemini" },
+      },
+      fetcher,
+    );
+    expect(result.status).toBe(502);
+    expect(await result.json()).toMatchObject({ code: "GEMINI_INVALID_RESPONSE" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("records the same safe fallback diagnostic for tailoring without exposing content", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(groqResponse(null, 503))
+      .mockResolvedValueOnce(groqResponse(null, 503))
+      .mockResolvedValueOnce(geminiResponse(tailoringOutput));
+    const result = await handleAiTailor(
+      {
+        request: request(tailoringInput, "/api/ai/tailor"),
+        env: { GROQ_API_KEY: "synthetic-groq", GEMINI_API_KEY: "synthetic-gemini" },
+      },
+      fetcher,
+    );
+    expect(result.status).toBe(200);
+    expect(console.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        primaryProvider: "groq",
+        primaryFailureCategory: "upstream_unavailable",
+        primaryUpstreamStatus: 503,
+        primaryAttemptCount: 2,
+        fallbackUsed: true,
+        fallbackProvider: "gemini",
+        fallbackReason: "provider_unavailable",
+      }),
+    );
+    const diagnosticLog = JSON.stringify(vi.mocked(console.info).mock.calls);
+    expect(diagnosticLog).not.toContain("synthetic-groq");
+    expect(diagnosticLog).not.toContain("synthetic-gemini");
+    expect(diagnosticLog).not.toContain("Built Java services");
+    expect(diagnosticLog).not.toContain("Kubernetes");
   });
 
   it("uses strict Groq JSON Schema and the complete tailoring validator", async () => {

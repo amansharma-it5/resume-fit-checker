@@ -91,6 +91,7 @@ function failureForStatus(status: number): ProviderFailureCode {
   if (status === 401 || status === 403) return "AUTH_ERROR";
   if (status === 404) return "MODEL_ERROR";
   if (status === 429) return "RATE_LIMITED";
+  if (status >= 400 && status < 500) return "INVALID_REQUEST";
   return "PROVIDER_UNAVAILABLE";
 }
 
