@@ -41,11 +41,11 @@ export async function handleFreshGroqEvaluation({ request, env }: Context, fetch
       .catch(() => ({}));
     const mode = input && typeof input === "object" && "mode" in input ? input.mode : undefined;
     const messages =
-      mode === "two-message" || mode === "adapter-messages" || mode === "adapter-body"
+      mode === "two-message" || mode === "adapter-messages" || mode === "adapter-body" || mode === "global-fetch"
         ? buildGroqMessages("Return OK.", "Say OK")
         : [{ role: "user" as const, content: "Say OK" }];
     const body =
-      mode === "adapter-body"
+      mode === "adapter-body" || mode === "global-fetch"
         ? JSON.stringify(
             buildGroqRequestBody(GROQ_FRESH_MODEL, messages, {
               requestMode: "minimal",
