@@ -37,6 +37,11 @@ function json(status: number, body: Record<string, unknown>) {
   });
 }
 
+function providerError(result: { code: string; diagnostic: unknown }) {
+  console.info(result.diagnostic);
+  return json(result.code === "RATE_LIMITED" ? 429 : 503, { code: result.code, diagnostic: result.diagnostic });
+}
+
 export async function handleGroqEvaluation({ request, env }: Context) {
   if (request.method !== "POST") return json(405, { code: "METHOD_NOT_ALLOWED" });
   let body: unknown;
@@ -69,10 +74,7 @@ export async function handleGroqEvaluation({ request, env }: Context) {
         return value && typeof value === "object" ? { valid: true } : null;
       },
     });
-    if (!result.ok) {
-      console.info(result.diagnostic);
-      return json(result.code === "RATE_LIMITED" ? 429 : 503, { code: result.code });
-    }
+    if (!result.ok) return providerError(result);
     return json(200, { kind, mode: probeMode, valid: true });
   }
   if (kind === "minimal") {
@@ -86,10 +88,7 @@ export async function handleGroqEvaluation({ request, env }: Context) {
       userText: "Synthetic connectivity probe.",
       normalize: (value) => (typeof value === "string" && value.trim() ? { valid: true } : null),
     });
-    if (!result.ok) {
-      console.info(result.diagnostic);
-      return json(result.code === "RATE_LIMITED" ? 429 : 503, { code: result.code });
-    }
+    if (!result.ok) return providerError(result);
     return json(200, { kind, valid: true });
   }
   if (!(["draft", "tailor", "cover", "interview"] as unknown[]).includes(kind))
@@ -106,10 +105,7 @@ export async function handleGroqEvaluation({ request, env }: Context) {
       userText: `DRAFT TYPE: SUMMARY\nCURRENT: Java platform engineer.\nROLE: Platform Engineer\nJOB DATA: ${JOB}\nRESUME EVIDENCE: ${EVIDENCE}`,
       normalize: normalizeAiDraft,
     });
-    if (!result.ok) {
-      console.info(result.diagnostic);
-      return json(result.code === "RATE_LIMITED" ? 429 : 503, { code: result.code });
-    }
+    if (!result.ok) return providerError(result);
     const check = validateAiDraft(result.output.draft, EVIDENCE);
     return check.ok ? json(200, { kind, result: result.output }) : json(422, { code: "UNSUPPORTED_DRAFT" });
   }
@@ -123,10 +119,7 @@ export async function handleGroqEvaluation({ request, env }: Context) {
       userText: `CURRENT: Java platform engineer. ROLE: Platform Engineer. JOB: ${JOB}. EVIDENCE: ${EVIDENCE}`,
       normalize: normalizeAiDraft,
     });
-    if (!result.ok) {
-      console.info(result.diagnostic);
-      return json(result.code === "RATE_LIMITED" ? 429 : 503, { code: result.code });
-    }
+    if (!result.ok) return providerError(result);
     const check = tailoringClaimCheck(result.output.draft, EVIDENCE);
     return check.ok ? json(200, { kind, result: result.output }) : json(422, { code: "UNSUPPORTED_DRAFT" });
   }
@@ -143,10 +136,8 @@ export async function handleGroqEvaluation({ request, env }: Context) {
         : `Give evidence-safe interview feedback. Resume evidence: ${EVIDENCE}. Question: Explain the supplied Java project. Answer: I built Java APIs with a team.`,
     normalize: (value) => (value && typeof value === "object" ? value : null) as Record<string, unknown> | null,
   });
-  if (!result.ok) console.info(result.diagnostic);
-  return result.ok
-    ? json(200, { kind, result: result.output })
-    : json(result.code === "RATE_LIMITED" ? 429 : 503, { code: result.code });
+  if (!result.ok) return providerError(result);
+  return json(200, { kind, result: result.output });
 }
 
 export const onRequest = (context: Context) => handleGroqEvaluation(context);

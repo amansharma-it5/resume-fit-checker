@@ -19,6 +19,9 @@ export type ProviderFailureCategory =
   | "invalid_response"
   | "request_cancelled";
 
+export type ProviderFetchErrorClass =
+  "missing_binding" | "http_status" | "fetch_exception" | "timeout" | "cancelled" | "malformed_response";
+
 export type ProviderDiagnostic = {
   providerBindingPresent: boolean;
   upstreamStatus: number | null;
@@ -26,6 +29,7 @@ export type ProviderDiagnostic = {
   requestTimedOut: boolean;
   requestCancelled: boolean;
   attemptCount: number;
+  fetchErrorClass: ProviderFetchErrorClass;
 };
 
 export type StructuredProviderRequest<T> = {

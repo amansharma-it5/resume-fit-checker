@@ -1,5 +1,6 @@
 import type {
   ProviderDiagnostic,
+  ProviderFetchErrorClass,
   ProviderFailureCategory,
   ProviderFailureCode,
   ProviderResult,
@@ -85,6 +86,7 @@ function failed(
   attempts: number,
   timedOut = false,
   cancelled = false,
+  fetchErrorClass: ProviderFetchErrorClass = "http_status",
 ) {
   const diagnostic: ProviderDiagnostic = {
     providerBindingPresent: binding,
@@ -93,6 +95,7 @@ function failed(
     requestTimedOut: timedOut,
     requestCancelled: cancelled,
     attemptCount: attempts,
+    fetchErrorClass,
   };
   return { ok: false as const, code, ...base, diagnostic };
 }
@@ -110,9 +113,10 @@ export class GroqStructuredProvider implements StructuredTextProvider {
 
   async request<T>(config: StructuredProviderRequest<T>, requestSignal?: AbortSignal): Promise<ProviderResult<T>> {
     const base = { provider: this.provider, model: this.model };
-    if (!this.env.GROQ_API_KEY) return failed(base, "AUTH_ERROR", false, "missing_binding", null, 0);
+    if (!this.env.GROQ_API_KEY)
+      return failed(base, "AUTH_ERROR", false, "missing_binding", null, 0, false, false, "missing_binding");
     if (requestSignal?.aborted)
-      return failed(base, "REQUEST_CANCELLED", true, "request_cancelled", null, 0, false, true);
+      return failed(base, "REQUEST_CANCELLED", true, "request_cancelled", null, 0, false, true, "cancelled");
     const lifecycle = withTimeout(requestSignal);
     let attemptCount = 0;
     let lastStatus: number | null = null;
@@ -144,6 +148,7 @@ export class GroqStructuredProvider implements StructuredTextProvider {
             attempt,
             lifecycle.timedOut,
             Boolean(requestSignal?.aborted),
+            lifecycle.timedOut ? "timeout" : "cancelled",
           );
         attemptCount += 1;
         response = await this.fetchFn(`${this.transport.baseUrl}/chat/completions`, {
@@ -159,7 +164,18 @@ export class GroqStructuredProvider implements StructuredTextProvider {
         }
         break;
       }
-      if (!response) return failed(base, "PROVIDER_UNAVAILABLE", true, "transport_error", null, attemptCount);
+      if (!response)
+        return failed(
+          base,
+          "PROVIDER_UNAVAILABLE",
+          true,
+          "transport_error",
+          null,
+          attemptCount,
+          false,
+          false,
+          "fetch_exception",
+        );
       if (!response.ok)
         return failed(
           base,
@@ -168,28 +184,61 @@ export class GroqStructuredProvider implements StructuredTextProvider {
           categoryForStatus(response.status),
           response.status,
           attemptCount,
+          false,
+          false,
+          "http_status",
         );
       const json = (await response.json()) as {
         choices?: Array<{ message?: { content?: unknown } }>;
       };
       const content = json.choices?.[0]?.message?.content;
       if (typeof content !== "string")
-        return failed(base, "INVALID_RESPONSE", true, "invalid_response", response.status, attemptCount);
+        return failed(
+          base,
+          "INVALID_RESPONSE",
+          true,
+          "invalid_response",
+          response.status,
+          attemptCount,
+          false,
+          false,
+          "malformed_response",
+        );
       let parsed: unknown = content;
       if (config.responseMode !== "text") {
         try {
           parsed = JSON.parse(content);
         } catch {
-          return failed(base, "INVALID_RESPONSE", true, "invalid_response", response.status, attemptCount);
+          return failed(
+            base,
+            "INVALID_RESPONSE",
+            true,
+            "invalid_response",
+            response.status,
+            attemptCount,
+            false,
+            false,
+            "malformed_response",
+          );
         }
       }
       const output = config.normalize(parsed);
       return output
         ? { ok: true, output, ...base }
-        : failed(base, "INVALID_RESPONSE", true, "invalid_response", response.status, attemptCount);
+        : failed(
+            base,
+            "INVALID_RESPONSE",
+            true,
+            "invalid_response",
+            response.status,
+            attemptCount,
+            false,
+            false,
+            "malformed_response",
+          );
     } catch (error) {
       const cancelled = Boolean(requestSignal?.aborted);
-      const timedOut = lifecycle.timedOut || isAbortError(error);
+      const timedOut = !cancelled && (lifecycle.timedOut || isAbortError(error));
       return failed(
         base,
         cancelled ? "REQUEST_CANCELLED" : timedOut ? "TIMEOUT" : "PROVIDER_UNAVAILABLE",
@@ -199,6 +248,7 @@ export class GroqStructuredProvider implements StructuredTextProvider {
         attemptCount,
         timedOut,
         cancelled,
+        cancelled ? "cancelled" : timedOut ? "timeout" : "fetch_exception",
       );
     } finally {
       lifecycle.dispose();

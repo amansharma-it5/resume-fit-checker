@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GroqStructuredProvider, GROQ_ANALYSIS_MODEL, GROQ_API_BASE_URL } from "../../functions/_shared/groq-analysis";
+import { handleGroqEvaluation } from "../../functions/api/evaluation/groq";
 import { validateAiDraft } from "./ai-draft-safety";
 import { tailoringClaimCheck } from "./ai-tailoring";
 import { feedbackForAnswer } from "./interview-practice";
@@ -134,8 +135,13 @@ describe("Groq provider evaluation contract", () => {
     [401, "AUTH_ERROR"],
     [403, "AUTH_ERROR"],
     [404, "MODEL_ERROR"],
+    [408, "PROVIDER_UNAVAILABLE"],
+    [409, "PROVIDER_UNAVAILABLE"],
     [429, "RATE_LIMITED"],
     [500, "PROVIDER_UNAVAILABLE"],
+    [502, "PROVIDER_UNAVAILABLE"],
+    [503, "PROVIDER_UNAVAILABLE"],
+    [504, "PROVIDER_UNAVAILABLE"],
   ] as const)("normalizes upstream %s without raw body leakage", async (status, code) => {
     const result = await new GroqStructuredProvider(
       { GROQ_API_KEY: "synthetic" },
@@ -159,6 +165,7 @@ describe("Groq provider evaluation contract", () => {
                   ? "upstream_unavailable"
                   : "transport_error",
         attemptCount: status >= 500 ? 2 : 1,
+        fetchErrorClass: "http_status",
       });
     expect(JSON.stringify(result)).not.toContain("sensitive provider body");
   });
@@ -199,7 +206,60 @@ describe("Groq provider evaluation contract", () => {
     );
     const malformedResult = await malformed.request(config);
     expect(malformedResult).toMatchObject({ ok: false, code: "INVALID_RESPONSE" });
-    if (!malformedResult.ok) expect(malformedResult.diagnostic.failureCategory).toBe("invalid_response");
+    if (!malformedResult.ok)
+      expect(malformedResult.diagnostic).toMatchObject({
+        failureCategory: "invalid_response",
+        fetchErrorClass: "malformed_response",
+      });
+  });
+
+  it("classifies transport, timeout, and cancellation without exposing error details", async () => {
+    const transport = await new GroqStructuredProvider({ GROQ_API_KEY: "synthetic-secret" }, async () => {
+      throw new Error("secret resume and provider body");
+    }).request(config);
+    expect(transport).toMatchObject({ ok: false, code: "PROVIDER_UNAVAILABLE" });
+    if (!transport.ok)
+      expect(transport.diagnostic).toMatchObject({
+        upstreamStatus: null,
+        requestTimedOut: false,
+        requestCancelled: false,
+        fetchErrorClass: "fetch_exception",
+      });
+    expect(JSON.stringify(transport)).not.toMatch(/synthetic-secret|secret resume|provider body/);
+
+    const timeout = await new GroqStructuredProvider({ GROQ_API_KEY: "synthetic-secret" }, async () => {
+      throw new DOMException("timeout", "AbortError");
+    }).request(config);
+    expect(timeout).toMatchObject({ ok: false, code: "TIMEOUT" });
+    if (!timeout.ok) expect(timeout.diagnostic).toMatchObject({ fetchErrorClass: "timeout", requestTimedOut: true });
+
+    const controller = new AbortController();
+    controller.abort();
+    const cancelled = await new GroqStructuredProvider({ GROQ_API_KEY: "synthetic-secret" }).request(
+      config,
+      controller.signal,
+    );
+    expect(cancelled).toMatchObject({ ok: false, code: "REQUEST_CANCELLED" });
+    if (!cancelled.ok)
+      expect(cancelled.diagnostic).toMatchObject({ fetchErrorClass: "cancelled", requestCancelled: true });
+  });
+
+  it("exposes only safe diagnostics from the evaluation route", async () => {
+    const result = await handleGroqEvaluation({
+      request: new Request("https://example.test/api/evaluation/groq", {
+        method: "POST",
+        body: JSON.stringify({ kind: "minimal" }),
+        headers: { "Content-Type": "application/json" },
+      }),
+      env: {},
+    });
+    expect(result.status).toBe(503);
+    const body = await result.json();
+    expect(body).toMatchObject({
+      code: "AUTH_ERROR",
+      diagnostic: { providerBindingPresent: false, fetchErrorClass: "missing_binding" },
+    });
+    expect(JSON.stringify(body)).not.toMatch(/GROQ_API_KEY|synthetic|resume|job|prompt/);
   });
 });
 
