@@ -213,6 +213,27 @@ describe("interview practice", () => {
     expect(JSON.stringify(feedback)).not.toContain("provider");
   });
 
+  it.each([
+    ["a clearer rewrite", "I built Java services with REST APIs.", "Built Java services with REST APIs."],
+    [
+      "STAR restructuring",
+      "I built Java services and collaborated with the team.",
+      "Situation: I built Java services. Action: I collaborated with the team.",
+    ],
+    ["supported responsibility", "I led the migration with the team.", "You led the migration with the team."],
+    ["supported achievement", "I improved performance.", "You improved performance."],
+    ["supported technology", "I used Java and REST APIs.", "You used Java and REST APIs."],
+  ])("accepts %s in a suggested-answer grounding case", (_label, answer, suggestedAnswer) => {
+    expect(
+      validateInterviewFeedback({
+        feedback: suggestedAnswer,
+        answer,
+        resumeEvidence: answer,
+        feedbackSection: "suggestedAnswer",
+      }),
+    ).toMatchObject({ ok: true });
+  });
+
   it("separates feedback observations and coaching recommendations from candidate facts", () => {
     const safeFeedback = [
       "You could discuss Kubernetes deployment considerations.",
