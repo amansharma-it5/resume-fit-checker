@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { GroqStructuredProvider, GROQ_ANALYSIS_MODEL, GROQ_API_BASE_URL } from "../../functions/_shared/groq-analysis";
 import { handleGroqEvaluation } from "../../functions/api/evaluation/groq";
+import {
+  GROQ_FRESH_API_URL,
+  GROQ_FRESH_MODEL,
+  handleFreshGroqEvaluation,
+} from "../../functions/api/evaluation/groq-fresh";
 import { validateAiDraft } from "./ai-draft-safety";
 import { tailoringClaimCheck } from "./ai-tailoring";
 import { feedbackForAnswer } from "./interview-practice";
@@ -35,6 +40,59 @@ function response(content: unknown, status = 200) {
 }
 
 describe("Groq provider evaluation contract", () => {
+  it("builds the fresh Pages control request with only the Worker-shaped fields", async () => {
+    let url = "";
+    let requestInit: RequestInit | undefined;
+    const result = await handleFreshGroqEvaluation(
+      {
+        request: new Request("https://example.test/api/evaluation/groq-fresh", { method: "POST" }),
+        env: { GROQ_API_KEY: "synthetic-secret" },
+      },
+      async (input, init) => {
+        url = String(input);
+        requestInit = init;
+        return new Response(JSON.stringify({ choices: [{ message: { content: "OK" } }] }), { status: 200 });
+      },
+    );
+    expect(result.status).toBe(200);
+    expect(url).toBe(GROQ_FRESH_API_URL);
+    expect(requestInit?.method).toBe("POST");
+    expect(Object.keys(requestInit ?? {}).sort()).toEqual(["body", "headers", "method"]);
+    expect([...new Headers(requestInit?.headers).keys()].sort()).toEqual(["authorization", "content-type"]);
+    expect(JSON.parse(String(requestInit?.body))).toEqual({
+      model: GROQ_FRESH_MODEL,
+      messages: [{ role: "user", content: "Say OK" }],
+    });
+    expect(JSON.stringify(requestInit?.body)).not.toContain("synthetic-secret");
+  });
+
+  it("returns only safe diagnostics when the fresh Pages fetch throws", async () => {
+    const result = await handleFreshGroqEvaluation(
+      {
+        request: new Request("https://example.test/api/evaluation/groq-fresh", { method: "POST" }),
+        env: { GROQ_API_KEY: "synthetic-secret" },
+      },
+      async () => {
+        throw new Error("secret resume, job description, provider body");
+      },
+    );
+    expect(result.status).toBe(503);
+    const body = await result.json();
+    expect(body).toMatchObject({
+      code: "PROVIDER_UNAVAILABLE",
+      diagnostic: {
+        providerBindingPresent: true,
+        upstreamStatus: null,
+        failureCategory: "transport_error",
+        requestTimedOut: false,
+        attemptCount: 1,
+        fetchErrorClass: "fetch_exception",
+        fetchErrorName: "Error",
+      },
+    });
+    expect(JSON.stringify(body)).not.toMatch(/synthetic-secret|secret resume|job description|provider body/);
+  });
+
   it("uses the OpenAI-compatible endpoint and centralized model without exposing provider behavior to the UI", async () => {
     let url = "";
     let requestBody = "";
