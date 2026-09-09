@@ -1,5 +1,6 @@
 import { isStructuredResume, resumeToPlainText } from "../resume-builder/model";
 import type { InterviewPracticeQuestion, InterviewPracticeSession, ResumeDocument } from "../types";
+import { validateInterviewAnswer } from "./interview-safety";
 
 const promptLike = /ignore\s+(previous|all)|system\s+instructions|reveal\s+(secrets?|prompt)|invent\s+/i;
 
@@ -98,20 +99,15 @@ export function feedbackForAnswer(answer: string, evidence: string[]) {
   const value = answer.trim();
   if (!value)
     return { status: "more-information" as const, message: "More information required: add an answer to review." };
-  const source = evidence
-    .filter((item) => !promptLike.test(item))
-    .join("\n")
-    .toLowerCase();
-  const claims =
-    value.match(
-      /\b\d+(?:\.\d+)?%|\$\d[\d,]*|\b(?:19|20)\d{2}\b|\b\d+\s+(?:years?|months?)\b|\b(?:AWS|Azure|React|Python|SQL|Kubernetes|certified|degree|Bachelor|Master)\b|\b[A-Z][A-Za-z]+\s+(?:Inc\.?|Corp\.?|LLC|Ltd\.?|Company|Client)\b|\b(?:Senior|Junior|Lead|Principal|Staff)\s+(?:Software|Data|Product|Project|Engineering|Marketing)\s+(?:Engineer|Manager|Developer|Analyst|Designer)\b|\b(?:increased|reduced|generated|saved)\s+(?:revenue|costs?|sales|profit|conversion)\b/gi,
-    ) || [];
-  const unsupported = [...new Set(claims.filter((claim) => !source.includes(claim.toLowerCase())))];
-  if (unsupported.length)
+  const validation = validateInterviewAnswer(value, evidence);
+  const unsupported = validation.unsupported;
+  if (unsupported.length || validation.reasons.length)
     return {
       status: "review" as const,
       unsupported,
-      message: `Review this answer: unsupported claim${unsupported.length === 1 ? "" : "s"}: ${unsupported.join(", ")}. Add resume evidence or remove the claim.`,
+      message: unsupported.length
+        ? `Review this answer: unsupported claim${unsupported.length === 1 ? "" : "s"}: ${unsupported.join(", ")}. Add resume evidence or remove the claim.`
+        : "Review this answer: instruction-like text is not candidate evidence. Remove it and provide a grounded answer.",
     };
   const star = /\b(situation|task|action|result)\b/i.test(value);
   const feedback = [
