@@ -459,6 +459,45 @@ describe("Groq provider evaluation contract", () => {
     }
   });
 
+  it("builds the exact strict probe schema contract", async () => {
+    const originalFetch = globalThis.fetch;
+    let requestBody = "";
+    try {
+      globalThis.fetch = (async (_input, init) => {
+        requestBody = String(init?.body);
+        return response({ result: "OK" });
+      }) as typeof fetch;
+      const result = await handleGroqEvaluation({
+        request: new Request("https://example.test/api/evaluation/groq", {
+          method: "POST",
+          body: JSON.stringify({ kind: "probe", mode: "json_schema" }),
+          headers: { "Content-Type": "application/json" },
+        }),
+        env: { GROQ_API_KEY: "synthetic-secret" },
+      });
+      expect(result.status).toBe(200);
+      expect(JSON.parse(requestBody)).toMatchObject({
+        model: GROQ_ANALYSIS_MODEL,
+        max_completion_tokens: 80,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "groq_probe",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: { result: { type: "string" } },
+              required: ["result"],
+              additionalProperties: false,
+            },
+          },
+        },
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("returns allowlisted sanitized provider metadata for evaluation 400s", async () => {
     const originalFetch = globalThis.fetch;
     const providerBody =
