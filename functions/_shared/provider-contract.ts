@@ -5,6 +5,7 @@ export type ProviderFailureCode =
   | "TIMEOUT"
   | "AUTH_ERROR"
   | "MODEL_ERROR"
+  | "INVALID_REQUEST"
   | "REQUEST_CANCELLED";
 
 export type ProviderFailureCategory =
@@ -36,6 +37,19 @@ export type ProviderDiagnostic = {
   runtimeErrorCode: string | number | null;
 };
 
+export type ProviderFallbackDiagnostic = {
+  primaryProvider: "groq";
+  primaryAttempted: true;
+  primaryFailureCategory: ProviderFailureCategory;
+  primaryUpstreamStatus: number | null;
+  primaryTimedOut: boolean;
+  primaryCancelled: boolean;
+  primaryAttemptCount: number;
+  fallbackUsed: true;
+  fallbackProvider: "gemini";
+  fallbackReason: "provider_unavailable" | "timeout";
+};
+
 export type StructuredProviderRequest<T> = {
   systemInstruction: string;
   userText: string;
@@ -51,4 +65,19 @@ export type ProviderResult<T> =
 
 export function isProviderAvailabilityFailure(code: ProviderFailureCode) {
   return code === "PROVIDER_UNAVAILABLE" || code === "TIMEOUT";
+}
+
+export function toFallbackDiagnostic(diagnostic: ProviderDiagnostic, fallbackUsed: true): ProviderFallbackDiagnostic {
+  return {
+    primaryProvider: "groq",
+    primaryAttempted: true,
+    primaryFailureCategory: diagnostic.failureCategory,
+    primaryUpstreamStatus: diagnostic.upstreamStatus,
+    primaryTimedOut: diagnostic.requestTimedOut,
+    primaryCancelled: diagnostic.requestCancelled,
+    primaryAttemptCount: diagnostic.attemptCount,
+    fallbackUsed,
+    fallbackProvider: "gemini",
+    fallbackReason: diagnostic.failureCategory === "timeout" ? "timeout" : "provider_unavailable",
+  };
 }

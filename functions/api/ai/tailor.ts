@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { requestGeminiStructured, type GeminiEnv } from "../../_shared/gemini-analysis";
 import { GroqStructuredProvider, type GroqEnv } from "../../_shared/groq-analysis";
-import { isProviderAvailabilityFailure } from "../../_shared/provider-contract";
+import { isProviderAvailabilityFailure, toFallbackDiagnostic } from "../../_shared/provider-contract";
 import {
   tailoringInputSchema,
   tailoringOutputSchema,
@@ -87,7 +87,9 @@ export async function handleAiTailor(
     });
     if (groqResult.ok) result = { ok: true, output: groqResult.output };
     else if (isProviderAvailabilityFailure(groqResult.code) && env.GEMINI_API_KEY) {
-      result = await requestGeminiStructured({ ...requestConfig, requireComplete: true }, env, fetchFn);
+      const fallback = await requestGeminiStructured({ ...requestConfig, requireComplete: true }, env, fetchFn);
+      if (fallback.ok) console.info(toFallbackDiagnostic(groqResult.diagnostic, true));
+      result = fallback;
     } else result = groqResult;
   } else {
     result = await requestGeminiStructured({ ...requestConfig, requireComplete: true }, env, fetchFn);
