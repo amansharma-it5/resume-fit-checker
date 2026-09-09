@@ -458,6 +458,71 @@ describe("Groq provider evaluation contract", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("returns allowlisted sanitized provider metadata for evaluation 400s", async () => {
+    const originalFetch = globalThis.fetch;
+    const providerBody =
+      "invalid request for secret resume and job description; provider body must never reach the client";
+    try {
+      globalThis.fetch = (async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              type: "invalid_request_error",
+              code: "bad_request",
+              param: "response_format",
+              message: providerBody,
+            },
+          }),
+          { status: 400 },
+        )) as typeof fetch;
+      const result = await handleGroqEvaluation({
+        request: new Request("https://example.test/api/evaluation/groq", {
+          method: "POST",
+          body: JSON.stringify({ kind: "probe", mode: "json_object" }),
+          headers: { "Content-Type": "application/json" },
+        }),
+        env: { GROQ_API_KEY: "synthetic-secret" },
+      });
+      expect(result.status).toBe(503);
+      const body = await result.json();
+      expect(body).toMatchObject({
+        code: "PROVIDER_UNAVAILABLE",
+        diagnostic: { upstreamStatus: 400, fetchErrorClass: "http_status" },
+        providerError: {
+          providerErrorType: "invalid_request_error",
+          providerErrorCode: "bad_request",
+          providerErrorParam: "response_format",
+          providerErrorMessage: "provider request rejected",
+        },
+      });
+      expect(JSON.stringify(body)).not.toContain(providerBody);
+      expect(JSON.stringify(body)).not.toMatch(/synthetic-secret|secret resume|job description/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("marks malformed provider error bodies without exposing their content", async () => {
+    const originalFetch = globalThis.fetch;
+    const providerBody = "raw provider body with secret resume content";
+    try {
+      globalThis.fetch = (async () => new Response(providerBody, { status: 400 })) as typeof fetch;
+      const result = await handleGroqEvaluation({
+        request: new Request("https://example.test/api/evaluation/groq", {
+          method: "POST",
+          body: JSON.stringify({ kind: "probe", mode: "json_object" }),
+          headers: { "Content-Type": "application/json" },
+        }),
+        env: { GROQ_API_KEY: "synthetic-secret" },
+      });
+      const body = await result.json();
+      expect(body).toMatchObject({ providerError: { providerErrorType: "malformed_error_response" } });
+      expect(JSON.stringify(body)).not.toContain(providerBody);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 describe("synthetic provider-neutral safety benchmark", () => {

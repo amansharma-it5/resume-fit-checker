@@ -4,6 +4,12 @@ import { validateAiDraft } from "../../../src/lib/ai-draft-safety";
 import { tailoringClaimCheck } from "../../../src/lib/ai-tailoring";
 
 type Context = { request: Request; env: { GROQ_API_KEY?: string } };
+type SafeProviderError = {
+  providerErrorType: string | null;
+  providerErrorCode: string | null;
+  providerErrorParam: string | null;
+  providerErrorMessage: string | null;
+};
 const GROQ_AI_GATEWAY_BASE_URL = "https://gateway.ai.cloudflare.com/v1/3cf0832cec2e2db1ecf800b69e79c193/default/groq";
 const EVIDENCE = "Built Java Spring Boot REST APIs on AWS EC2 with a team.";
 const JOB = "Build Java Spring Boot APIs. Kubernetes is preferred.";
@@ -37,9 +43,59 @@ function json(status: number, body: Record<string, unknown>) {
   });
 }
 
-function providerError(result: { code: string; diagnostic: unknown }) {
+function safeProviderToken(value: unknown) {
+  if (typeof value !== "string") return null;
+  const token = value.replace(/[^A-Za-z0-9_.:-]/g, "").slice(0, 64);
+  return token || null;
+}
+
+function safeProviderMessage(value: unknown) {
+  if (typeof value !== "string") return null;
+  const message = value
+    .replace(/https?:\/\/[^\s]+/gi, "[url]")
+    .replace(/(?:authorization|bearer|api[-_ ]?key)\s*[:=]\s*[^\s]+/gi, "[redacted]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
+  if (/\b(?:resume|job|prompt|candidate|personal|user|content|messages?)\b/i.test(message))
+    return "provider request rejected";
+  return message || null;
+}
+
+async function readSafeProviderError(response: Response): Promise<SafeProviderError> {
+  try {
+    const body = (await response.clone().json()) as { error?: Record<string, unknown> };
+    const error = body?.error;
+    if (!error || typeof error !== "object")
+      return {
+        providerErrorType: "malformed_error_response",
+        providerErrorCode: null,
+        providerErrorParam: null,
+        providerErrorMessage: null,
+      };
+    return {
+      providerErrorType: safeProviderToken(error.type),
+      providerErrorCode: safeProviderToken(error.code),
+      providerErrorParam: safeProviderToken(error.param),
+      providerErrorMessage: safeProviderMessage(error.message),
+    };
+  } catch {
+    return {
+      providerErrorType: "malformed_error_response",
+      providerErrorCode: null,
+      providerErrorParam: null,
+      providerErrorMessage: null,
+    };
+  }
+}
+
+function providerError(result: { code: string; diagnostic: unknown }, providerError?: SafeProviderError) {
   console.info(result.diagnostic);
-  return json(result.code === "RATE_LIMITED" ? 429 : 503, { code: result.code, diagnostic: result.diagnostic });
+  return json(result.code === "RATE_LIMITED" ? 429 : 503, {
+    code: result.code,
+    diagnostic: result.diagnostic,
+    ...(providerError ? { providerError } : {}),
+  });
 }
 
 export async function handleGroqEvaluation({ request, env }: Context) {
@@ -56,8 +112,16 @@ export async function handleGroqEvaluation({ request, env }: Context) {
   if (kind === "probe" && (probeMode === "text" || probeMode === "json_object" || probeMode === "json_schema")) {
     const transportMode = body && typeof body === "object" && "transport" in body ? body.transport : undefined;
     const transport = transportMode === "gateway" ? { baseUrl: GROQ_AI_GATEWAY_BASE_URL } : undefined;
+    let safeError: SafeProviderError | undefined;
+    const captureFetch: typeof fetch = async (input, init) => {
+      const response = await globalThis.fetch(input, init);
+      if (!response.ok) safeError = await readSafeProviderError(response);
+      return response;
+    };
     const result = await (
-      transport ? new GroqStructuredProvider(env, undefined, undefined, transport) : new GroqStructuredProvider(env)
+      transport
+        ? new GroqStructuredProvider(env, captureFetch, undefined, transport)
+        : new GroqStructuredProvider(env, captureFetch)
     ).request({
       schemaName: "groq_probe_v1",
       schema: {
@@ -76,7 +140,7 @@ export async function handleGroqEvaluation({ request, env }: Context) {
         return value && typeof value === "object" ? { valid: true } : null;
       },
     });
-    if (!result.ok) return providerError(result);
+    if (!result.ok) return providerError(result, safeError);
     return json(200, { kind, mode: probeMode, valid: true });
   }
   if (kind === "minimal") {
