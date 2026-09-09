@@ -4,6 +4,7 @@ import { validateAiDraft } from "../../../src/lib/ai-draft-safety";
 import { tailoringClaimCheck } from "../../../src/lib/ai-tailoring";
 
 type Context = { request: Request; env: { GROQ_API_KEY?: string } };
+const GROQ_AI_GATEWAY_BASE_URL = "https://gateway.ai.cloudflare.com/v1/3cf0832cec2e2db1ecf800b69e79c193/default/groq";
 const EVIDENCE = "Built Java Spring Boot REST APIs on AWS EC2 with a team.";
 const JOB = "Build Java Spring Boot APIs. Kubernetes is preferred.";
 const DRAFT_SCHEMA = {
@@ -48,7 +49,9 @@ export async function handleGroqEvaluation({ request, env }: Context) {
   if (kind === "binding") return json(200, { groqBindingPresent: Boolean(env.GROQ_API_KEY) });
   const probeMode = body && typeof body === "object" && "mode" in body ? body.mode : undefined;
   if (kind === "probe" && (probeMode === "text" || probeMode === "json_object" || probeMode === "json_schema")) {
-    const result = await new GroqStructuredProvider(env).request({
+    const transportMode = body && typeof body === "object" && "transport" in body ? body.transport : undefined;
+    const transport = transportMode === "gateway" ? { baseUrl: GROQ_AI_GATEWAY_BASE_URL } : undefined;
+    const result = await new GroqStructuredProvider(env, fetch, undefined, transport).request({
       schemaName: "groq_probe_v1",
       schema: {
         type: "object",

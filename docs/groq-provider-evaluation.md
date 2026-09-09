@@ -7,9 +7,17 @@ must be removed before any production integration decision.
 ## Scope
 
 This branch evaluates `openai/gpt-oss-120b` through Groq's OpenAI-compatible
-`/openai/v1/chat/completions` endpoint. The adapter is server-side and accepts
-only structured JSON requests. It never enables tools, web search, or provider
-actions, and it does not expose a browser endpoint.
+`/openai/v1/chat/completions` endpoint and, separately, Cloudflare AI Gateway's
+provider-specific Groq route. The adapter is server-side and accepts only
+structured JSON requests except for the explicit connectivity probe. It never
+enables tools, web search, or provider actions, and it does not expose a browser
+endpoint.
+
+The Gateway evaluation uses the account's implicit `default` gateway at the
+documented provider route. It is not wired into any production AI endpoint.
+The dashboard's named-gateway form enables payload logging and gateway
+authentication by default, so no named gateway was created for this evaluation;
+the implicit route avoids adding content retention or another credential.
 
 ## Boundaries
 

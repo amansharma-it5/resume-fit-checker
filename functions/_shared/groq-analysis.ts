@@ -12,6 +12,7 @@ export const GROQ_API_BASE_URL = "https://api.groq.com/openai/v1";
 export const GROQ_REQUEST_TIMEOUT_MS = 15_000;
 export const GROQ_RETRY_DELAY_MS = 200;
 export type GroqEnv = { GROQ_API_KEY?: string };
+export type GroqTransport = { baseUrl: string };
 type FetchLike = typeof fetch;
 
 function isAbortError(error: unknown) {
@@ -104,6 +105,7 @@ export class GroqStructuredProvider implements StructuredTextProvider {
     private readonly env: GroqEnv,
     private readonly fetchFn: FetchLike = fetch,
     private readonly waitFn: (milliseconds: number, signal: AbortSignal) => Promise<void> = waitForRetry,
+    private readonly transport: GroqTransport = { baseUrl: GROQ_API_BASE_URL },
   ) {}
 
   async request<T>(config: StructuredProviderRequest<T>, requestSignal?: AbortSignal): Promise<ProviderResult<T>> {
@@ -144,7 +146,7 @@ export class GroqStructuredProvider implements StructuredTextProvider {
             Boolean(requestSignal?.aborted),
           );
         attemptCount += 1;
-        response = await this.fetchFn(`${GROQ_API_BASE_URL}/chat/completions`, {
+        response = await this.fetchFn(`${this.transport.baseUrl}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.env.GROQ_API_KEY}` },
           body,

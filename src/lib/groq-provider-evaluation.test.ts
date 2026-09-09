@@ -82,6 +82,21 @@ describe("Groq provider evaluation contract", () => {
     );
   });
 
+  it("supports an evaluation-only Cloudflare AI Gateway transport", async () => {
+    let url = "";
+    const provider = new GroqStructuredProvider(
+      { GROQ_API_KEY: "synthetic-secret" },
+      async (input) => {
+        url = String(input);
+        return response({ draft: "Gateway-safe output." });
+      },
+      undefined,
+      { baseUrl: "https://gateway.ai.cloudflare.com/v1/account/gateway/groq" },
+    );
+    expect(await provider.request(config)).toMatchObject({ ok: true });
+    expect(url).toBe("https://gateway.ai.cloudflare.com/v1/account/gateway/groq/chat/completions");
+  });
+
   it("fails safely when the server binding is missing", async () => {
     const result = await new GroqStructuredProvider({}).request(config);
     expect(result).toMatchObject({ ok: false, code: "AUTH_ERROR" });
