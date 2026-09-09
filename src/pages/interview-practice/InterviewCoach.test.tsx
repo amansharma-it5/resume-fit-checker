@@ -4,6 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { InterviewCoach } from "./InterviewCoach";
 
 const answer = "Built TypeScript services for Example Labs.";
+const aiFeedback = {
+  summary: "Your answer clearly describes the work.",
+  strengths: ["You used TypeScript services."],
+  gaps: ["Add the result of the work."],
+  starGuidance: "Name the situation, action, and result.",
+  suggestedAnswer: answer,
+};
 function renderCoach() {
   const accepted = vi.fn();
   const announced = vi.fn();
@@ -25,7 +32,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("InterviewCoach", () => {
   it("keeps consent unchecked and sends only bounded selected context", async () => {
-    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({ rewrittenBullet: answer }), { status: 200 }));
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(aiFeedback), { status: 200 }));
     vi.stubGlobal("fetch", fetch);
     const user = userEvent.setup();
     renderCoach();
@@ -36,20 +43,20 @@ describe("InterviewCoach", () => {
     await screen.findByRole("button", { name: "Accept" });
     const payload = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
     expect(payload).toMatchObject({
-      bullet: answer,
+      operation: "feedback",
+      interviewType: "mixed",
+      answer,
       question: "How did you build the service?",
       role: "Engineer",
       company: "Example Labs",
+      coachingAction: "Improve structure",
     });
-    expect(payload.approvedContext).toBe(answer);
-    expect(payload.jdExcerpt).not.toContain("full resume");
+    expect(payload.resumeEvidence).toBe(answer);
+    expect(payload.jobDescription).not.toContain("full resume");
   });
 
   it("blocks fabricated edits before acceptance", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(new Response(JSON.stringify({ rewrittenBullet: answer }), { status: 200 })),
-    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(aiFeedback), { status: 200 })));
     const user = userEvent.setup();
     const { accepted, announced } = renderCoach();
     await user.click(screen.getByLabelText(/consent to send/i));
@@ -72,7 +79,7 @@ describe("InterviewCoach", () => {
       vi
         .fn()
         .mockImplementationOnce(() => first)
-        .mockResolvedValueOnce(new Response(JSON.stringify({ rewrittenBullet: answer }), { status: 200 })),
+        .mockResolvedValueOnce(new Response(JSON.stringify(aiFeedback), { status: 200 })),
     );
     const user = userEvent.setup();
     renderCoach();
@@ -80,7 +87,7 @@ describe("InterviewCoach", () => {
     await user.click(screen.getByRole("button", { name: "Generate coaching" }));
     await user.click(screen.getByRole("button", { name: "Replace request" }));
     await screen.findByRole("button", { name: "Accept" });
-    resolveFirst?.(new Response(JSON.stringify({ rewrittenBullet: "Invented AWS outcome." }), { status: 200 }));
+    resolveFirst?.(new Response(JSON.stringify(aiFeedback), { status: 200 }));
     await waitFor(() => expect(screen.getByText(answer, { selector: "ins" })).toBeInTheDocument());
   });
 
@@ -88,7 +95,7 @@ describe("InterviewCoach", () => {
     const fetch = vi
       .fn()
       .mockResolvedValueOnce(new Response("provider details should not be shown", { status: 429 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ rewrittenBullet: answer }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify(aiFeedback), { status: 200 }));
     vi.stubGlobal("fetch", fetch);
     const user = userEvent.setup();
     const { accepted } = renderCoach();

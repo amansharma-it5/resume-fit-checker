@@ -11,6 +11,7 @@ import {
 } from "../lib/guest-db";
 import type { InterviewPracticeQuestion, InterviewPracticeSession, JobTarget, ResumeDocument } from "../types";
 import { InterviewCoach } from "./interview-practice/InterviewCoach";
+import { InterviewQuestionGenerator } from "./interview-practice/InterviewQuestionGenerator";
 
 export function InterviewPracticePage() {
   const [resumes, setResumes] = useState<ResumeDocument[]>([]);
@@ -52,6 +53,10 @@ export function InterviewPracticePage() {
   const skippedCount = current?.questions.filter((question) => question.skipped).length || 0;
   const missingResume = Boolean(current && !resumes.some((resume) => resume.id === current.resumeId));
   const missingTarget = Boolean(current?.jobTargetId && !targets.some((target) => target.id === current.jobTargetId));
+  const sessionEvidence = useMemo(
+    () => [...new Set(current?.questions.flatMap((question) => question.evidence) || [])].join("\n"),
+    [current],
+  );
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -165,6 +170,25 @@ export function InterviewPracticePage() {
             Feedback is deterministic unless a separately consented coaching request is clearly labeled AI-generated.
           </p>
         </aside>
+        <InterviewQuestionGenerator
+          role={current.role}
+          company={current.company}
+          jobDescription={current.jobDescription}
+          resumeEvidence={sessionEvidence}
+          onAnnouncement={setMessage}
+          onUseQuestions={(generated) => {
+            const questions = generated.map((item) => ({
+              ...item,
+              id: crypto.randomUUID(),
+              evidence: [],
+              answer: "",
+              answerVersions: [],
+              completed: false,
+              skipped: false,
+            }));
+            change({ ...current, questions: [...current.questions, ...questions] });
+          }}
+        />
         <div className="inline-form">
           <label>
             Custom question

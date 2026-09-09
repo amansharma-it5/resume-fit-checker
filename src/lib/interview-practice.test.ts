@@ -94,6 +94,71 @@ describe("interview practice", () => {
     ).toMatchObject({ ok: false, unsupported: expect.arrayContaining(["Kubernetes"]) });
   });
 
+  it("allows neutral hypothetical questions without weakening factual-claim rejection", () => {
+    const neutralQuestions = [
+      "How would you handle Kubernetes in this role?",
+      "What would you consider when designing a Kubernetes workflow?",
+      "Walk me through how you would approach this technical scenario.",
+      "What is your approach to the role's Kubernetes requirements?",
+    ];
+    for (const question of neutralQuestions)
+      expect(validateInterviewQuestion({ question, resumeEvidence: "Built Java services." })).toMatchObject({
+        ok: true,
+      });
+    expect(
+      validateInterviewQuestion({
+        question: "You have 8 years of Kubernetes experience, correct?",
+        resumeEvidence: "Built Java services.",
+      }),
+    ).toMatchObject({
+      ok: false,
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          rejectionCategory: "unsupported_skill",
+          failingRuleId: "question.candidate_claim_requires_resume_evidence",
+          evidenceSourceCategory: "resume_evidence",
+          failingFieldPath: "question.prompt",
+        }),
+      ]),
+    });
+  });
+
+  it("distinguishes experience-seeking questions from factual candidate assertions", () => {
+    const safeQuestions = [
+      "Tell me about any experience you have with Kubernetes.",
+      "Do you have experience with Kubernetes? If so, describe it.",
+      "How would you approach deploying a service with Kubernetes?",
+      "What would you consider when using Kubernetes in production?",
+      "Describe a time you learned a technology you had not used before.",
+      "Tell me about a time you collaborated with a team.",
+    ];
+    for (const question of safeQuestions)
+      expect(validateInterviewQuestion({ question, resumeEvidence: "Built Java services." })).toMatchObject({
+        ok: true,
+      });
+
+    const unsafeQuestions = [
+      "Given your Kubernetes experience, how did you deploy it?",
+      "Since you have worked with Kubernetes, what did you build?",
+      "With your AWS certification, how did you secure the system?",
+      "At your previous employer, what Kubernetes platform did you lead?",
+      "Based on your 5 years of React Native experience, what would you change?",
+    ];
+    for (const question of unsafeQuestions)
+      expect(validateInterviewQuestion({ question, resumeEvidence: "Built Java services." })).toMatchObject({
+        ok: false,
+        diagnostics: expect.arrayContaining([
+          expect.objectContaining({
+            failingRuleId: "question.candidate_claim_requires_resume_evidence",
+            questionFormClass: "factual_candidate_assertion",
+            assertionDetected: true,
+            evidenceRequired: true,
+            evidenceMatched: false,
+          }),
+        ]),
+      });
+  });
+
   it.each([
     ["unsupported skill", "You used Kubernetes in production.", "Built Java services."],
     ["unsupported metric", "You improved performance by 40%.", "Improved performance."],
@@ -146,6 +211,44 @@ describe("interview practice", () => {
     expect(feedback).toMatchObject({ ok: true });
     expect(JSON.stringify(feedback)).not.toContain("structuredData");
     expect(JSON.stringify(feedback)).not.toContain("provider");
+  });
+
+  it("separates feedback observations and coaching recommendations from candidate facts", () => {
+    const safeFeedback = [
+      "You could discuss Kubernetes deployment considerations.",
+      "Consider explaining how you would validate the rollout.",
+      "Your answer does not explain the deployment decision.",
+      "You used Java services in your answer.",
+    ];
+    for (const feedback of safeFeedback)
+      expect(
+        validateInterviewFeedback({
+          feedback,
+          answer: "I built Java services with REST APIs.",
+          resumeEvidence: "Built Java services with REST APIs.",
+          targetEvidence: "Kubernetes required",
+        }),
+      ).toMatchObject({ ok: true });
+
+    expect(
+      validateInterviewFeedback({
+        feedback: "You could explain that you used Kubernetes.",
+        answer: "I built Java services.",
+        resumeEvidence: "Built Java services.",
+        targetEvidence: "Kubernetes required",
+      }),
+    ).toMatchObject({
+      ok: false,
+      diagnostics: expect.arrayContaining([
+        expect.objectContaining({
+          failingRuleId: "feedback.candidate_claim_requires_answer_or_resume_evidence",
+          claimClass: "candidate_factual_assertion",
+          evidenceSourceRequired: true,
+          evidenceMatched: false,
+          feedbackSection: "summary",
+        }),
+      ]),
+    });
   });
 
   it("keeps question and feedback validation pure and deterministic", () => {

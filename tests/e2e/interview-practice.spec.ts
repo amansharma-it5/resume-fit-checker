@@ -24,43 +24,89 @@ test("creates a browser-local practice session and keeps coaching consent explic
   });
   await createSession(page);
   await page.getByLabel("Your practice answer").fill("I can explain my approach clearly.");
-  await expect(page.getByLabel(/consent to send/i)).not.toBeChecked();
+  await expect(page.getByLabel(/minimum selected context/i)).not.toBeChecked();
   await expect(page.getByRole("button", { name: "Generate coaching" })).toBeDisabled();
   expect(writes).toEqual([]);
   await page.getByRole("button", { name: "Next" }).click();
   await expect(page.getByText(/Question 2 of/)).toBeVisible();
 });
 
+test("generates questions only after consent and explicit use", async ({ page }) => {
+  await page.route("**/api/ai/interview", (route) =>
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        questions: [
+          {
+            prompt: "How would you approach the role's Kubernetes requirements?",
+            category: "skills",
+            reason: "This treats the job requirement as a neutral discussion topic.",
+          },
+        ],
+      }),
+    }),
+  );
+  await createSession(page);
+  await expect(page.getByRole("button", { name: "Generate AI questions" })).toBeDisabled();
+  await page.getByLabel(/selected Interview context/i).check();
+  await page.getByRole("button", { name: "Generate AI questions" }).click();
+  await expect(page.getByRole("heading", { name: "Review AI questions" })).toBeVisible();
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: /not saved until you use them/i })
+      .first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Use these questions" }).click();
+  await expect(page.locator(".dashboard-page > [role='status']")).toHaveText(
+    "AI questions added to this local session.",
+  );
+});
+
 test("sends bounded coaching context and requires explicit acceptance", async ({ page }) => {
   let payload: Record<string, string> | undefined;
-  await page.route("**/.netlify/functions/ai-rewrite", async (route) => {
+  await page.route("**/api/ai/interview", async (route) => {
     payload = route.request().postDataJSON() as Record<string, string>;
     await route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ rewrittenBullet: "I can explain my approach clearly." }),
+      body: JSON.stringify({
+        summary: "Your answer is clear.",
+        strengths: ["You explained your approach."],
+        gaps: ["Add the result."],
+        starGuidance: "Name the situation, action, and result.",
+        suggestedAnswer: "I can explain my approach clearly.",
+      }),
     });
   });
   await createSession(page);
   await page.getByLabel("Your practice answer").fill("I can explain my approach clearly.");
-  await page.getByLabel(/consent to send/i).check();
+  await page.getByLabel(/minimum selected context/i).check();
   await page.getByRole("button", { name: "Generate coaching" }).click();
   await expect(page.getByRole("button", { name: "Accept" })).toBeVisible();
-  expect(payload?.bullet).toBe("I can explain my approach clearly.");
-  expect(payload?.jdExcerpt).not.toContain("full resume");
+  expect(payload?.operation).toBe("feedback");
+  expect(payload?.coachingAction).toBe("Improve structure");
+  expect(payload?.answer).toBe("I can explain my approach clearly.");
+  expect(payload?.jobDescription).not.toContain("full resume");
   await page.getByRole("button", { name: "Reject" }).click();
   await expect(page.getByLabel("Your practice answer")).toHaveValue("I can explain my approach clearly.");
 });
 
 test("accepts only a supported selected-answer suggestion and restores it through undo and redo", async ({ page }) => {
-  await page.route("**/.netlify/functions/ai-rewrite", (route) =>
+  await page.route("**/api/ai/interview", (route) =>
     route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify({ rewrittenBullet: "I can clearly explain my approach." }),
+      body: JSON.stringify({
+        summary: "Your answer is clear.",
+        strengths: ["You explained your approach."],
+        gaps: ["Add the result."],
+        starGuidance: "Name the situation, action, and result.",
+        suggestedAnswer: "I can clearly explain my approach.",
+      }),
     }),
   );
   await createSession(page);
   await page.getByLabel("Your practice answer").fill("I can explain my approach clearly.");
-  await page.getByLabel(/consent to send/i).check();
+  await page.getByLabel(/minimum selected context/i).check();
   await page.getByRole("button", { name: "Generate coaching" }).click();
   await page.getByRole("button", { name: "Accept" }).click();
   await expect(page.locator(".dashboard-page > [role='status']")).toHaveText("Coaching suggestion accepted.");
@@ -84,7 +130,7 @@ test("checks every coaching action without provider traffic until Generate", asy
     await action.selectOption({ label: value });
     await expect(action).toHaveValue(value);
   }
-  await expect(page.getByLabel(/consent to send/i)).not.toBeChecked();
+  await expect(page.getByLabel(/minimum selected context/i)).not.toBeChecked();
 });
 
 test("exports local practice text and keeps a semantic print-only review", async ({ page }) => {
