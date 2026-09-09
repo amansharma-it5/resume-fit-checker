@@ -1,3 +1,5 @@
+import { buildGroqMessages, buildGroqRequestBody } from "../../_shared/groq-analysis";
+
 export const GROQ_FRESH_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 export const GROQ_FRESH_MODEL = "openai/gpt-oss-120b";
 
@@ -33,11 +35,29 @@ export async function handleFreshGroqEvaluation({ request, env }: Context, fetch
   }
 
   try {
-    const body = JSON.stringify({
-      model: GROQ_FRESH_MODEL,
-      messages: [{ role: "user", content: "Say OK" }],
-    });
-    const response = await fetchFn(GROQ_FRESH_API_URL, {
+    const input = await request
+      .clone()
+      .json()
+      .catch(() => ({}));
+    const mode = input && typeof input === "object" && "mode" in input ? input.mode : undefined;
+    const messages =
+      mode === "two-message" || mode === "adapter-messages" || mode === "adapter-body"
+        ? buildGroqMessages("Return OK.", "Say OK")
+        : [{ role: "user" as const, content: "Say OK" }];
+    const body =
+      mode === "adapter-body"
+        ? JSON.stringify(
+            buildGroqRequestBody(GROQ_FRESH_MODEL, messages, {
+              requestMode: "minimal",
+              responseMode: "text",
+              maxOutputTokens: 1,
+              schemaName: "groq_minimal_connectivity_v1",
+              schema: {},
+            }),
+          )
+        : JSON.stringify({ model: GROQ_FRESH_MODEL, messages });
+    const outboundFetch = mode === "global-fetch" ? globalThis.fetch : fetchFn;
+    const response = await outboundFetch(GROQ_FRESH_API_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.GROQ_API_KEY}`,

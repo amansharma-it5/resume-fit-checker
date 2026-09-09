@@ -14,6 +14,7 @@ export const GROQ_REQUEST_TIMEOUT_MS = 15_000;
 export const GROQ_RETRY_DELAY_MS = 200;
 export type GroqEnv = { GROQ_API_KEY?: string };
 export type GroqTransport = { baseUrl: string };
+export type GroqMessage = { role: "system" | "user"; content: string };
 type FetchLike = typeof fetch;
 type SafeFetchError = {
   name: string | null;
@@ -133,6 +134,32 @@ function withTimeout(signal?: AbortSignal) {
   };
 }
 
+export function buildGroqMessages(systemInstruction: string, userText: string): GroqMessage[] {
+  return [
+    { role: "system", content: systemInstruction },
+    { role: "user", content: userText },
+  ];
+}
+
+export function buildGroqRequestBody(
+  model: string,
+  messages: GroqMessage[],
+  config: Pick<
+    StructuredProviderRequest<unknown>,
+    "requestMode" | "responseMode" | "maxOutputTokens" | "schemaName" | "schema"
+  >,
+) {
+  const requestBody: Record<string, unknown> = { model, messages };
+  if (config.requestMode !== "minimal") requestBody.max_completion_tokens = config.maxOutputTokens;
+  if (config.requestMode !== "minimal" && config.responseMode !== "text") {
+    requestBody.response_format =
+      config.responseMode === "json_object"
+        ? { type: "json_object" }
+        : { type: "json_schema", json_schema: { name: config.schemaName, strict: true, schema: config.schema } };
+  }
+  return requestBody;
+}
+
 function failed(
   base: { provider: string; model: string },
   code: ProviderFailureCode,
@@ -183,21 +210,9 @@ export class GroqStructuredProvider implements StructuredTextProvider {
     let lastStatus: number | null = null;
     const retrySignal = requestSignal ?? new AbortController().signal;
     try {
-      const requestBody: Record<string, unknown> = {
-        model: this.model,
-        messages: [
-          { role: "system", content: config.systemInstruction },
-          { role: "user", content: config.userText },
-        ],
-      };
-      if (config.requestMode !== "minimal") requestBody.max_completion_tokens = config.maxOutputTokens;
-      if (config.requestMode !== "minimal" && config.responseMode !== "text") {
-        requestBody.response_format =
-          config.responseMode === "json_object"
-            ? { type: "json_object" }
-            : { type: "json_schema", json_schema: { name: config.schemaName, strict: true, schema: config.schema } };
-      }
-      const body = JSON.stringify(requestBody);
+      const body = JSON.stringify(
+        buildGroqRequestBody(this.model, buildGroqMessages(config.systemInstruction, config.userText), config),
+      );
       let response: Response | undefined;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         if (requestSignal?.aborted)

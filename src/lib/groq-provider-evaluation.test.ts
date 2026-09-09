@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { GroqStructuredProvider, GROQ_ANALYSIS_MODEL, GROQ_API_BASE_URL } from "../../functions/_shared/groq-analysis";
+import {
+  buildGroqMessages,
+  buildGroqRequestBody,
+  GroqStructuredProvider,
+  GROQ_ANALYSIS_MODEL,
+  GROQ_API_BASE_URL,
+} from "../../functions/_shared/groq-analysis";
 import { handleGroqEvaluation } from "../../functions/api/evaluation/groq";
 import {
   GROQ_FRESH_API_URL,
@@ -40,6 +46,22 @@ function response(content: unknown, status = 200) {
 }
 
 describe("Groq provider evaluation contract", () => {
+  it("keeps adapter message and minimal body builders deterministic", () => {
+    const messages = buildGroqMessages("Return OK.", "Say OK");
+    expect(messages).toEqual([
+      { role: "system", content: "Return OK." },
+      { role: "user", content: "Say OK" },
+    ]);
+    expect(
+      buildGroqRequestBody(GROQ_ANALYSIS_MODEL, messages, {
+        requestMode: "minimal",
+        responseMode: "text",
+        maxOutputTokens: 1,
+        schemaName: "synthetic_v1",
+        schema: {},
+      }),
+    ).toEqual({ model: GROQ_ANALYSIS_MODEL, messages });
+  });
   it("builds the fresh Pages control request with only the Worker-shaped fields", async () => {
     let url = "";
     let requestInit: RequestInit | undefined;
