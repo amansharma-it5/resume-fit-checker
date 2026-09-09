@@ -6,6 +6,8 @@ Interview AI uses the same-origin Cloudflare Pages Function at `/api/ai/intervie
 
 Question generation and answer feedback use separate strict JSON Schemas. Each parsed response is passed through the provider-independent Interview validators in `src/lib/interview-safety.ts` before it reaches the UI. Questions may use job requirements as neutral topics; candidate facts must be supported by resume evidence. Feedback may use the supplied answer and resume evidence, with job context used only for relevance.
 
+The feedback `suggestedAnswer` is a grounded rewrite of the supplied answer. It may improve clarity, concision, wording, or STAR order, but it must not add responsibilities, achievements, outcomes, metrics, tools, credentials, employers, projects, or other candidate facts. Missing details belong in coaching guidance as conditional suggestions, not in the rewritten answer. Unsafe suggested answers are rejected before they can be accepted or saved.
+
 ## Safety and state
 
 Unsafe structured output is rejected with `422 UNSUPPORTED_INTERVIEW_OUTPUT`. Validation failures never trigger provider fallback. The endpoint does not produce ATS scores, hiring probabilities, offer likelihood, or score blending; `analysis-engine.js` and Local ATS remain the authoritative scoring path. AI questions, feedback, and suggestions stay transient until an existing explicit local session action is used. Normal session saves continue to use the existing browser-local storage behavior.
