@@ -181,6 +181,61 @@ describe("Groq provider evaluation contract", () => {
     expect(headers).toEqual(["authorization", "content-type"]);
   });
 
+  it("uses a fresh AbortSignal for each retry and supports an evaluation no-signal control", async () => {
+    const signals: (AbortSignal | null | undefined)[] = [];
+    let calls = 0;
+    const provider = new GroqStructuredProvider(
+      { GROQ_API_KEY: "synthetic" },
+      async (_input, init) => {
+        signals.push(init?.signal);
+        calls += 1;
+        return calls === 1 ? new Response("", { status: 503 }) : response({ draft: "Safe output." });
+      },
+      async () => undefined,
+    );
+    expect(await provider.request(config)).toMatchObject({ ok: true });
+    expect(signals).toHaveLength(2);
+    expect(signals[0]).toBeInstanceOf(AbortSignal);
+    expect(signals[1]).toBeInstanceOf(AbortSignal);
+    expect(signals[0]).not.toBe(signals[1]);
+    expect(signals[0]?.aborted).toBe(false);
+    expect(signals[1]?.aborted).toBe(false);
+
+    let noSignal: AbortSignal | null | undefined;
+    const control = new GroqStructuredProvider(
+      { GROQ_API_KEY: "synthetic" },
+      async (_input, init) => {
+        noSignal = init?.signal;
+        return new Response(JSON.stringify({ choices: [{ message: { content: "OK" } }] }), { status: 200 });
+      },
+      undefined,
+      undefined,
+      false,
+    );
+    expect(
+      await control.request({
+        ...config,
+        requestMode: "minimal",
+        responseMode: "text",
+        normalize: (value) => (typeof value === "string" && value.trim() ? { draft: value } : null),
+      }),
+    ).toMatchObject({ ok: true });
+    expect(noSignal).toBeUndefined();
+  });
+
+  it("does not retry a cancelled provider attempt", async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const provider = new GroqStructuredProvider({ GROQ_API_KEY: "synthetic" }, async () => {
+      calls += 1;
+      controller.abort();
+      throw new DOMException("aborted", "AbortError");
+    });
+    const result = await provider.request(config, controller.signal);
+    expect(result).toMatchObject({ ok: false, code: "REQUEST_CANCELLED" });
+    expect(calls).toBe(1);
+  });
+
   it("fails safely when the server binding is missing", async () => {
     const result = await new GroqStructuredProvider({}).request(config);
     expect(result).toMatchObject({ ok: false, code: "AUTH_ERROR" });

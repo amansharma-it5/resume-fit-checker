@@ -66,6 +66,10 @@ function isAbortError(error: unknown) {
 
 function waitForRetry(milliseconds: number, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("aborted", "AbortError"));
+      return;
+    }
     const timeout = setTimeout(() => {
       signal.removeEventListener("abort", abort);
       resolve();
@@ -103,16 +107,24 @@ function retryable(status: number) {
 function withTimeout(signal?: AbortSignal) {
   const controller = new AbortController();
   let timedOut = false;
+  let cancelled = Boolean(signal?.aborted);
   const timeout = setTimeout(() => {
     timedOut = true;
     controller.abort();
   }, GROQ_REQUEST_TIMEOUT_MS);
-  const abort = () => controller.abort();
-  signal?.addEventListener("abort", abort, { once: true });
+  const abort = () => {
+    cancelled = true;
+    controller.abort();
+  };
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", abort, { once: true });
   return {
     signal: controller.signal,
     get timedOut() {
       return timedOut;
+    },
+    get cancelled() {
+      return cancelled;
     },
     dispose: () => {
       clearTimeout(timeout);
@@ -158,6 +170,7 @@ export class GroqStructuredProvider implements StructuredTextProvider {
     private readonly fetchFn: FetchLike = fetch,
     private readonly waitFn: (milliseconds: number, signal: AbortSignal) => Promise<void> = waitForRetry,
     private readonly transport: GroqTransport = { baseUrl: GROQ_API_BASE_URL },
+    private readonly passAbortSignal = true,
   ) {}
 
   async request<T>(config: StructuredProviderRequest<T>, requestSignal?: AbortSignal): Promise<ProviderResult<T>> {
@@ -166,9 +179,9 @@ export class GroqStructuredProvider implements StructuredTextProvider {
       return failed(base, "AUTH_ERROR", false, "missing_binding", null, 0, false, false, "missing_binding");
     if (requestSignal?.aborted)
       return failed(base, "REQUEST_CANCELLED", true, "request_cancelled", null, 0, false, true, "cancelled");
-    const lifecycle = withTimeout(requestSignal);
     let attemptCount = 0;
     let lastStatus: number | null = null;
+    const retrySignal = requestSignal ?? new AbortController().signal;
     try {
       const requestBody: Record<string, unknown> = {
         model: this.model,
@@ -187,7 +200,7 @@ export class GroqStructuredProvider implements StructuredTextProvider {
       const body = JSON.stringify(requestBody);
       let response: Response | undefined;
       for (let attempt = 0; attempt < 2; attempt += 1) {
-        if (lifecycle.signal.aborted)
+        if (requestSignal?.aborted)
           return failed(
             base,
             "REQUEST_CANCELLED",
@@ -195,20 +208,40 @@ export class GroqStructuredProvider implements StructuredTextProvider {
             "request_cancelled",
             response?.status ?? null,
             attempt,
-            lifecycle.timedOut,
-            Boolean(requestSignal?.aborted),
-            lifecycle.timedOut ? "timeout" : "cancelled",
+            false,
+            true,
+            "cancelled",
           );
+        const lifecycle = this.passAbortSignal ? withTimeout(requestSignal) : undefined;
         attemptCount += 1;
-        response = await this.fetchFn(`${this.transport.baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.env.GROQ_API_KEY}` },
-          body,
-          signal: lifecycle.signal,
-        });
+        try {
+          response = await this.fetchFn(`${this.transport.baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.env.GROQ_API_KEY}` },
+            body,
+            ...(lifecycle ? { signal: lifecycle.signal } : {}),
+          });
+        } catch (error) {
+          const cancelled = Boolean(requestSignal?.aborted) || Boolean(lifecycle?.cancelled);
+          const timedOut = !cancelled && Boolean(lifecycle?.timedOut || isAbortError(error));
+          return failed(
+            base,
+            cancelled ? "REQUEST_CANCELLED" : timedOut ? "TIMEOUT" : "PROVIDER_UNAVAILABLE",
+            true,
+            cancelled ? "request_cancelled" : timedOut ? "timeout" : "transport_error",
+            lastStatus,
+            attemptCount,
+            timedOut,
+            cancelled,
+            cancelled ? "cancelled" : timedOut ? "timeout" : "fetch_exception",
+            safeFetchError(error),
+          );
+        } finally {
+          lifecycle?.dispose();
+        }
         lastStatus = response.status;
         if (attempt === 0 && retryable(response.status)) {
-          await this.waitFn(GROQ_RETRY_DELAY_MS, lifecycle.signal);
+          await this.waitFn(GROQ_RETRY_DELAY_MS, retrySignal);
           continue;
         }
         break;
@@ -287,7 +320,7 @@ export class GroqStructuredProvider implements StructuredTextProvider {
           );
     } catch (error) {
       const cancelled = Boolean(requestSignal?.aborted);
-      const timedOut = !cancelled && (lifecycle.timedOut || isAbortError(error));
+      const timedOut = !cancelled && isAbortError(error);
       return failed(
         base,
         cancelled ? "REQUEST_CANCELLED" : timedOut ? "TIMEOUT" : "PROVIDER_UNAVAILABLE",
@@ -300,8 +333,6 @@ export class GroqStructuredProvider implements StructuredTextProvider {
         cancelled ? "cancelled" : timedOut ? "timeout" : "fetch_exception",
         safeFetchError(error),
       );
-    } finally {
-      lifecycle.dispose();
     }
   }
 }
