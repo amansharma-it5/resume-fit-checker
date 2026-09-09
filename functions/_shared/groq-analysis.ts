@@ -16,6 +16,7 @@ export type GroqEnv = { GROQ_API_KEY?: string };
 export type GroqTransport = { baseUrl: string };
 export type GroqMessage = { role: "system" | "user"; content: string };
 type FetchLike = typeof fetch;
+const defaultFetch: FetchLike = (input, init) => globalThis.fetch(input, init);
 type SafeFetchError = {
   name: string | null;
   message: string | null;
@@ -194,7 +195,7 @@ export class GroqStructuredProvider implements StructuredTextProvider {
 
   constructor(
     private readonly env: GroqEnv,
-    private readonly fetchFn: FetchLike = fetch,
+    private readonly fetchFn: FetchLike = defaultFetch,
     private readonly waitFn: (milliseconds: number, signal: AbortSignal) => Promise<void> = waitForRetry,
     private readonly transport: GroqTransport = { baseUrl: GROQ_API_BASE_URL },
     private readonly passAbortSignal = true,

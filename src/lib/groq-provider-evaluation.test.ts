@@ -129,6 +129,24 @@ describe("Groq provider evaluation contract", () => {
     expect(requestBody).not.toContain("synthetic-secret");
   });
 
+  it("invokes the default adapter transport through globalThis.fetch", async () => {
+    const originalFetch = globalThis.fetch;
+    let invoked = false;
+    try {
+      globalThis.fetch = (async (input, init) => {
+        invoked = true;
+        expect(String(input)).toBe(`${GROQ_API_BASE_URL}/chat/completions`);
+        expect(init?.signal).toBeInstanceOf(AbortSignal);
+        return response({ draft: "Global fetch output." });
+      }) as typeof fetch;
+      const provider = new GroqStructuredProvider({ GROQ_API_KEY: "synthetic-secret" });
+      expect(await provider.request(config)).toMatchObject({ ok: true });
+      expect(invoked).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it.each([
     ["text", false],
     ["json_object", true],
