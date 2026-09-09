@@ -3,6 +3,7 @@ import { resumeToPlainText } from "../resume-builder/model";
 import { isStructuredResume } from "../resume-builder/model";
 import { sanitizeExportFilename } from "../resume-builder/export";
 import { validateCopilotSuggestion } from "./copilot-safety";
+import { validateAiDraft } from "./ai-draft-safety";
 
 const clean = (value: string, maximum = 4000) => value.replace(/\s+/g, " ").trim().slice(0, maximum);
 
@@ -76,6 +77,94 @@ export function validateCoverLetterSuggestion(suggestion: string, resumeEvidence
         ...result,
         message: `More information required: unsupported claim${result.unsupported.length === 1 ? "" : "s"}: ${result.unsupported.join(", ")}.`,
       };
+}
+
+export type CoverLetterTargetEvidence = {
+  role: string;
+  company: string;
+  jobDescription: string;
+};
+
+export type WholeCoverLetterInput = {
+  resumeEvidence: string;
+  targetEvidence: CoverLetterTargetEvidence;
+  opening: string;
+  bodyParagraphs: string[];
+  closing: string;
+};
+
+const RESPONSIBILITY_CLAIM = /\b(?:led|managed|owned|directed|architected|supervised|mentored|spearheaded|oversaw)\b/gi;
+const COMPANY_FACT_TERMS =
+  "mission|culture|funding|funded|market leader|industry leader|award[- ]winning|product|products|growth|customers|revenue";
+const DURATION_CLAIM = /\b\d+\+?\s+(?:years?|months?)\b/gi;
+const CREDENTIAL_CLAIM = /\b(?:CISSP|PMP|CPA|CFA|AWS Certified|Azure Certified|certified)\b/gi;
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function removeOpeningContext(value: string, targetEvidence: CoverLetterTargetEvidence) {
+  return [targetEvidence.role, targetEvidence.company].reduce((text, context) => {
+    const trimmed = context.trim();
+    return trimmed ? text.replace(new RegExp(escapeRegExp(trimmed), "gi"), "") : text;
+  }, value);
+}
+
+function evidenceOnly(value: string) {
+  return value
+    .split(/(?<=[.!?])\s+|\n/)
+    .filter(
+      (sentence) =>
+        !/ignore|disregard|override|instructions?|system prompt|pretend|fabricat|claim that/i.test(sentence),
+    )
+    .join(" ");
+}
+
+function supportedClaim(claim: string, evidence: string) {
+  const normalizedClaim = claim.trim().toLocaleLowerCase();
+  return normalizedClaim.length > 0 && evidence.toLocaleLowerCase().includes(normalizedClaim);
+}
+
+/** Validates every provider-generated letter section; JD text only supplies context, never candidate evidence. */
+export function validateWholeCoverLetter(input: WholeCoverLetterInput) {
+  const allText = [input.opening, ...input.bodyParagraphs, input.closing].join("\n");
+  const validationText = [
+    removeOpeningContext(input.opening, input.targetEvidence),
+    ...input.bodyParagraphs,
+    input.closing,
+  ].join("\n");
+  const evidence = evidenceOnly(input.resumeEvidence);
+  const unsupported = [...validateAiDraft(validationText, evidence).unsupported];
+
+  for (const claim of validationText.match(RESPONSIBILITY_CLAIM) || []) {
+    if (!supportedClaim(claim, evidence)) unsupported.push(claim);
+  }
+  for (const claim of validationText.match(DURATION_CLAIM) || []) {
+    if (!supportedClaim(claim, evidence)) unsupported.push(claim);
+  }
+  for (const claim of validationText.match(CREDENTIAL_CLAIM) || []) {
+    if (!supportedClaim(claim, evidence)) unsupported.push(claim);
+  }
+  if (/\b(?:ignore|disregard|override)\s+(?:all\s+)?(?:previous|prior|these)?\s*instructions?\b/i.test(allText)) {
+    unsupported.push("prompt injection");
+  }
+  if (input.targetEvidence.company && input.targetEvidence.company.trim()) {
+    const company = escapeRegExp(input.targetEvidence.company.trim());
+    const companyFactPattern = new RegExp(
+      `\\b${company}\\b[\\s\\S]{0,120}\\b(?:${COMPANY_FACT_TERMS})\\b|\\b(?:${COMPANY_FACT_TERMS})\\b[\\s\\S]{0,120}\\b${company}\\b`,
+      "i",
+    );
+    if (companyFactPattern.test(allText)) unsupported.push("unsupported company fact");
+  }
+
+  const unique = [...new Set(unsupported.map((item) => item.trim()).filter(Boolean))];
+  return unique.length
+    ? {
+        ok: false as const,
+        unsupported: unique,
+        message: `More information required: unsupported whole-letter claim${unique.length === 1 ? "" : "s"}: ${unique.join(", ")}.`,
+      }
+    : { ok: true as const, unsupported: [], message: "Whole letter is ready for review." };
 }
 
 export function serializeCoverLetterPlainText(letter: CoverLetterDocument) {
