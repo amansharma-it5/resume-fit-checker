@@ -53,7 +53,13 @@ export type RestorePlan = {
   remapped: string[];
 };
 
-const SAFE_META_PREFIXES = ["analysis-overrides:", "legacy-summary-migrated", "workspace-backup:"];
+const SAFE_META_PREFIXES = [
+  "analysis-overrides:",
+  "legacy-summary-migrated",
+  "workspace-backup:",
+  "application-profile:",
+  "application-answer:",
+];
 const stores = [
   "resumes",
   "analyses",
