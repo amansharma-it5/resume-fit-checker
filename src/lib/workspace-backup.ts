@@ -59,6 +59,7 @@ const SAFE_META_PREFIXES = [
   "workspace-backup:",
   "application-profile:",
   "application-answer:",
+  "content-library:",
 ];
 const stores = [
   "resumes",

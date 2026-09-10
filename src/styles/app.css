@@ -825,6 +825,98 @@ footer {
   margin: 0.4rem 0 0;
   padding-left: 1.2rem;
 }
+.content-library-page {
+  max-width: 1240px;
+}
+.content-library-safety {
+  border-left: 3px solid var(--mint2);
+  padding: 0.2rem 0 0.2rem 0.85rem;
+}
+.content-library-safety p {
+  margin: 0.35rem 0 0;
+  max-width: 780px;
+  color: var(--muted);
+}
+.content-library-toolbar,
+.content-library-results,
+.content-library-editor {
+  border-top: 1px solid var(--line);
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+}
+.content-library-filters {
+  margin-top: 1rem;
+}
+.content-library-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.content-library-item {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+.content-library-item-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+.content-library-item-heading h3 {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+}
+.content-library-text {
+  min-height: 4rem;
+  margin: 0;
+  padding: 0.75rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  background: #f7f8fa;
+  font: inherit;
+}
+.content-library-use,
+.content-library-placeholders {
+  margin: 0;
+  color: var(--muted);
+}
+.content-library-placeholders {
+  font-size: 0.82rem;
+}
+.content-library-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.content-library-tags span {
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+.content-library-item .button-row {
+  align-items: stretch;
+}
+.content-library-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.content-library-form .wide-field,
+.content-library-form .button-row {
+  grid-column: 1 / -1;
+}
+.content-library-form textarea {
+  min-height: 150px;
+}
 .profile-field-grid,
 .answer-form {
   display: grid;
@@ -918,6 +1010,17 @@ footer {
     flex-direction: column;
   }
   .profile-bridge-note {
+    flex-direction: column;
+  }
+  .content-library-grid,
+  .content-library-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .content-library-form .wide-field,
+  .content-library-form .button-row {
+    grid-column: auto;
+  }
+  .content-library-item-heading {
     flex-direction: column;
   }
 }
