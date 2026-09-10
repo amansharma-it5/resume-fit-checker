@@ -49,6 +49,39 @@ test("keeps unsaved values transient and references existing local records", asy
   await expect(page.getByLabel("Password")).toHaveCount(0);
 });
 
+test("reviews profile imports before explicitly saving selected fields", async ({ page }) => {
+  const forbiddenRequests: string[] = [];
+  page.on("request", (request) => {
+    if (/groq|generativelanguage|remotive|telemetry/i.test(request.url())) forbiddenRequests.push(request.url());
+  });
+  await page.goto("/profile");
+  await page
+    .getByLabel("Paste structured profile text")
+    .fill("First name: Avery\nEmail: avery@example.test\nPassword: do-not-import\nLinkedIn: javascript:alert(1)");
+  await page.getByRole("button", { name: "Preview pasted profile" }).click();
+  await expect(page.getByRole("heading", { name: /Import review: Pasted profile/ })).toBeVisible();
+  await expect(page.getByText("Imported: Avery", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Password: Sensitive or prohibited/)).toBeVisible();
+  await expect(page.getByText(/LinkedIn URL: Only a valid HTTPS URL/)).toBeVisible();
+  await page.getByRole("button", { name: "Cancel import" }).click();
+  await page.reload();
+  await expect(page.getByLabel("First name")).toHaveValue("");
+
+  await page.getByLabel("First name").fill("Current");
+  await page.getByRole("button", { name: "Save profile" }).click();
+  await page.getByLabel("Paste structured profile text").fill("First name: Avery\nEmail: avery@example.test");
+  await page.getByRole("button", { name: "Preview pasted profile" }).click();
+  await expect(page.getByText("Current: Current", { exact: true })).toBeVisible();
+  await expect(page.getByText("Imported: Avery", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Use all new fields" }).click();
+  await page.getByRole("combobox", { name: "Decision" }).first().selectOption("use");
+  await page.getByRole("button", { name: "Save selected imports" }).click();
+  await expect(page.getByRole("status")).toContainText("Selected imported fields saved locally.");
+  await page.reload();
+  await expect(page.getByLabel("First name")).toHaveValue("Avery");
+  expect(forbiddenRequests).toEqual([]);
+});
+
 for (const width of [320, 390, 768, 1280]) {
   test(`application preparation is contained at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });

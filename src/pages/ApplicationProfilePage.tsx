@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { StatusMessage } from "../components/StatusMessage";
+import { extractResumeDocument } from "../lib/file-parser";
 import {
   buildApplicationPrepPreview,
   deleteGuestApplicationAnswer,
@@ -11,6 +12,12 @@ import {
   saveApplicationProfile,
   validateApplicationProfile,
 } from "../lib/application-profile";
+import {
+  parseProfileImportDocument,
+  parseProfileImportText,
+  type ProfileImportField,
+  type ProfileImportPreview,
+} from "../lib/profile-import";
 import { createBridgeNonce, isBridgeMessage } from "../lib/assisted-apply-bridge";
 import { sanitizeApplicationBridgeSnapshot } from "../lib/assisted-apply";
 import { listGuestApplications, listGuestCoverLetters, listGuestResumes, listGuestTargets } from "../lib/guest-db";
@@ -47,6 +54,9 @@ export function ApplicationProfilePage() {
   const [errors, setErrors] = useState<Partial<Record<keyof ApplicationProfile, string>>>({});
   const [message, setMessage] = useState("");
   const [bridgeNonce, setBridgeNonce] = useState("");
+  const [importText, setImportText] = useState("");
+  const [importPreview, setImportPreview] = useState<ProfileImportPreview | null>(null);
+  const [importDecisions, setImportDecisions] = useState<Record<string, "keep" | "use" | "skip">>({});
 
   useEffect(() => {
     void Promise.all([
@@ -140,6 +150,39 @@ export function ApplicationProfilePage() {
     setErrors((current) => ({ ...current, [key]: undefined }));
   }
 
+  function stageProfileImport(preview: ProfileImportPreview) {
+    setImportPreview(preview);
+    setImportDecisions(Object.fromEntries(preview.fields.map((field) => [field.key, "skip"])));
+    setMessage(`${preview.fields.length} safe field${preview.fields.length === 1 ? "" : "s"} staged for review.`);
+  }
+
+  function updateImportDecision(field: ProfileImportField, decision: "keep" | "use" | "skip") {
+    setImportDecisions((current) => ({ ...current, [field.key]: decision }));
+  }
+
+  async function acceptProfileImport() {
+    if (!importPreview) return;
+    const updates = Object.fromEntries(
+      importPreview.fields
+        .filter((field) => importDecisions[field.key] === "use")
+        .map((field) => [field.key, field.value]),
+    );
+    if (!Object.keys(updates).length) {
+      setMessage("Choose at least one imported field to use.");
+      return;
+    }
+    try {
+      const saved = await saveApplicationProfile({ ...profile, ...updates });
+      setProfile(saved);
+      setImportPreview(null);
+      setImportDecisions({});
+      setImportText("");
+      setMessage("Selected imported fields saved locally.");
+    } catch {
+      setMessage("The selected imported fields could not be saved.");
+    }
+  }
+
   return (
     <section className="workspace-page application-profile-page">
       <header className="page-heading">
@@ -154,6 +197,146 @@ export function ApplicationProfilePage() {
         Every value here is user-entered. We do not infer facts, submit applications, or auto-fill legal and demographic
         declarations.
       </p>
+      <section className="profile-section profile-import-section" aria-labelledby="profile-import-title">
+        <div className="section-heading-row">
+          <div>
+            <p className="eyebrow">User-controlled import</p>
+            <h2 id="profile-import-title">Import profile details</h2>
+          </div>
+          <span className="availability-label">Local only</span>
+        </div>
+        <p>
+          Import labeled details from a file or pasted text. Parsing happens in this browser. Nothing is saved until you
+          review each proposed value and choose Use imported.
+        </p>
+        <div className="profile-import-inputs">
+          <label className="wide-field">
+            Paste structured profile text
+            <textarea
+              value={importText}
+              maxLength={12000}
+              rows={6}
+              placeholder={"First name: Avery\nEmail: avery@example.test"}
+              onChange={(event) => setImportText(event.target.value)}
+            />
+          </label>
+          <div className="button-row profile-import-actions">
+            <button
+              type="button"
+              className="primary"
+              disabled={!importText.trim()}
+              onClick={() => {
+                try {
+                  stageProfileImport(parseProfileImportText(importText));
+                } catch (cause) {
+                  setMessage(cause instanceof Error ? cause.message : "The profile text could not be reviewed.");
+                }
+              }}
+            >
+              Preview pasted profile
+            </button>
+            <label className="file-import-label">
+              Choose profile file
+              <input
+                type="file"
+                accept=".pdf,.docx,.txt,.md,.rtf"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    stageProfileImport(parseProfileImportDocument(await extractResumeDocument(file)));
+                  } catch (cause) {
+                    setMessage(cause instanceof Error ? cause.message : "The profile file could not be reviewed.");
+                  }
+                  event.target.value = "";
+                }}
+              />
+            </label>
+          </div>
+        </div>
+        {importPreview && (
+          <div className="profile-import-preview" aria-labelledby="profile-import-review-title">
+            <h3 id="profile-import-review-title">Import review: {importPreview.sourceLabel}</h3>
+            <p>
+              Choose a decision for each staged field. Current values stay unchanged until you save selected imports.
+            </p>
+            {importPreview.fields.length ? (
+              <ul className="profile-import-list">
+                {importPreview.fields.map((field) => (
+                  <li key={field.key}>
+                    <div className="profile-import-values">
+                      <strong>{field.label}</strong>
+                      <span>
+                        <b>Current:</b> {String(profile[field.key] || "Not set")}
+                      </span>
+                      <span>
+                        <b>Imported:</b> {field.value}
+                      </span>
+                    </div>
+                    <label>
+                      Decision
+                      <select
+                        value={importDecisions[field.key] || "skip"}
+                        onChange={(event) => updateImportDecision(field, event.target.value as "keep" | "use" | "skip")}
+                      >
+                        <option value="skip">Skip</option>
+                        <option value="keep">Keep current</option>
+                        <option value="use">Use imported</option>
+                      </select>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="empty-state">No safe profile fields are ready to review.</p>
+            )}
+            {importPreview.excluded.length > 0 && (
+              <div className="profile-import-excluded" role="status">
+                <strong>Excluded from import</strong>
+                <ul>
+                  {importPreview.excluded.map((item, index) => (
+                    <li key={`${item.label}-${index}`}>
+                      {item.label}: {item.reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {importPreview.warnings.map((warning) => (
+              <p className="profile-import-warning" role="status" key={warning}>
+                {warning}
+              </p>
+            ))}
+            <div className="button-row">
+              <button
+                type="button"
+                onClick={() =>
+                  setImportDecisions(
+                    Object.fromEntries(
+                      importPreview.fields.filter((field) => !profile[field.key]).map((field) => [field.key, "use"]),
+                    ),
+                  )
+                }
+              >
+                Use all new fields
+              </button>
+              <button type="button" className="primary" onClick={() => void acceptProfileImport()}>
+                Save selected imports
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setImportPreview(null);
+                  setImportDecisions({});
+                  setMessage("Import review canceled. No profile changes were made.");
+                }}
+              >
+                Cancel import
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
       <section className="profile-bridge-note" aria-labelledby="bridge-title">
         <div>
           <p className="eyebrow">Optional local bridge</p>
