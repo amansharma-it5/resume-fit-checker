@@ -158,6 +158,50 @@ export interface ApplicationRecord {
   followUps: ApplicationFollowUp[];
 }
 
+/** Explicitly user-entered application-preparation data. Sensitive identifiers and demographic declarations are excluded. */
+export interface ApplicationProfile {
+  id: "default";
+  schemaVersion: 1;
+  firstName?: string;
+  lastName?: string;
+  preferredName?: string;
+  email?: string;
+  phone?: string;
+  city?: string;
+  stateRegion?: string;
+  country?: string;
+  postalCode?: string;
+  linkedinUrl?: string;
+  portfolioUrl?: string;
+  githubUrl?: string;
+  workAuthorization?: string;
+  sponsorshipRequired?: "yes" | "no" | "prefer-not-to-say";
+  relocationPreference?: string;
+  workplacePreference?: "remote" | "hybrid" | "on-site" | "flexible";
+  compensationExpectation?: string;
+  noticePeriod?: string;
+  availability?: string;
+  yearsExperience?: string;
+  linkedResumeId?: string;
+  linkedCoverLetterId?: string;
+  linkedJobTargetId?: string;
+  linkedApplicationId?: string;
+  updatedAt: string;
+}
+
+export type ApplicationAnswerCategory =
+  "interest" | "relocation" | "sponsorship" | "availability" | "notice-period" | "compensation" | "other";
+
+/** A reusable answer written by the user; it is never AI-generated. */
+export interface ApplicationReusableAnswer {
+  id: string;
+  label: string;
+  question: string;
+  answer: string;
+  category: ApplicationAnswerCategory;
+  updatedAt: string;
+}
+
 export interface ResumeDocument {
   id: string;
   ownerId?: string;

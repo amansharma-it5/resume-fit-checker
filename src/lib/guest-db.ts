@@ -2,6 +2,8 @@ import { openDB, type DBSchema } from "idb";
 import type {
   AnalysisSummary,
   ApplicationRecord,
+  ApplicationProfile,
+  ApplicationReusableAnswer,
   CoverLetterDocument,
   InterviewPracticeSession,
   JobTarget,
@@ -11,6 +13,8 @@ import type { ResumeVersionSnapshot, StructuredResume } from "../resume-builder/
 
 const DB_NAME = "resume-lab-guest-v2";
 const LEGACY_KEY = "resumeLabAnalysesV1";
+export const APPLICATION_PROFILE_META_KEY = "application-profile:v1";
+export const APPLICATION_ANSWER_META_PREFIX = "application-answer:v1:";
 
 /** The complete app-owned IndexedDB surface.  Kept explicit for backup/restore. */
 export interface GuestWorkspaceData {
@@ -361,6 +365,40 @@ export async function putGuestApplication(application: ApplicationRecord, expect
 
 export async function deleteGuestApplication(id: string) {
   await (await db()).delete("applications", id);
+}
+export async function getGuestMetaValue<T>(key: string): Promise<T | undefined> {
+  return (await (await db()).get("meta", key))?.value as T | undefined;
+}
+export async function putGuestMetaValue(key: string, value: unknown) {
+  await (await db()).put("meta", { key, value });
+  return value;
+}
+export async function deleteGuestMetaValue(key: string) {
+  await (await db()).delete("meta", key);
+}
+export async function getGuestApplicationProfile() {
+  return getGuestMetaValue<ApplicationProfile>(APPLICATION_PROFILE_META_KEY);
+}
+export async function saveGuestApplicationProfile(profile: ApplicationProfile) {
+  await putGuestMetaValue(APPLICATION_PROFILE_META_KEY, profile);
+  return profile;
+}
+export async function clearGuestApplicationProfile() {
+  await deleteGuestMetaValue(APPLICATION_PROFILE_META_KEY);
+}
+export async function listGuestApplicationAnswers() {
+  const items = await (await db()).getAll("meta");
+  return items
+    .filter((item) => item.key.startsWith(APPLICATION_ANSWER_META_PREFIX))
+    .map((item) => item.value as ApplicationReusableAnswer)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+export async function saveGuestApplicationAnswer(answer: ApplicationReusableAnswer) {
+  await putGuestMetaValue(`${APPLICATION_ANSWER_META_PREFIX}${answer.id}`, answer);
+  return answer;
+}
+export async function deleteGuestApplicationAnswer(id: string) {
+  await deleteGuestMetaValue(`${APPLICATION_ANSWER_META_PREFIX}${id}`);
 }
 export async function getGuestAnalysisOverrides(key: string) {
   return (await (await db()).get("meta", `analysis-overrides:${key}`))?.value || [];
