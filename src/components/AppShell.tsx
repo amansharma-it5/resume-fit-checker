@@ -5,7 +5,8 @@ import { useAuth } from "../auth/AuthProvider";
 type NavigationItem = {
   label: string;
   to: string;
-  icon: "home" | "checker" | "resume" | "target" | "letter" | "practice" | "applications" | "backup" | "settings";
+  icon:
+    "home" | "checker" | "resume" | "target" | "letter" | "practice" | "applications" | "jobs" | "backup" | "settings";
 };
 
 const primaryNavigation: NavigationItem[] = [
@@ -16,6 +17,7 @@ const primaryNavigation: NavigationItem[] = [
   { label: "Cover Letters", to: "/cover-letters", icon: "letter" },
   { label: "Interview Practice", to: "/interview-practice", icon: "practice" },
   { label: "Applications", to: "/applications", icon: "applications" },
+  { label: "Discover Jobs", to: "/jobs", icon: "jobs" },
 ];
 
 const secondaryNavigation: NavigationItem[] = [
@@ -63,6 +65,12 @@ function NavigationIcon({ icon }: Pick<NavigationItem, "icon">) {
       <>
         <rect x="4" y="5" width="16" height="15" rx="1.75" />
         <path d="M9 5V3h6v2M8 10h8M8 14h5" />
+      </>
+    ),
+    jobs: (
+      <>
+        <circle cx="11" cy="11" r="7.5" />
+        <path d="m16.5 16.5 4 4M11 7.5v7M7.5 11h7" />
       </>
     ),
     backup: (

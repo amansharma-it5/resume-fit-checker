@@ -2552,6 +2552,73 @@ main .lab-hero .hero-copy p:not(.eyebrow) {
   border-color: #cfc7f5;
   background: linear-gradient(180deg, #fbfaff, #fff);
 }
+
+.jobs-search,
+.job-detail {
+  padding: clamp(16px, 2vw, 24px);
+}
+.jobs-search h2,
+.job-detail h2,
+.jobs-empty h2 {
+  margin-top: 0;
+}
+.jobs-search-action {
+  display: flex;
+  align-items: end;
+}
+.job-results {
+  display: grid;
+  gap: 10px;
+}
+.job-result {
+  align-items: center;
+}
+.job-result h3,
+.job-result p {
+  margin: 0 0 4px;
+}
+.job-result h3 {
+  color: #1d2939;
+}
+.job-result p,
+.job-detail > p {
+  color: #475467;
+}
+.section-heading-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.section-heading-row h2,
+.section-heading-row p {
+  margin-bottom: 4px;
+}
+.job-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.65;
+}
+.job-resume-select {
+  min-width: min(280px, 100%);
+  color: #344054;
+  font-size: 0.84rem;
+  font-weight: 680;
+}
+.job-resume-select select {
+  margin-top: 6px;
+}
+@media (max-width: 520px) {
+  .section-heading-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .jobs-search-action,
+  .jobs-search-action button,
+  .job-resume-select,
+  .job-resume-select select {
+    width: 100%;
+  }
+}
 .resume-agent-panel > p,
 .resume-agent-panel h2,
 .resume-agent-panel h3,
