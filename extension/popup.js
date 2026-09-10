@@ -15,7 +15,15 @@ fillButton.addEventListener("click", async () => {
   const selectedIds = new Set(
     Array.from(fieldsElement.querySelectorAll("input:checked"), (input) => input.getAttribute("data-field-id")),
   );
-  const selected = proposals.filter((proposal) => selectedIds.has(proposal.fieldId));
+  const editedValues = new Map(
+    Array.from(fieldsElement.querySelectorAll("input[data-proposal-id]"), (input) => [
+      input.getAttribute("data-proposal-id"),
+      input.value,
+    ]),
+  );
+  const selected = proposals
+    .filter((proposal) => selectedIds.has(proposal.fieldId))
+    .map((proposal) => ({ ...proposal, value: editedValues.get(proposal.fieldId) ?? proposal.value }));
   const result = await chrome.runtime.sendMessage({ type: "FILL_SELECTED", proposals: selected });
   statusElement.textContent = result?.ok
     ? "Selected fields filled. Review the page before continuing."
@@ -51,9 +59,16 @@ function renderScan(result) {
     copy.append(meta);
     const proposal = proposals.find((item) => item.fieldId === field.fieldId);
     if (proposal) {
-      const proposedValue = document.createElement("small");
-      proposedValue.textContent = `Proposed: ${proposal.value}`;
-      copy.append(proposedValue);
+      const proposedLabel = document.createElement("span");
+      proposedLabel.className = "proposed-label";
+      proposedLabel.textContent = "Proposed value";
+      const proposedValue = document.createElement("input");
+      proposedValue.type = "text";
+      proposedValue.value = proposal.value;
+      proposedValue.maxLength = 400;
+      proposedValue.dataset.proposalId = proposal.fieldId;
+      proposedValue.setAttribute("aria-label", `Proposed value for ${field.label || field.fieldId}`);
+      copy.append(proposedLabel, proposedValue);
     }
     label.append(checkbox, copy);
     item.append(label);

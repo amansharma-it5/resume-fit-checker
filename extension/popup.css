@@ -74,8 +74,27 @@ button:focus-visible {
   display: flex;
   gap: 8px;
 }
+#fields label > span {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
 #fields small {
   color: #5d6875;
   display: block;
   margin-top: 3px;
+}
+#fields .proposed-label {
+  color: #5d6875;
+  font-size: 12px;
+}
+#fields input[data-proposal-id] {
+  border: 1px solid #b8c1cb;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font: inherit;
+  min-width: 0;
+  padding: 6px 8px;
+  width: 100%;
 }

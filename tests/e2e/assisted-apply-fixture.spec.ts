@@ -60,9 +60,12 @@ test("fixture previews supported fields and fills only after explicit confirmati
       new Promise((resolve) =>
         window.__assistedListeners[0]({ protocol, type: "FILL_SELECTED", proposals }, {}, resolve),
       ),
-    { protocol, proposals: built.proposals },
+    {
+      protocol,
+      proposals: built.proposals.map((proposal) => ({ ...proposal, value: "edited@example.test" })),
+    },
   );
-  await expect(page.locator("#email")).toHaveValue("sam@example.test");
+  await expect(page.locator("#email")).toHaveValue("edited@example.test");
   await expect(page.locator("#password")).toHaveValue("");
   await expect(page.locator("#certify")).not.toBeChecked();
   await expect(page.locator("#submit")).toBeVisible();
