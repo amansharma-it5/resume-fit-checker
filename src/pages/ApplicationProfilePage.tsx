@@ -11,6 +11,8 @@ import {
   saveApplicationProfile,
   validateApplicationProfile,
 } from "../lib/application-profile";
+import { createBridgeNonce, isBridgeMessage } from "../lib/assisted-apply-bridge";
+import { sanitizeApplicationBridgeSnapshot } from "../lib/assisted-apply";
 import { listGuestApplications, listGuestCoverLetters, listGuestResumes, listGuestTargets } from "../lib/guest-db";
 import type {
   ApplicationAnswerCategory,
@@ -44,6 +46,7 @@ export function ApplicationProfilePage() {
   const [answerDraft, setAnswerDraft] = useState(blankAnswer);
   const [errors, setErrors] = useState<Partial<Record<keyof ApplicationProfile, string>>>({});
   const [message, setMessage] = useState("");
+  const [bridgeNonce, setBridgeNonce] = useState("");
 
   useEffect(() => {
     void Promise.all([
@@ -62,6 +65,29 @@ export function ApplicationProfilePage() {
       setApplications(savedApplications);
     });
   }, []);
+
+  useEffect(() => {
+    if (!bridgeNonce) return;
+    const handleBridgeMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== window.location.origin || !isBridgeMessage(event.data)) return;
+      if (event.data.type !== "BRIDGE_PROFILE_REQUEST" || event.data.nonce !== bridgeNonce) return;
+      window.postMessage(
+        {
+          protocol: event.data.protocol,
+          type: "BRIDGE_PROFILE_RESPONSE",
+          nonce: bridgeNonce,
+          snapshot: sanitizeApplicationBridgeSnapshot(profile, answers),
+        },
+        window.location.origin,
+      );
+    };
+    window.addEventListener("message", handleBridgeMessage);
+    window.postMessage(
+      { protocol: "resume-fit-checker.assisted-apply.v1", type: "BRIDGE_READY", nonce: bridgeNonce },
+      window.location.origin,
+    );
+    return () => window.removeEventListener("message", handleBridgeMessage);
+  }, [answers, bridgeNonce, profile]);
 
   const preview = useMemo(() => buildApplicationPrepPreview(profile, answers), [profile, answers]);
 
@@ -128,6 +154,19 @@ export function ApplicationProfilePage() {
         Every value here is user-entered. We do not infer facts, submit applications, or auto-fill legal and demographic
         declarations.
       </p>
+      <section className="profile-bridge-note" aria-labelledby="bridge-title">
+        <div>
+          <p className="eyebrow">Optional local bridge</p>
+          <h2 id="bridge-title">Connect an assisted-apply extension</h2>
+          <p>
+            Enable a one-session, user-started bridge when the extension is open. Only this allowlisted profile snapshot
+            and reusable answers are shared; nothing is uploaded or filled automatically.
+          </p>
+        </div>
+        <button type="button" onClick={() => setBridgeNonce(createBridgeNonce())}>
+          {bridgeNonce ? "Bridge enabled for this tab" : "Enable extension bridge"}
+        </button>
+      </section>
 
       <form className="profile-section" onSubmit={(event) => void saveProfile(event)}>
         <div className="section-heading-row">

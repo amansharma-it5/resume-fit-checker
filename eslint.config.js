@@ -4,12 +4,21 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "coverage", "playwright-report", "test-results", "node_modules"] },
+  { ignores: ["dist", "dist-extension", "coverage", "playwright-report", "test-results", "node_modules"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
     files: ["src/**/*.{ts,tsx}"],
-    languageOptions: { globals: { document: "readonly", window: "readonly", navigator: "readonly", crypto: "readonly", indexedDB: "readonly", localStorage: "readonly" } },
+    languageOptions: {
+      globals: {
+        document: "readonly",
+        window: "readonly",
+        navigator: "readonly",
+        crypto: "readonly",
+        indexedDB: "readonly",
+        localStorage: "readonly",
+      },
+    },
     plugins: { "react-hooks": reactHooks, "react-refresh": reactRefresh },
     rules: {
       ...reactHooks.configs.recommended.rules,
@@ -24,10 +33,34 @@ export default tseslint.config(
     files: ["*.js", "*.mjs", "netlify/**/*.mjs", "scripts/**/*.mjs"],
     languageOptions: {
       globals: {
-        process: "readonly", Buffer: "readonly", fetch: "readonly", AbortController: "readonly", Response: "readonly",
-        setTimeout: "readonly", clearTimeout: "readonly", TextEncoder: "readonly", crypto: "readonly", console: "readonly",
+        process: "readonly",
+        Buffer: "readonly",
+        fetch: "readonly",
+        AbortController: "readonly",
+        Response: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        TextEncoder: "readonly",
+        crypto: "readonly",
+        console: "readonly",
       },
     },
     rules: { "no-control-regex": "off" },
+  },
+  {
+    files: ["extension/**/*.{js,ts}"],
+    languageOptions: {
+      globals: {
+        chrome: "readonly",
+        URL: "readonly",
+        document: "readonly",
+        window: "readonly",
+        CSS: "readonly",
+        Event: "readonly",
+        HTMLInputElement: "readonly",
+        HTMLTextAreaElement: "readonly",
+        HTMLSelectElement: "readonly",
+      },
+    },
   },
 );

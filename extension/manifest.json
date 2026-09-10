@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Resume Fit Checker Assisted Apply",
+  "version": "0.1.0",
+  "description": "Preview and explicitly fill supported application fields from your local Resume Fit Checker profile.",
+  "permissions": ["activeTab", "scripting"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Assisted Apply", "default_popup": "popup.html" },
+  "content_security_policy": { "extension_pages": "script-src 'self'; object-src 'self'" },
+  "minimum_chrome_version": "110"
+}

@@ -806,6 +806,22 @@ footer {
   margin-top: 1rem;
   padding-left: 0.75rem;
 }
+.profile-bridge-note {
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+.profile-bridge-note > div {
+  min-width: 0;
+}
+.profile-bridge-note h2 {
+  font-size: 1rem;
+  margin: 0.25rem 0;
+}
 @media (max-width: 720px) {
   .profile-field-grid,
   .answer-form {
@@ -814,6 +830,9 @@ footer {
   .profile-answer-list li,
   .profile-mapping-list li {
     align-items: flex-start;
+    flex-direction: column;
+  }
+  .profile-bridge-note {
     flex-direction: column;
   }
 }
