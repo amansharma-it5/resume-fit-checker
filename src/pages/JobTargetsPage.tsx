@@ -110,6 +110,7 @@ export function JobTargetsPage() {
           </h2>
           <p>
             {selected.location || "Location not specified"} · {selected.status}
+            {selected.source ? ` · Source: ${selected.source}` : ""}
           </p>
           {selected.sourceUrl && (
             <p>
@@ -359,6 +360,7 @@ function TargetRow({ target, resumes }: { target: JobTarget; resumes: ResumeDocu
         <h3>{target.role}</h3>
         <p>
           {target.company} · {target.status}
+          {target.source ? ` · ${target.source}` : ""}
         </p>
         <p>
           {summary && analysisState?.state === "stale"

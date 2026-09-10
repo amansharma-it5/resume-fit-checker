@@ -13,6 +13,8 @@ export type JobTargetDraft = {
   company: string;
   role: string;
   location?: string;
+  source?: string;
+  sourceJobId?: string;
   sourceUrl?: string;
   status?: JobTargetStatus;
   baseResumeId: string;
@@ -74,6 +76,8 @@ export async function createGuestTarget(draft: JobTargetDraft) {
     company: clean(draft.company, 160),
     role: clean(draft.role, 160),
     location: clean(draft.location, 160) || undefined,
+    source: clean(draft.source, 80) || undefined,
+    sourceJobId: clean(draft.sourceJobId, 120) || undefined,
     sourceUrl: safeTargetUrl(draft.sourceUrl),
     status: draft.status && JOB_TARGET_STATUSES.includes(draft.status) ? draft.status : "Tailoring",
     baseResumeId: base.id,

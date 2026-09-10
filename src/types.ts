@@ -19,6 +19,8 @@ export interface JobTarget {
   company: string;
   role: string;
   location?: string;
+  source?: string;
+  sourceJobId?: string;
   sourceUrl?: string;
   status: JobTargetStatus;
   baseResumeId: string;
