@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Assisted Apply</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Assisted Apply</p>
+      <h1>Review before filling</h1>
+      <p id="site" class="site">Current site: checking...</p>
+      <p id="status" role="status">Nothing will be filled until you confirm.</p>
+      <div class="actions">
+        <button id="connect" type="button">Connect to app</button>
+        <button id="scan" type="button">Scan current page</button>
+      </div>
+      <ul id="fields" aria-label="Detected fields"></ul>
+      <div class="actions">
+        <button id="fill" type="button" disabled>Fill selected fields</button>
+        <button id="cancel" type="button">Cancel</button>
+      </div>
+      <p class="note">Legal, sensitive, password, hidden, disabled, and ambiguous fields stay untouched.</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,100 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+}
+body {
+  background: #f7f8fa;
+  color: #18212b;
+  margin: 0;
+  min-width: 320px;
+}
+main {
+  padding: 16px;
+}
+h1 {
+  font-size: 18px;
+  margin: 4px 0 10px;
+}
+p {
+  line-height: 1.4;
+  margin: 8px 0;
+}
+.eyebrow {
+  color: #5d6875;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.site {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 650;
+}
+.note {
+  color: #5d6875;
+  font-size: 12px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+button {
+  background: white;
+  border: 1px solid #b8c1cb;
+  border-radius: 4px;
+  color: #18212b;
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 10px;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+button:focus-visible {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+#fields {
+  list-style: none;
+  margin: 12px 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 0;
+}
+#fields li {
+  border-top: 1px solid #d8dde3;
+  padding: 8px 0;
+}
+#fields label {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+}
+#fields label > span {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
+#fields small {
+  color: #5d6875;
+  display: block;
+  margin-top: 3px;
+}
+#fields .proposed-label {
+  color: #5d6875;
+  font-size: 12px;
+}
+#fields input[data-proposal-id] {
+  border: 1px solid #b8c1cb;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font: inherit;
+  min-width: 0;
+  padding: 6px 8px;
+  width: 100%;
+}
