@@ -20,6 +20,10 @@ maps the existing taxonomy to these display groups:
 Unknown values remain visible in the raw status projection and are counted in `other`; they are not silently converted into a
 known lifecycle state.
 
+The status filter uses these normalized groups, including `other`, rather than filtering by an unrecognized raw value. Company
+and role labels collapse repeated whitespace and trim edges, but preserve case and do not use fuzzy grouping; `Acme` and `acme`
+remain distinct labels and filter choices.
+
 ## Metric definitions
 
 - Total applications: records in the current view.
@@ -27,7 +31,9 @@ known lifecycle state.
 - Applied cohort: applied, screening, interview, offer, rejected, or withdrawn groups. This is a conservative status-based
   denominator that remains available even when an older record has no `appliedAt` timestamp.
 - Response rate: screening, interview, offer, or rejected groups divided by the applied cohort.
-- Interview rate: interview or offer groups divided by the applied cohort.
+- Interview rate: interview or offer groups divided by the applied cohort. The existing application tracker treats `Offer` as
+  downstream of `Interviewing`, so an offer counts as having reached interview for this descriptive metric; no hidden status
+  history is reconstructed.
 - Offer rate: offer groups divided by the applied cohort.
 - Applications by month: records bucketed by their actual `createdAt` date in UTC. Invalid dates are omitted from buckets.
 

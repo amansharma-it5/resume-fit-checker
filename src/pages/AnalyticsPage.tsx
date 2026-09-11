@@ -4,9 +4,10 @@ import {
   analyticsFilterOptions,
   applicationAnalytics,
   type ApplicationAnalyticsFilters,
+  type AnalyticsStatusGroup,
 } from "../lib/application-analytics";
 import { listGuestApplications } from "../lib/application-tracker";
-import { APPLICATION_STATUSES, type ApplicationRecord, type ApplicationStatus } from "../types";
+import type { ApplicationRecord } from "../types";
 
 function percentage(value: number | null) {
   return value === null ? "Not available" : `${Math.round(value * 100)}%`;
@@ -79,12 +80,12 @@ export function AnalyticsPage() {
             Status
             <select
               value={filters.status || "all"}
-              onChange={(event) => updateFilter("status", event.target.value as ApplicationStatus | "all")}
+              onChange={(event) => updateFilter("status", event.target.value as AnalyticsStatusGroup | "all")}
             >
               <option value="all">All statuses</option>
-              {APPLICATION_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {status}
+              {ANALYTICS_STATUS_GROUPS.map((group) => (
+                <option key={group} value={group}>
+                  {groupLabel(group)}
                 </option>
               ))}
             </select>

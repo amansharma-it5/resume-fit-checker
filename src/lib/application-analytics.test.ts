@@ -58,6 +58,7 @@ describe("application analytics", () => {
     expect(result.byStatus).toEqual([{ status: "Awaiting recruiter", count: 1 }]);
     expect(unknown.status).toBe("Awaiting recruiter");
     expect(result.dataQuality.unknownStatus).toBe(1);
+    expect(applicationAnalytics([unknown], { status: "other" }).total).toBe(1);
   });
 
   it("uses UTC-created month buckets and omits invalid dates from buckets", () => {
@@ -84,11 +85,25 @@ describe("application analytics", () => {
       }),
     ];
     expect(applicationAnalytics(records, { from: "2026-09-02", company: "Beta", role: "Designer" }).total).toBe(1);
-    expect(applicationAnalytics(records, { status: "Applied" }).total).toBe(1);
+    expect(applicationAnalytics(records, { status: "applied" }).total).toBe(1);
     expect(analyticsFilterOptions(records)).toEqual({
       companies: ["Alpha", "Beta"],
       roles: ["Designer", "Engineer"],
     });
     expect(records[1].status).toBe("Saved");
+  });
+
+  it("keeps case-distinct company and role labels deterministic for display and filters", () => {
+    const records = [
+      application({ id: "upper", company: "  Acme  ", role: "Platform Engineer" }),
+      application({ id: "lower", company: "acme", role: "platform engineer" }),
+    ];
+    const options = analyticsFilterOptions(records);
+    expect(options.companies).toEqual(expect.arrayContaining(["Acme", "acme"]));
+    expect(options.roles).toEqual(expect.arrayContaining(["Platform Engineer", "platform engineer"]));
+    expect(applicationAnalytics(records, { company: "Acme" }).total).toBe(1);
+    expect(applicationAnalytics(records, { company: "acme" }).total).toBe(1);
+    expect(applicationAnalytics(records, { role: "Platform Engineer" }).total).toBe(1);
+    expect(applicationAnalytics(records, { role: "platform engineer" }).total).toBe(1);
   });
 });

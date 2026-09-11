@@ -1,4 +1,4 @@
-import { APPLICATION_STATUSES, type ApplicationRecord, type ApplicationStatus } from "../types";
+import { APPLICATION_STATUSES, type ApplicationRecord } from "../types";
 
 export const ANALYTICS_STATUS_GROUPS = [
   "planned",
@@ -16,7 +16,7 @@ export type AnalyticsStatusGroup = (typeof ANALYTICS_STATUS_GROUPS)[number];
 export type ApplicationAnalyticsFilters = {
   from?: string;
   to?: string;
-  status?: ApplicationStatus | "all";
+  status?: AnalyticsStatusGroup | "all";
   company?: string;
   role?: string;
 };
@@ -105,13 +105,14 @@ function matchesDateRange(application: ApplicationRecord, filters: ApplicationAn
 }
 
 function matchesFilters(application: ApplicationRecord, filters: ApplicationAnalyticsFilters) {
-  const statusMatches = !filters.status || filters.status === "all" || application.status === filters.status;
-  const company = cleanLabel(filters.company).toLowerCase();
-  const role = cleanLabel(filters.role).toLowerCase();
+  const statusMatches =
+    !filters.status || filters.status === "all" || analyticsStatusGroup(application.status) === filters.status;
+  const company = cleanLabel(filters.company);
+  const role = cleanLabel(filters.role);
   return (
     statusMatches &&
-    (!company || cleanLabel(application.company).toLowerCase() === company) &&
-    (!role || cleanLabel(application.role).toLowerCase() === role) &&
+    (!company || cleanLabel(application.company) === company) &&
+    (!role || cleanLabel(application.role) === role) &&
     matchesDateRange(application, filters)
   );
 }

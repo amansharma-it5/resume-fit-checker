@@ -18,8 +18,8 @@ test("shows descriptive local analytics without provider or telemetry requests",
   await expect(page.getByText(/No predictions, AI, or data upload\./)).toBeVisible();
   await expect(page.getByText("Not available", { exact: true })).toHaveCount(3);
   await expect(page.getByRole("heading", { name: "Status distribution" })).toBeVisible();
-  await expect(page.getByText("Planned", { exact: true })).toBeVisible();
-  await page.getByLabel("Status").selectOption("Applied");
+  await expect(page.getByLabel("Application distributions").getByText("Planned", { exact: true })).toBeVisible();
+  await page.getByLabel("Status").selectOption("applied");
   await expect(page.getByText("No records match these filters", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Clear filters" }).click();
   await expect(page.getByText("1 record in this view.", { exact: true })).toBeVisible();
