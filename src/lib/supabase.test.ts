@@ -5,10 +5,15 @@ describe("safeRedirectPath", () => {
   it("allows only same-origin relative routes", () => {
     expect(safeRedirectPath("/dashboard?tab=recent")).toBe("/dashboard?tab=recent");
   });
-  it.each(["https://evil.example", "//evil.example", "/\\evil.example", null])(
-    "rejects unsafe redirect %s",
-    (value) => {
-      expect(safeRedirectPath(value)).toBe("/dashboard");
-    },
-  );
+  it.each([
+    "https://evil.example",
+    "//evil.example",
+    "/\\evil.example",
+    "/%5C%5Cevil.example",
+    "javascript:alert(1)",
+    "data:text/html,alert(1)",
+    null,
+  ])("rejects unsafe redirect %s", (value) => {
+    expect(safeRedirectPath(value)).toBe("/dashboard");
+  });
 });

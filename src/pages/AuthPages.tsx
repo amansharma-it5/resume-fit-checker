@@ -31,13 +31,18 @@ export function LoginPage() {
     if (!supabase) return;
     setBusy(true);
     const data = new FormData(event.currentTarget);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: String(data.get("email")),
-      password: String(data.get("password")),
-    });
-    setBusy(false);
-    if (error) setMessage("Login failed. Check your credentials and try again.");
-    else navigate(from, { replace: true });
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: String(data.get("email")),
+        password: String(data.get("password")),
+      });
+      if (error) setMessage("Login failed. Check your credentials and try again.");
+      else navigate(from, { replace: true });
+    } catch {
+      setMessage("Login failed. Check your credentials and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
   async function magic(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,12 +50,17 @@ export function LoginPage() {
     setBusy(true);
     const data = new FormData(event.currentTarget);
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(from)}`;
-    const { error } = await supabase.auth.signInWithOtp({
-      email: String(data.get("magicEmail")),
-      options: { emailRedirectTo: redirectTo },
-    });
-    setBusy(false);
-    setMessage(error ? "Magic link could not be sent." : "Check your email for a secure sign-in link.");
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: String(data.get("magicEmail")),
+        options: { emailRedirectTo: redirectTo },
+      });
+      setMessage(error ? "Magic link could not be sent." : "Check your email for a secure sign-in link.");
+    } catch {
+      setMessage("Magic link could not be sent.");
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <AuthFrame title="Welcome back">
@@ -100,15 +110,20 @@ export function SignupPage() {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.auth.signUp({
-      email: String(data.get("email")),
-      password: String(data.get("password")),
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
-    });
-    setBusy(false);
-    setMessage(
-      error ? "Account creation failed. Review the form and try again." : "Check your email to verify your account.",
-    );
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: String(data.get("email")),
+        password: String(data.get("password")),
+        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
+      setMessage(
+        error ? "Account creation failed. Review the form and try again." : "Check your email to verify your account.",
+      );
+    } catch {
+      setMessage("Account creation failed. Review the form and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <AuthFrame title="Create your account">
@@ -139,14 +154,22 @@ export function SignupPage() {
 
 export function ForgotPasswordPage() {
   const [message, setMessage] = useState(configMessage());
+  const [busy, setBusy] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) return;
     const data = new FormData(event.currentTarget);
-    const { error } = await supabase.auth.resetPasswordForEmail(String(data.get("email")), {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-    });
-    setMessage(error ? "Reset email could not be sent." : "If an account exists, a reset link is on its way.");
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(String(data.get("email")), {
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      });
+      setMessage(error ? "Reset email could not be sent." : "If an account exists, a reset link is on its way.");
+    } catch {
+      setMessage("Reset email could not be sent.");
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <AuthFrame title="Reset your password">
@@ -156,7 +179,7 @@ export function ForgotPasswordPage() {
           Email
           <input name="email" type="email" required />
         </label>
-        <button className="primary" disabled={!supabase}>
+        <button className="primary" disabled={busy || !supabase}>
           Send reset link
         </button>
       </form>
@@ -168,6 +191,7 @@ export function ForgotPasswordPage() {
 export function ResetPasswordPage() {
   const navigate = useNavigate();
   const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) return;
@@ -177,9 +201,16 @@ export function ResetPasswordPage() {
       setMessage("Passwords do not match.");
       return;
     }
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) setMessage("Password could not be updated. Request a new reset link.");
-    else navigate("/dashboard", { replace: true });
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) setMessage("Password could not be updated. Request a new reset link.");
+      else navigate("/dashboard", { replace: true });
+    } catch {
+      setMessage("Password could not be updated. Request a new reset link.");
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <AuthFrame title="Choose a new password">
@@ -193,7 +224,7 @@ export function ResetPasswordPage() {
           Confirm password
           <input name="confirm" type="password" minLength={10} autoComplete="new-password" required />
         </label>
-        <button className="primary" disabled={!supabase}>
+        <button className="primary" disabled={busy || !supabase}>
           Update password
         </button>
       </form>
@@ -206,27 +237,35 @@ export function AuthCallbackPage() {
   const location = useLocation();
   const [message, setMessage] = useState("Completing secure sign-in...");
   useEffect(() => {
+    let active = true;
     void (async () => {
       if (!supabase) {
-        setMessage("Account services are unavailable.");
+        if (active) setMessage("Account services are unavailable.");
         return;
       }
-      const params = new URLSearchParams(location.search);
-      const code = params.get("code");
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          setMessage("This sign-in link is invalid or expired.");
+      try {
+        const params = new URLSearchParams(location.search);
+        const code = params.get("code");
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            if (active) setMessage("This sign-in link is invalid or expired.");
+            return;
+          }
+        }
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          if (active) setMessage("This sign-in link is invalid or expired.");
           return;
         }
+        if (active) navigate(safeRedirectPath(params.get("next")), { replace: true });
+      } catch {
+        if (active) setMessage("This sign-in link is invalid or expired.");
       }
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        setMessage("This sign-in link is invalid or expired.");
-        return;
-      }
-      navigate(safeRedirectPath(params.get("next")), { replace: true });
     })();
+    return () => {
+      active = false;
+    };
   }, [location.search, navigate]);
   return (
     <AuthFrame title="Signing you in">

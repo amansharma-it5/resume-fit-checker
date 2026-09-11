@@ -15,8 +15,19 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
 export function safeRedirectPath(value: string | null | undefined, fallback = "/dashboard") {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return fallback;
   try {
+    const decoded = decodeURIComponent(value);
+    if (
+      decoded.includes("\\") ||
+      [...decoded].some((character) => {
+        const code = character.charCodeAt(0);
+        return code <= 31 || code === 127;
+      })
+    )
+      return fallback;
     const parsed = new URL(value, window.location.origin);
-    return parsed.origin === window.location.origin ? `${parsed.pathname}${parsed.search}${parsed.hash}` : fallback;
+    return parsed.origin === window.location.origin && !parsed.username && !parsed.password
+      ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+      : fallback;
   } catch {
     return fallback;
   }
