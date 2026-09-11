@@ -45,8 +45,12 @@ export function SettingsPage({ authEnabled }: { authEnabled: boolean }) {
   }
   async function saveProfile() {
     if (!supabase || !user) return;
-    const { error } = await supabase.auth.updateUser({ data: { display_name: name.trim() } });
-    setMessage(error ? "Profile could not be updated." : "Profile updated.");
+    try {
+      const { error } = await supabase.auth.updateUser({ data: { display_name: name.trim() } });
+      setMessage(error ? "Profile could not be updated." : "Profile updated.");
+    } catch {
+      setMessage("Profile could not be updated.");
+    }
   }
   return (
     <section className="workspace-page">

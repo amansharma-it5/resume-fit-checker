@@ -10,6 +10,21 @@ type Job = {
   completed_at?: string;
   download_url?: string;
 };
+const DEFAULT_ACCOUNT_ERROR = "Account data request could not be completed. Please try again.";
+const ACCOUNT_ERROR_MESSAGES: Record<string, string> = {
+  AUTH_REQUIRED: "Please sign in again.",
+  SERVICE_NOT_CONFIGURED: "Account operations are unavailable.",
+  DATA_SERVICE_ERROR: "Account data is temporarily unavailable.",
+  INVALID_REQUEST: "Please check the request and try again.",
+  REAUTH_REQUIRED: "Sign in again before requesting account deletion.",
+};
+
+export function safeAccountErrorMessage(payload: unknown) {
+  const code =
+    payload && typeof payload === "object" && "code" in payload && typeof payload.code === "string" ? payload.code : "";
+  return ACCOUNT_ERROR_MESSAGES[code] || DEFAULT_ACCOUNT_ERROR;
+}
+
 export function AccountDataPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [message, setMessage] = useState("");
@@ -21,13 +36,26 @@ export function AccountDataPage() {
     return data.session?.access_token;
   }, []);
   const load = useCallback(async () => {
-    const accessToken = await token();
-    if (!accessToken) return;
-    const response = await fetch("/.netlify/functions/account-data", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const payload = await response.json();
-    if (response.ok) setJobs(payload.jobs || []);
+    try {
+      const accessToken = await token();
+      if (!accessToken) {
+        setError(true);
+        setMessage("Please sign in again.");
+        return;
+      }
+      const response = await fetch("/.netlify/functions/account-data", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const payload = await response.json();
+      if (response.ok) setJobs(payload.jobs || []);
+      else {
+        setError(true);
+        setMessage(safeAccountErrorMessage(payload));
+      }
+    } catch {
+      setError(true);
+      setMessage(DEFAULT_ACCOUNT_ERROR);
+    }
   }, [token]);
   useEffect(() => {
     void load();
@@ -37,13 +65,22 @@ export function AccountDataPage() {
     setError(false);
     try {
       const accessToken = await token();
+      if (!accessToken) {
+        setError(true);
+        setMessage("Please sign in again.");
+        return;
+      }
       const response = await fetch("/.netlify/functions/account-data", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
         body: JSON.stringify({ operation, confirmation: operation === "delete" ? confirm : undefined }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Request failed.");
+      if (!response.ok) {
+        setError(true);
+        setMessage(safeAccountErrorMessage(payload));
+        return;
+      }
       setMessage(
         operation === "export"
           ? "Export request created. Refresh this page to check status."
@@ -51,9 +88,9 @@ export function AccountDataPage() {
       );
       setConfirm("");
       await load();
-    } catch (cause) {
+    } catch {
       setError(true);
-      setMessage(cause instanceof Error ? cause.message : "Request failed.");
+      setMessage(DEFAULT_ACCOUNT_ERROR);
     } finally {
       setBusy(false);
     }

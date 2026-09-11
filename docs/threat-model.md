@@ -9,5 +9,7 @@
 - Fabrication: independent AI fact check, deterministic comparison, blocked Copy/Apply, user confirmation, evidence-only version.
 - Abuse: rate limits, request validation, provider timeout, and duplicate-click prevention.
 - Destructive actions: soft delete, confirmation dialog, deletion phrase, and recent-login check.
+- Account rollout: production auth is currently feature-flagged off; staging auth uses Supabase PKCE, same-origin
+  callback redirects, server-side bearer revalidation, and forced RLS. Guest Mode remains the public default.
 
 Residual risks include browser extension access, imperfect document parsing, AI verifier mistakes, and operational misconfiguration of provider retention.
