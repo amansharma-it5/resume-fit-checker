@@ -177,6 +177,10 @@ export function BackupRecoveryPage() {
           Backups stay on this device until you choose where to store the downloaded file. They can contain sensitive
           career information.
         </p>
+        <p className="notice">
+          Guest Mode data depends on this browser. Download a backup before clearing site data or moving to another
+          device.
+        </p>
       </header>
       <StatusMessage message={status || error} error={Boolean(error)} />
 

@@ -9,6 +9,7 @@ import {
 } from "../../_shared/gemini-analysis";
 import { GROQ_DRAFT_SCHEMA, GroqStructuredProvider, type GroqEnv } from "../../_shared/groq-analysis";
 import { isProviderAvailabilityFailure, toFallbackDiagnostic } from "../../_shared/provider-contract";
+import { checkAiOperations, isProviderEnabled, type LaunchOperationsEnv } from "../../_shared/launch-operations";
 import { validateAiDraft } from "../../../src/lib/ai-draft-safety";
 
 const MAX_CURRENT_TEXT_CHARS = 2_000;
@@ -16,7 +17,7 @@ const MAX_TARGET_ROLE_CHARS = 160;
 const MAX_JOB_DESCRIPTION_CHARS = 2_000;
 const MAX_EVIDENCE_CHARS = 6_000;
 
-type Context = { request: Request; env: GeminiEnv & GroqEnv };
+type Context = { request: Request; env: GeminiEnv & GroqEnv & LaunchOperationsEnv };
 const defaultFetch: typeof fetch = (input, init) => globalThis.fetch(input, init);
 
 function json(status: number, body: Record<string, unknown>) {
@@ -66,6 +67,8 @@ export async function handleAiDraft(context: Context, fetchFn: typeof fetch = de
     return json(413, { error: "AI drafting context is too long.", code: "INPUT_TOO_LARGE" });
   if (!relevantEvidence)
     return json(400, { error: "Add resume evidence before requesting a draft.", code: "MISSING_EVIDENCE" });
+  const operationsResponse = await checkAiOperations(request, env, "draft");
+  if (operationsResponse) return operationsResponse;
 
   const input: AiDraftInput = {
     draftType: draftType as AiDraftInput["draftType"],
@@ -86,22 +89,27 @@ export async function handleAiDraft(context: Context, fetchFn: typeof fetch = de
   type DraftResult =
     { ok: true; draft: AiDraft; provider: string; model: string } | { ok: false; code: string; diagnostic: unknown };
   let result: DraftResult;
-  if (env.GROQ_API_KEY) {
+  if (env.GROQ_API_KEY && isProviderEnabled(env, "groq")) {
     const groqResult = await new GroqStructuredProvider(env, fetchFn).request<AiDraft>(requestConfig);
     if (groqResult.ok)
       result = { ok: true, draft: groqResult.output, provider: groqResult.provider, model: groqResult.model };
-    else if (isProviderAvailabilityFailure(groqResult.code) && env.GEMINI_API_KEY) {
+    else if (isProviderAvailabilityFailure(groqResult.code) && env.GEMINI_API_KEY && isProviderEnabled(env, "gemini")) {
       const fallback = await requestGeminiDraft(input, env, fetchFn);
       if (fallback.ok) {
         console.info(toFallbackDiagnostic(groqResult.diagnostic, true));
         result = { ok: true, draft: fallback.draft, provider: "gemini", model: GEMINI_ANALYSIS_MODEL };
       } else result = fallback;
     } else result = groqResult;
-  } else {
+  } else if (env.GEMINI_API_KEY && isProviderEnabled(env, "gemini")) {
     const geminiResult = await requestGeminiDraft(input, env, fetchFn);
     result = geminiResult.ok
       ? { ok: true, draft: geminiResult.draft, provider: "gemini", model: GEMINI_ANALYSIS_MODEL }
       : geminiResult;
+  } else {
+    return json(503, {
+      error: "AI drafting is temporarily unavailable. Local ATS remains available.",
+      code: "AI_DISABLED",
+    });
   }
   if (!result.ok) {
     console.info(result.diagnostic);

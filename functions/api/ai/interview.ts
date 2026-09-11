@@ -2,6 +2,7 @@ import { z } from "zod";
 import { GEMINI_ANALYSIS_MODEL, requestGeminiStructured, type GeminiEnv } from "../../_shared/gemini-analysis";
 import { GroqStructuredProvider, type GroqEnv } from "../../_shared/groq-analysis";
 import { isProviderAvailabilityFailure, type ProviderResponseDiagnostic } from "../../_shared/provider-contract";
+import { checkAiOperations, isProviderEnabled, type LaunchOperationsEnv } from "../../_shared/launch-operations";
 import {
   validateInterviewFeedback,
   validateInterviewQuestion,
@@ -59,7 +60,7 @@ const inputSchema = z
   })
   .strict();
 
-type Context = { request: Request; env: GeminiEnv & GroqEnv };
+type Context = { request: Request; env: GeminiEnv & GroqEnv & LaunchOperationsEnv };
 type InterviewInput = z.infer<typeof inputSchema>;
 type QuestionOutput = z.infer<typeof questionOutputSchema>;
 type FeedbackOutput = z.infer<typeof feedbackOutputSchema>;
@@ -209,6 +210,8 @@ export async function handleAiInterview(context: Context, fetchFn: typeof fetch 
   const input: InterviewInput = parsed.data;
   if (input.operation === "feedback" && (!input.question || !input.answer))
     return json(400, { code: "MISSING_INPUT", error: "Provide the question and answer for feedback." });
+  const operationsResponse = await checkAiOperations(request, env, "interview");
+  if (operationsResponse) return operationsResponse;
 
   const isQuestionRequest = input.operation === "questions";
   const schema = isQuestionRequest ? z.toJSONSchema(questionOutputSchema) : z.toJSONSchema(feedbackOutputSchema);
@@ -240,13 +243,17 @@ export async function handleAiInterview(context: Context, fetchFn: typeof fetch 
   let fallback: ProviderDiagnosticLike | undefined;
   let fallbackAllowed = false;
   let fallbackAttempted = false;
-  if (env.GROQ_API_KEY) {
+  if (env.GROQ_API_KEY && isProviderEnabled(env, "groq")) {
     const groq = await new GroqStructuredProvider(env, trackedFetch).request<QuestionOutput | FeedbackOutput>(
       withDiagnostics,
       request.signal,
     );
     if (groq.ok) result = { ok: true, output: groq.output, provider: groq.provider, model: groq.model };
-    else if ((fallbackAllowed = isProviderAvailabilityFailure(groq.code)) && env.GEMINI_API_KEY) {
+    else if (
+      (fallbackAllowed = isProviderAvailabilityFailure(groq.code)) &&
+      env.GEMINI_API_KEY &&
+      isProviderEnabled(env, "gemini")
+    ) {
       primary = groq.diagnostic;
       fallbackAttempted = true;
       const gemini = await requestGeminiStructured({ ...withDiagnostics, requireComplete: true }, env, trackedFetch);
@@ -259,7 +266,7 @@ export async function handleAiInterview(context: Context, fetchFn: typeof fetch 
       primary = groq.diagnostic;
       result = groq;
     }
-  } else {
+  } else if (env.GEMINI_API_KEY && isProviderEnabled(env, "gemini")) {
     fallbackAllowed = true;
     fallbackAttempted = true;
     const gemini = await requestGeminiStructured({ ...withDiagnostics, requireComplete: true }, env, trackedFetch);
@@ -268,6 +275,11 @@ export async function handleAiInterview(context: Context, fetchFn: typeof fetch 
       fallback = gemini.diagnostic;
       result = gemini;
     }
+  } else {
+    return json(503, {
+      code: "AI_DISABLED",
+      error: "Interview AI is temporarily unavailable. Local ATS remains available.",
+    });
   }
   if (!result.ok) {
     const code = publicProviderCode(result.code);
