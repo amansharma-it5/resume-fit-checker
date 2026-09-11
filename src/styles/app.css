@@ -917,6 +917,108 @@ footer {
 .content-library-form textarea {
   min-height: 150px;
 }
+.analytics-page {
+  max-width: 1240px;
+}
+.analytics-filters,
+.analytics-empty,
+.analytics-boundary {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.analytics-filters {
+  padding: clamp(16px, 2vw, 24px);
+}
+.analytics-filters .section-heading-row p {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+}
+.analytics-filter-grid {
+  margin-top: 1rem;
+}
+.analytics-metric-grid,
+.analytics-rate-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.analytics-rate-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0.75rem;
+}
+.analytics-metric {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  background: #f9fafb;
+}
+.analytics-metric span,
+.analytics-metric small {
+  color: var(--muted);
+}
+.analytics-metric strong {
+  color: var(--text);
+  font-size: 1.7rem;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+.analytics-metric small {
+  line-height: 1.35;
+}
+.analytics-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.analytics-split > div,
+.analytics-empty,
+.analytics-boundary {
+  padding: clamp(16px, 2vw, 24px);
+}
+.analytics-split h2,
+.analytics-empty h2,
+.analytics-boundary h2 {
+  margin-top: 0;
+}
+.analytics-bars,
+.analytics-value-list {
+  display: grid;
+  gap: 0.7rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.analytics-bar-label,
+.analytics-value-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+.analytics-bar-label span,
+.analytics-value-list li span {
+  overflow-wrap: anywhere;
+}
+.analytics-bar-track {
+  height: 0.5rem;
+  margin-top: 0.3rem;
+  overflow: hidden;
+  background: #e5e7eb;
+}
+.analytics-bar-track span {
+  display: block;
+  height: 100%;
+  min-width: 0.2rem;
+  background: var(--mint);
+}
+.analytics-empty p,
+.analytics-boundary p {
+  max-width: 760px;
+  margin-bottom: 0;
+}
 .profile-field-grid,
 .answer-form {
   display: grid;
@@ -1022,6 +1124,11 @@ footer {
   }
   .content-library-item-heading {
     flex-direction: column;
+  }
+  .analytics-metric-grid,
+  .analytics-rate-grid,
+  .analytics-split {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (max-width: 360px) {

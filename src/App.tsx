@@ -18,6 +18,7 @@ import { BackupRecoveryPage } from "./pages/BackupRecoveryPage";
 import { JobsPage } from "./pages/JobsPage";
 import { ApplicationProfilePage } from "./pages/ApplicationProfilePage";
 import { ContentLibraryPage } from "./pages/ContentLibraryPage";
+import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { authEnabled as configuredAuthEnabled } from "./lib/features";
 
 export function App() {
@@ -46,6 +47,7 @@ export function AppRoutes({ authEnabled }: { authEnabled: boolean }) {
         <Route path="jobs" element={<JobsPage />} />
         <Route path="profile" element={<ApplicationProfilePage />} />
         <Route path="content-library" element={<ContentLibraryPage />} />
+        <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="backup-recovery" element={<BackupRecoveryPage />} />
         <Route path="resumes/:resumeId/edit" element={<ResumeEditorPage />} />
         <Route path="settings" element={<SettingsPage authEnabled={authEnabled} />} />
