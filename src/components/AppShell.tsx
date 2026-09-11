@@ -16,6 +16,7 @@ type NavigationItem = {
     | "jobs"
     | "profile"
     | "library"
+    | "analytics"
     | "backup"
     | "settings";
 };
@@ -31,6 +32,7 @@ const primaryNavigation: NavigationItem[] = [
   { label: "Discover Jobs", to: "/jobs", icon: "jobs" },
   { label: "Application Prep", to: "/profile", icon: "profile" },
   { label: "Content Library", to: "/content-library", icon: "library" },
+  { label: "Analytics", to: "/analytics", icon: "analytics" },
 ];
 
 const secondaryNavigation: NavigationItem[] = [
@@ -96,6 +98,12 @@ function NavigationIcon({ icon }: Pick<NavigationItem, "icon">) {
       <>
         <rect x="4" y="4" width="16" height="16" rx="1.75" />
         <path d="M8 8h8M8 12h6M8 16h4" />
+      </>
+    ),
+    analytics: (
+      <>
+        <path d="M4 19V5M4 19h16" />
+        <path d="m7 15 3-4 3 2 4-6" />
       </>
     ),
     backup: (
