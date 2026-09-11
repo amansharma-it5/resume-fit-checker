@@ -30,6 +30,7 @@ const workspace: GuestWorkspaceData = {
   applications: [],
   meta: [
     { key: "analysis-overrides:resume-1", value: [] },
+    { key: "content-library:user-snippets:v1", value: [{ id: "snippet-1", evidenceEligible: false }] },
     { key: "untrusted-token", value: "never-export" },
   ],
 };
@@ -40,7 +41,10 @@ describe("workspace backup", () => {
     expect(backup.manifest.schemaVersion).toBe(BACKUP_SCHEMA_VERSION);
     const preview = await preflightWorkspaceBackup(stableSerialize(backup));
     expect(preview.workspace.resumes[0].title).toBe("Synthetic Resume");
-    expect(preview.workspace.meta).toEqual([{ key: "analysis-overrides:resume-1", value: [] }]);
+    expect(preview.workspace.meta).toEqual([
+      { key: "analysis-overrides:resume-1", value: [] },
+      { key: "content-library:user-snippets:v1", value: [{ id: "snippet-1", evidenceEligible: false }] },
+    ]);
     expect(workspaceBackupFilename(new Date("2026-02-03T00:00:00.000Z"))).toBe(
       "recruitos-ai-workspace-v1-2026-02-03.json",
     );
