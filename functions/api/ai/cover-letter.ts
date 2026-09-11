@@ -2,6 +2,7 @@ import { z } from "zod";
 import { GEMINI_ANALYSIS_MODEL, requestGeminiStructured, type GeminiEnv } from "../../_shared/gemini-analysis";
 import { GROQ_COVER_LETTER_SCHEMA, GroqStructuredProvider, type GroqEnv } from "../../_shared/groq-analysis";
 import { isProviderAvailabilityFailure, type ProviderResponseDiagnostic } from "../../_shared/provider-contract";
+import { checkAiOperations, isProviderEnabled, type LaunchOperationsEnv } from "../../_shared/launch-operations";
 import { validateWholeCoverLetter, type CoverLetterAiDraft } from "../../../src/lib/cover-letters";
 
 const MAX_BYTES = 50_000;
@@ -29,7 +30,7 @@ const coverLetterOutputSchema = z
   })
   .strict();
 
-type Context = { request: Request; env: GeminiEnv & GroqEnv };
+type Context = { request: Request; env: GeminiEnv & GroqEnv & LaunchOperationsEnv };
 const defaultFetch: typeof fetch = (input, init) => globalThis.fetch(input, init);
 
 type ProviderDiagnosticLike = {
@@ -145,6 +146,8 @@ export async function handleAiCoverLetter(context: Context, fetchFn: typeof fetc
     return json(400, { code: "INVALID_REQUEST", error: "Provide bounded resume, target, and cover-letter fields." });
 
   const input = parsed.data;
+  const operationsResponse = await checkAiOperations(request, env, "cover-letter");
+  if (operationsResponse) return operationsResponse;
   const expectedBodyCount = Math.max(1, input.bodyParagraphs.length);
   let primaryResponseDiagnostic = emptyResponseDiagnostic();
   const requestConfig = {
@@ -173,14 +176,18 @@ export async function handleAiCoverLetter(context: Context, fetchFn: typeof fetc
   let fallbackAllowed = false;
   let fallbackAttempted = false;
   let fallbackAttemptCount = 0;
-  if (env.GROQ_API_KEY) {
+  if (env.GROQ_API_KEY && isProviderEnabled(env, "groq")) {
     const groqResult = await new GroqStructuredProvider(env, trackedFetch).request<CoverLetterAiDraft>(
       requestConfig,
       request.signal,
     );
     if (groqResult.ok)
       result = { ok: true, output: groqResult.output, provider: groqResult.provider, model: groqResult.model };
-    else if ((fallbackAllowed = isProviderAvailabilityFailure(groqResult.code)) && env.GEMINI_API_KEY) {
+    else if (
+      (fallbackAllowed = isProviderAvailabilityFailure(groqResult.code)) &&
+      env.GEMINI_API_KEY &&
+      isProviderEnabled(env, "gemini")
+    ) {
       primaryDiagnostic = groqResult.diagnostic;
       fallbackAttempted = true;
       const fallbackStart = providerCallCount;
@@ -194,7 +201,7 @@ export async function handleAiCoverLetter(context: Context, fetchFn: typeof fetc
       primaryDiagnostic = groqResult.diagnostic;
       result = groqResult;
     }
-  } else {
+  } else if (env.GEMINI_API_KEY && isProviderEnabled(env, "gemini")) {
     fallbackAttempted = true;
     const fallback = await requestGeminiStructured({ ...requestConfig, requireComplete: true }, env, trackedFetch);
     fallbackAttemptCount = providerCallCount;
@@ -202,6 +209,11 @@ export async function handleAiCoverLetter(context: Context, fetchFn: typeof fetc
     result = fallback.ok
       ? { ok: true, output: fallback.output, provider: "gemini", model: GEMINI_ANALYSIS_MODEL }
       : fallback;
+  } else {
+    return json(503, {
+      code: "AI_DISABLED",
+      error: "Cover-letter AI is temporarily unavailable. Local ATS remains available.",
+    });
   }
   if (!result.ok) {
     const code = publicProviderCode(result.code);

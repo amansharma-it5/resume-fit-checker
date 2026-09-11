@@ -74,6 +74,22 @@ test("returns missing-key state without calling provider", async () => {
   assert.equal(called, false);
 });
 
+test("honors the server-side AI disable switch without calling provider", async () => {
+  let called = false;
+  const handler = createHandler({
+    env: { GroqAPIKey: "mock-credential", AI_ENABLED: "false" },
+    fetchFn: async () => {
+      called = true;
+      return providerMessage({});
+    },
+  });
+  const response = await handler(event());
+  assert.equal(response.statusCode, 503);
+  assert.equal(parse(response).code, ERROR_CODES.AI_DISABLED);
+  assert.equal(called, false);
+  assert.doesNotMatch(response.body, /mock-credential|provider/i);
+});
+
 test("rejects invalid request content and oversized input", async () => {
   const handler = createHandler({ env: { GroqAPIKey: "mock-credential" }, fetchFn: async () => providerMessage({}) });
   assert.equal((await handler({ httpMethod: "GET", headers: {}, body: "" })).statusCode, 405);

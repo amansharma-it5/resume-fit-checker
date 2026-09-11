@@ -14,6 +14,7 @@ const ERROR_CODES = {
   GROQ_RATE_LIMITED: "GROQ_RATE_LIMITED",
   GROQ_REJECTED: "GROQ_REJECTED",
   FUNCTION_TIMEOUT: "FUNCTION_TIMEOUT",
+  AI_DISABLED: "AI_DISABLED",
 };
 
 const responseHeaders = {
@@ -39,6 +40,16 @@ function createHandler({ fetchFn = fetch, env = process.env, timeoutMs = DEFAULT
     const contentType = String(event.headers?.["content-type"] || event.headers?.["Content-Type"] || "");
     if (!contentType.toLowerCase().includes("application/json")) {
       return json(415, { error: "Use application/json." });
+    }
+
+    if (
+      String(env.AI_ENABLED || "").toLowerCase() === "false" ||
+      String(env.GROQ_ENABLED || "").toLowerCase() === "false"
+    ) {
+      return json(503, {
+        error: "AI assistance is temporarily unavailable. Local ATS remains available.",
+        code: ERROR_CODES.AI_DISABLED,
+      });
     }
 
     const contentLength = Number(event.headers?.["content-length"] || event.headers?.["Content-Length"] || 0);
@@ -70,15 +81,26 @@ function createHandler({ fetchFn = fetch, env = process.env, timeoutMs = DEFAULT
 
       const rewrite = parseRewriteOutput(rewriteResponse.content);
       if (!rewrite) {
-        return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: ERROR_CODES.GROQ_REJECTED });
+        return json(502, {
+          error: "AI rewrite failed. Try the local Smart Rewrite instead.",
+          code: ERROR_CODES.GROQ_REJECTED,
+        });
       }
 
-      const factCheckResponse = await callGroq(fetchFn, apiKey, buildFactCheckRequest({ ...validation.value, rewrittenBullet: rewrite.rewrittenBullet }), controller.signal);
+      const factCheckResponse = await callGroq(
+        fetchFn,
+        apiKey,
+        buildFactCheckRequest({ ...validation.value, rewrittenBullet: rewrite.rewrittenBullet }),
+        controller.signal,
+      );
       if (!factCheckResponse.ok) return factCheckResponse.response;
 
       const factCheck = parseFactCheckOutput(factCheckResponse.content);
       if (!factCheck) {
-        return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: ERROR_CODES.GROQ_REJECTED });
+        return json(502, {
+          error: "AI rewrite failed. Try the local Smart Rewrite instead.",
+          code: ERROR_CODES.GROQ_REJECTED,
+        });
       }
 
       return json(200, {
@@ -93,9 +115,15 @@ function createHandler({ fetchFn = fetch, env = process.env, timeoutMs = DEFAULT
       });
     } catch (error) {
       if (error?.name === "AbortError") {
-        return json(504, { error: "AI rewrite timed out. Try the local Smart Rewrite instead.", code: ERROR_CODES.FUNCTION_TIMEOUT });
+        return json(504, {
+          error: "AI rewrite timed out. Try the local Smart Rewrite instead.",
+          code: ERROR_CODES.FUNCTION_TIMEOUT,
+        });
       }
-      return json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: ERROR_CODES.GROQ_REJECTED });
+      return json(502, {
+        error: "AI rewrite failed. Try the local Smart Rewrite instead.",
+        code: ERROR_CODES.GROQ_REJECTED,
+      });
     } finally {
       clearTimeout(timeout);
     }
@@ -129,7 +157,13 @@ function validatePayload(payload) {
   const jdExcerpt = cleanInput(payload.jdExcerpt || "");
   const approvedContext = cleanInput(payload.approvedContext || "");
 
-  if (!bullet || bullet.length > MAX_BULLET_CHARS || role.length > MAX_ROLE_CHARS || jdExcerpt.length > MAX_JD_CHARS || approvedContext.length > MAX_CONTEXT_CHARS) {
+  if (
+    !bullet ||
+    bullet.length > MAX_BULLET_CHARS ||
+    role.length > MAX_ROLE_CHARS ||
+    jdExcerpt.length > MAX_JD_CHARS ||
+    approvedContext.length > MAX_CONTEXT_CHARS
+  ) {
     return { ok: false, status: 400, message: "Invalid request." };
   }
   return { ok: true, value: { bullet, role: role || "Target role", jdExcerpt, approvedContext } };
@@ -147,10 +181,22 @@ async function callGroq(fetchFn, apiKey, request, signal) {
   });
 
   if (providerResponse.status === 429) {
-    return { ok: false, response: json(429, { error: "AI rewrite is rate limited. Try again in a moment.", code: ERROR_CODES.GROQ_RATE_LIMITED }) };
+    return {
+      ok: false,
+      response: json(429, {
+        error: "AI rewrite is rate limited. Try again in a moment.",
+        code: ERROR_CODES.GROQ_RATE_LIMITED,
+      }),
+    };
   }
   if (!providerResponse.ok) {
-    return { ok: false, response: json(502, { error: "AI rewrite failed. Try the local Smart Rewrite instead.", code: ERROR_CODES.GROQ_REJECTED }) };
+    return {
+      ok: false,
+      response: json(502, {
+        error: "AI rewrite failed. Try the local Smart Rewrite instead.",
+        code: ERROR_CODES.GROQ_REJECTED,
+      }),
+    };
   }
 
   const providerJson = await providerResponse.json();
@@ -171,7 +217,8 @@ function baseGroqRequest(messages, maxTokens = 1200) {
 }
 
 function buildRewriteRequest({ bullet, role, jdExcerpt, approvedContext }) {
-  return baseGroqRequest([
+  return baseGroqRequest(
+    [
       {
         role: "system",
         content: [
@@ -192,11 +239,14 @@ function buildRewriteRequest({ bullet, role, jdExcerpt, approvedContext }) {
           relevantJobDescriptionRequirements: jdExcerpt,
         }),
       },
-  ], 1200);
+    ],
+    1200,
+  );
 }
 
 function buildFactCheckRequest({ bullet, role, jdExcerpt, approvedContext, rewrittenBullet }) {
-  return baseGroqRequest([
+  return baseGroqRequest(
+    [
       {
         role: "system",
         content: [
@@ -218,7 +268,9 @@ function buildFactCheckRequest({ bullet, role, jdExcerpt, approvedContext, rewri
           rewrittenBullet,
         }),
       },
-  ], 1400);
+    ],
+    1400,
+  );
 }
 
 function parseRewriteOutput(content) {
@@ -244,12 +296,15 @@ function parseFactCheckOutput(content) {
     const parsed = JSON.parse(content);
     if (!Array.isArray(parsed.claims)) return null;
     return {
-      claims: parsed.claims.map((claim) => ({
-        claim: cleanInput(claim?.claim || claim?.text || ""),
-        status: cleanInput(claim?.status || ""),
-        evidence: cleanInput(claim?.evidence || ""),
-        rationale: cleanInput(claim?.rationale || claim?.reason || ""),
-      })).filter((claim) => claim.claim).slice(0, 20),
+      claims: parsed.claims
+        .map((claim) => ({
+          claim: cleanInput(claim?.claim || claim?.text || ""),
+          status: cleanInput(claim?.status || ""),
+          evidence: cleanInput(claim?.evidence || ""),
+          rationale: cleanInput(claim?.rationale || claim?.reason || ""),
+        }))
+        .filter((claim) => claim.claim)
+        .slice(0, 20),
     };
   } catch {
     return null;
@@ -262,7 +317,10 @@ function normalizeStringList(value) {
 }
 
 function cleanInput(value) {
-  return String(value).replace(/\u0000/g, " ").replace(/\s+/g, " ").trim();
+  return String(value)
+    .replace(/\u0000/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function byteLength(value) {

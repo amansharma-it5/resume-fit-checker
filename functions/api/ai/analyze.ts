@@ -4,8 +4,9 @@ import {
   requestGeminiInsights,
   type GeminiEnv,
 } from "../../_shared/gemini-analysis";
+import { checkAiOperations, isProviderEnabled, type LaunchOperationsEnv } from "../../_shared/launch-operations";
 
-type Context = { request: Request; env: GeminiEnv };
+type Context = { request: Request; env: GeminiEnv & LaunchOperationsEnv };
 function json(status: number, body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status,
@@ -33,6 +34,13 @@ export async function handleAiAnalysis(context: Context, fetchFn: typeof fetch =
     return json(400, { error: "Add both resume and job-description text.", code: "MISSING_INPUT" });
   if (resumeText.length > MAX_AI_INPUT_CHARS || jobDescription.length > MAX_AI_INPUT_CHARS)
     return json(413, { error: "Resume or job-description text is too long for AI analysis.", code: "INPUT_TOO_LARGE" });
+  const operationsResponse = await checkAiOperations(request, env, "analyze");
+  if (operationsResponse) return operationsResponse;
+  if (!isProviderEnabled(env, "gemini"))
+    return json(503, {
+      error: "AI Insights are temporarily unavailable. Local ATS remains available.",
+      code: "AI_DISABLED",
+    });
   const result = await requestGeminiInsights({ resumeText, jobDescription }, env, fetchFn);
   if (!result.ok) {
     console.info(result.diagnostic);
